@@ -24,9 +24,14 @@ export type Product = {
   name: string;
   brand: string;
   short: string;
-  mark: string; // single letter for the gradient card
+  mark: string; // single letter — used as last-resort placeholder
   category: ProductCategoryId;
-  bg: string; // CSS gradient
+  /** Primary product image (Unsplash). */
+  imageUrl: string;
+  /** Optional additional gallery images. */
+  gallery?: string[];
+  /** Theme tone used as a gradient background behind the image. */
+  bg: string;
   fg?: string;
   price: number; // kobo
   last?: number;
@@ -42,6 +47,9 @@ export type Product = {
   moq?: number;
   eta?: string;
 };
+
+const UNSPLASH = (id: string, w = 800) =>
+  `https://images.unsplash.com/photo-${id}?w=${w}&q=80&auto=format&fit=crop`;
 
 export type ProductCategoryId = "beauty" | "home" | "fashion" | "tech" | "food";
 
@@ -68,7 +76,13 @@ export const PRODUCTS: readonly Product[] = [
     short: "Detoxifies and softens with Kaolin and damask rose",
     mark: "A",
     category: "beauty",
-    bg: "linear-gradient(135deg, #d97757 0%, #b54a30 100%)",
+    imageUrl: UNSPLASH("1556228720-195a672e8a03", 1200),
+    gallery: [
+      UNSPLASH("1556228720-195a672e8a03", 1200),
+      UNSPLASH("1571781926291-c477ebfd024b", 1200),
+      UNSPLASH("1620916566398-39f1143ab7be", 1200),
+    ],
+    bg: "linear-gradient(135deg, #f7d4c4 0%, #e6a489 100%)",
     price: 1450000,
     last: 1300000,
     sale: 1200000,
@@ -96,7 +110,12 @@ export const PRODUCTS: readonly Product[] = [
     short: "Unrefined Nigerian shea, ginger root, and frankincense",
     mark: "O",
     category: "beauty",
-    bg: "linear-gradient(135deg, #1f6f4a 0%, #0d4a2c 100%)",
+    imageUrl: UNSPLASH("1601049413050-2f6e7d04930b", 1200),
+    gallery: [
+      UNSPLASH("1601049413050-2f6e7d04930b", 1200),
+      UNSPLASH("1571781418606-d638ea49a925", 1200),
+    ],
+    bg: "linear-gradient(135deg, #d9e3d4 0%, #95b694 100%)",
     price: 980000,
     last: 880000,
     stock: 102,
@@ -117,7 +136,8 @@ export const PRODUCTS: readonly Product[] = [
     short: "Hand-thrown stoneware, fired in Abeokuta",
     mark: "T",
     category: "home",
-    bg: "linear-gradient(135deg, #c4a87a 0%, #8a6f47 100%)",
+    imageUrl: UNSPLASH("1578749556568-bc2c40e68b61", 1200),
+    bg: "linear-gradient(135deg, #ece4d4 0%, #c4a87a 100%)",
     fg: "#1a1208",
     price: 4200000,
     stock: 6,
@@ -137,7 +157,8 @@ export const PRODUCTS: readonly Product[] = [
     short: "Vegetable-tanned leather, hand-stitched in Lagos",
     mark: "Æ",
     category: "fashion",
-    bg: "linear-gradient(135deg, #6b4730 0%, #3d2818 100%)",
+    imageUrl: UNSPLASH("1548036328-c9fa89d128fa", 1200),
+    bg: "linear-gradient(135deg, #dcc6b4 0%, #6b4730 100%)",
     price: 8800000,
     stock: 0,
     rating: 4.6,
@@ -160,7 +181,12 @@ export const PRODUCTS: readonly Product[] = [
     short: "Medium roast, notes of cocoa and hibiscus",
     mark: "K",
     category: "food",
-    bg: "linear-gradient(135deg, #2a1a0d 0%, #5a3520 100%)",
+    imageUrl: UNSPLASH("1559056199-641a0ac8b55e", 1200),
+    gallery: [
+      UNSPLASH("1559056199-641a0ac8b55e", 1200),
+      UNSPLASH("1495474472287-4d71bcdd2085", 1200),
+    ],
+    bg: "linear-gradient(135deg, #d9c7b1 0%, #5a3520 100%)",
     price: 720000,
     stock: 240,
     rating: 4.8,
@@ -183,7 +209,8 @@ export const PRODUCTS: readonly Product[] = [
     short: "Hand-rolled in Ibadan — moringa, oud, and cedar",
     mark: "P",
     category: "home",
-    bg: "linear-gradient(135deg, #4a2d52 0%, #2a1730 100%)",
+    imageUrl: UNSPLASH("1602523498668-d62a35c4f9d8", 1200),
+    bg: "linear-gradient(135deg, #e4d4ec 0%, #4a2d52 100%)",
     price: 580000,
     last: 520000,
     sale: 480000,
@@ -203,7 +230,8 @@ export const PRODUCTS: readonly Product[] = [
     short: "Adire-inspired pattern on charmeuse silk",
     mark: "I",
     category: "fashion",
-    bg: "linear-gradient(135deg, #4f6dc4 0%, #2a3d80 100%)",
+    imageUrl: UNSPLASH("1601924994987-69e26d50dc26", 1200),
+    bg: "linear-gradient(135deg, #c5d1f0 0%, #4f6dc4 100%)",
     price: 3500000,
     stock: 22,
     rating: 4.9,
@@ -222,7 +250,8 @@ export const PRODUCTS: readonly Product[] = [
     short: "Set of four, hand-blown from recycled bottle glass",
     mark: "B",
     category: "home",
-    bg: "linear-gradient(135deg, #7ba3a3 0%, #3f6464 100%)",
+    imageUrl: UNSPLASH("1551803091-e20673f15770", 1200),
+    bg: "linear-gradient(135deg, #d8e6e6 0%, #7ba3a3 100%)",
     price: 2200000,
     stock: 34,
     rating: 4.6,

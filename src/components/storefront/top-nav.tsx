@@ -1,51 +1,193 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { ShoppingBag, Search, Menu } from "lucide-react";
+import { ShoppingBag, Search, Menu, User, MessageCircle, X } from "lucide-react";
 import { useCart } from "@/stores/cart-store";
+import { CATEGORIES } from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
+
+const NAV_LINKS = [
+  { href: "/category/beauty", label: "Beauty & Skincare" },
+  { href: "/category/home", label: "Home & Living" },
+  { href: "/category/fashion", label: "Fashion" },
+  { href: "/category/food", label: "Pantry" },
+  { href: "/category/tech", label: "Tech" },
+];
 
 export function TopNav() {
   const lines = useCart((s) => s.lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur-md">
-      <div className="flex items-center gap-2 px-4 h-14">
-        <button
-          className="flex items-center justify-center size-9 rounded-md hover:bg-surface-2 text-fg"
-          aria-label="Open menu"
-        >
-          <Menu className="size-5" />
-        </button>
-        <Link href="/" className="flex items-center gap-1.5 font-bold text-lg tracking-tight">
-          <span className="inline-flex items-center justify-center size-6 rounded-md bg-brand-primary text-brand-primary-fg text-xs font-bold">
-            av
-          </span>
-          <span>mall</span>
-        </Link>
-        <div className="flex-1" />
-        <button
-          className="flex items-center justify-center size-9 rounded-md hover:bg-surface-2 text-fg"
-          aria-label="Search"
-        >
-          <Search className="size-5" />
-        </button>
-        <Link
-          href="/cart"
-          className="relative flex items-center justify-center size-9 rounded-md hover:bg-surface-2 text-fg"
-          aria-label={`Cart with ${count} items`}
-        >
-          <ShoppingBag className="size-5" />
-          {count > 0 && (
-            <span
-              className="absolute top-0 right-0 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-brand-primary text-brand-primary-fg text-[10px] font-bold tabular"
-              aria-hidden
-            >
-              {count}
+    <>
+      <header className="sticky top-0 z-30 bg-surface/95 backdrop-blur-md border-b border-border">
+        {/* Top utility strip (desktop only) */}
+        <div className="hidden lg:block border-b border-border">
+          <div className="mx-auto max-w-7xl px-6 h-9 flex items-center gap-5 text-xs text-fg-muted">
+            <span>Free shipping on orders over ₦50,000 in Lagos</span>
+            <span className="ml-auto">NGN ₦</span>
+            <Link href="#" className="hover:text-fg">Help</Link>
+            <Link href="#" className="hover:text-fg">Track order</Link>
+            <span className="inline-flex items-center gap-1.5">
+              <MessageCircle className="size-3" /> WhatsApp us
             </span>
-          )}
-        </Link>
-      </div>
-    </header>
+          </div>
+        </div>
+
+        {/* Main bar */}
+        <div className="mx-auto max-w-7xl px-4 lg:px-6 h-16 flex items-center gap-3 lg:gap-8">
+          {/* Mobile menu */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="lg:hidden flex items-center justify-center size-10 rounded-md hover:bg-surface-2"
+            aria-label="Open menu"
+          >
+            <Menu className="size-5" />
+          </button>
+
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
+            <span className="inline-flex items-center justify-center size-8 rounded-md bg-brand-primary text-brand-primary-fg text-sm font-extrabold">
+              av
+            </span>
+            <span>mall</span>
+          </Link>
+
+          {/* Desktop nav */}
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
+            {NAV_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="hover:text-brand-primary transition-colors">
+                {l.label}
+              </Link>
+            ))}
+            <Link href="#" className="text-brand-accent font-semibold hover:text-brand-accent-hover">
+              Sale
+            </Link>
+          </nav>
+
+          <div className="flex-1" />
+
+          {/* Search */}
+          <div className="hidden md:flex items-center gap-2 px-4 h-10 w-72 lg:w-80 bg-surface-2 rounded-full text-sm text-fg-muted">
+            <Search className="size-4" />
+            <span>Search products, brands…</span>
+          </div>
+
+          <button
+            className="md:hidden flex items-center justify-center size-10 rounded-md hover:bg-surface-2"
+            aria-label="Search"
+          >
+            <Search className="size-5" />
+          </button>
+
+          {/* Account */}
+          <Link
+            href="/account"
+            className="hidden md:flex items-center justify-center size-10 rounded-full hover:bg-surface-2 text-fg"
+            aria-label="Account"
+          >
+            <User className="size-5" />
+          </Link>
+
+          {/* Cart */}
+          <Link
+            href="/cart"
+            className="relative flex items-center justify-center size-10 rounded-full hover:bg-surface-2"
+            aria-label={`Cart with ${count} items`}
+          >
+            <ShoppingBag className="size-5" />
+            {count > 0 && (
+              <span
+                className="absolute top-1 right-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-brand-primary text-brand-primary-fg text-[10px] font-bold tabular"
+                aria-hidden
+              >
+                {count}
+              </span>
+            )}
+          </Link>
+        </div>
+      </header>
+
+      {/* Mobile drawer */}
+      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} />
+    </>
+  );
+}
+
+function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-fg/40 transition-opacity",
+          open ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+        onClick={onClose}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-surface shadow-lg flex flex-col transition-transform",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <div className="flex items-center justify-between px-5 h-16 border-b border-border">
+          <Link href="/" onClick={onClose} className="flex items-center gap-2 font-bold text-xl">
+            <span className="inline-flex items-center justify-center size-8 rounded-md bg-brand-primary text-brand-primary-fg text-sm font-extrabold">
+              av
+            </span>
+            <span>mall</span>
+          </Link>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center size-9 rounded-md hover:bg-surface-2"
+            aria-label="Close menu"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        <nav className="flex-1 overflow-y-auto p-5 flex flex-col gap-1">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">
+            Shop
+          </div>
+          {CATEGORIES.map((c) => (
+            <Link
+              key={c.id}
+              href={`/category/${c.id}`}
+              onClick={onClose}
+              className="flex items-center justify-between py-3 text-base font-medium hover:text-brand-primary border-b border-border"
+            >
+              {c.name}
+              <span className="text-xs text-fg-muted tabular">{c.count}</span>
+            </Link>
+          ))}
+          <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2 mt-6">
+            Account
+          </div>
+          <Link
+            href="/account"
+            onClick={onClose}
+            className="py-3 text-base font-medium hover:text-brand-primary border-b border-border"
+          >
+            My account
+          </Link>
+          <Link
+            href="/account/orders"
+            onClick={onClose}
+            className="py-3 text-base font-medium hover:text-brand-primary border-b border-border"
+          >
+            Orders
+          </Link>
+          <Link
+            href="#"
+            onClick={onClose}
+            className="py-3 text-base font-medium hover:text-brand-primary border-b border-border inline-flex items-center gap-2"
+          >
+            <MessageCircle className="size-4" /> WhatsApp support
+          </Link>
+        </nav>
+      </aside>
+    </>
   );
 }

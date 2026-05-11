@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, type OrderStatus } from "@/components/ui/status-pill";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 
 const ORDERS: {
   number: string;
@@ -10,44 +12,65 @@ const ORDERS: {
   status: OrderStatus;
   items: number;
 }[] = [
-  { number: "AVM-2841", date: "Tue 14 Jan", totalKobo: 6294000, status: "confirmed", items: 3 },
-  { number: "AVM-2811", date: "8 Jan", totalKobo: 18900000, status: "delivered", items: 6 },
-  { number: "AVM-2790", date: "2 Jan", totalKobo: 8400000, status: "delivered", items: 2 },
-  { number: "AVM-2754", date: "24 Dec", totalKobo: 14200000, status: "refunded", items: 4 },
+  { number: "AVM-2841", date: "Tue 14 Jan 2026", totalKobo: 6294000, status: "confirmed", items: 3 },
+  { number: "AVM-2811", date: "8 Jan 2026", totalKobo: 18900000, status: "delivered", items: 6 },
+  { number: "AVM-2790", date: "2 Jan 2026", totalKobo: 8400000, status: "delivered", items: 2 },
+  { number: "AVM-2754", date: "24 Dec 2025", totalKobo: 14200000, status: "refunded", items: 4 },
+  { number: "AVM-2718", date: "10 Dec 2025", totalKobo: 2980000, status: "delivered", items: 1 },
 ];
 
 export default function AccountOrdersPage() {
   return (
-    <div className="px-4 py-4 pb-6">
-      <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-2">
-        <Link href="/account" className="hover:text-fg">
-          Account
-        </Link>
-        <ChevronRight className="size-3" />
-        <span className="text-fg font-medium">Orders</span>
+    <div>
+      <div className="flex items-end justify-between mb-6 gap-4">
+        <div>
+          <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight">
+            Orders
+          </h1>
+          <p className="text-sm text-fg-muted mt-1">{ORDERS.length} orders to date</p>
+        </div>
+        <Select className="h-10 w-40 text-sm">
+          <option>All time</option>
+          <option>Last 30 days</option>
+          <option>Last 6 months</option>
+          <option>This year</option>
+        </Select>
       </div>
-      <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
-      <p className="text-sm text-fg-muted mt-0.5">{ORDERS.length} orders</p>
 
-      <div className="mt-5 flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         {ORDERS.map((o) => (
-          <Link
+          <div
             key={o.number}
-            href={`/orders/${o.number}`}
-            className="block p-4 rounded-lg border border-border bg-surface hover:border-border-strong"
+            className="p-5 rounded-lg border border-border bg-surface hover:border-border-strong transition-colors"
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-mono font-bold text-sm tabular">#{o.number}</span>
-              <OrderStatusPill status={o.status} />
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold text-sm tabular">#{o.number}</span>
+                  <OrderStatusPill status={o.status} />
+                </div>
+                <div className="text-xs text-fg-muted mt-1">
+                  {o.date} · {o.items} items
+                </div>
+              </div>
+              <Money kobo={o.totalKobo} className="text-base font-bold" />
             </div>
-            <div className="text-xs text-fg-muted mb-2">
-              {o.date} · {o.items} items
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/orders/${o.number}`}>
+                <Button variant="secondary" size="sm">
+                  Track order <ChevronRight className="size-3.5" />
+                </Button>
+              </Link>
+              <Button variant="ghost" size="sm">
+                Buy again
+              </Button>
+              {o.status === "delivered" && (
+                <Button variant="ghost" size="sm">
+                  Request return
+                </Button>
+              )}
             </div>
-            <div className="flex items-center justify-between">
-              <Money kobo={o.totalKobo} className="font-bold text-sm" />
-              <span className="text-xs text-brand-primary font-semibold">Track →</span>
-            </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>

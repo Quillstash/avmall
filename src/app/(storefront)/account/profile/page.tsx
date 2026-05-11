@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { toast } from "@/components/ui/toaster";
 
 export default function ProfilePage() {
   const [name, setName] = React.useState("Tolu Adeniyi");
@@ -14,21 +13,18 @@ export default function ProfilePage() {
   const [email, setEmail] = React.useState("tolu@example.com");
 
   return (
-    <div className="px-4 py-4 pb-6">
-      <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-2">
-        <Link href="/account" className="hover:text-fg">
-          Account
-        </Link>
-        <ChevronRight className="size-3" />
-        <span className="text-fg font-medium">Profile</span>
-      </div>
-      <h1 className="text-2xl font-bold tracking-tight mb-5">Profile</h1>
+    <div>
+      <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight mb-1">
+        Profile
+      </h1>
+      <p className="text-sm text-fg-muted mb-8">Your name and contact details</p>
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          toast.success("Profile updated");
         }}
-        className="flex flex-col gap-4"
+        className="max-w-xl flex flex-col gap-5"
       >
         <Field id="name" label="Full name">
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -37,11 +33,21 @@ export default function ProfilePage() {
           <PhoneInput id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </Field>
         <Field id="email" label="Email" optional>
-          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </Field>
-        <Button type="submit" width="full" className="mt-2">
-          Save changes
-        </Button>
+        <div className="flex gap-3 mt-3">
+          <Button type="submit" size="lg">
+            Save changes
+          </Button>
+          <Button type="button" variant="ghost" size="lg">
+            Cancel
+          </Button>
+        </div>
       </form>
     </div>
   );
