@@ -1,13 +1,17 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import * as React from "react";
+import { notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ShieldAlert, Camera, MessageCircle } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
-import { Money } from "@/components/ui/money";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Money } from "@/components/ui/money";
+import { RefundComposer, type RefundLine } from "@/components/admin/refund-composer";
+import { toast } from "@/components/ui/toaster";
 import { RETURNS } from "@/lib/admin-mock-data";
 
 interface PageProps {
@@ -15,8 +19,44 @@ interface PageProps {
 }
 
 export default function AdminReturnDetailPage({ params }: PageProps) {
+  const router = useRouter();
   const r = RETURNS.find((r) => r.id === params.id);
   if (!r) notFound();
+
+  const [lines, setLines] = React.useState<RefundLine[]>([
+    {
+      id: "rl1",
+      name: "Whipped Shea Body Balm",
+      variant: "250g",
+      qty: 2,
+      unitKobo: 1800000,
+      condition: "unopened",
+      selected: true,
+      restock: true,
+    },
+    {
+      id: "rl2",
+      name: "Harmattan Incense Set",
+      variant: "24 sticks",
+      qty: 1,
+      unitKobo: 480000,
+      condition: "damaged",
+      selected: true,
+      restock: false, // spec §20 — damaged defaults OFF
+    },
+  ]);
+  const [method, setMethod] = React.useState<"original" | "credit" | "transfer">("original");
+  const [note, setNote] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  function issueRefund() {
+    setLoading(true);
+    window.setTimeout(() => {
+      setLoading(false);
+      toast.success("Refund issued");
+      router.push("/admin/returns");
+    }, 600);
+  }
 
   return (
     <>
@@ -30,32 +70,28 @@ export default function AdminReturnDetailPage({ params }: PageProps) {
         <div className="p-6 max-w-[1400px] mx-auto pb-20">
           {/* Edge case banners */}
           {r.outsideWindow && (
-            <div className="mb-4 p-4 rounded-lg bg-warning-bg border border-warning/30 flex items-start gap-3">
-              <AlertTriangle className="size-5 text-warning flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <div className="font-bold text-sm text-warning mb-1">
-                  Outside 14-day return window
-                </div>
-                <p className="text-xs text-fg-muted">
-                  Order delivered more than 14 days ago. Returns can only be processed with a Manager override and a recorded reason.
-                </p>
-                <Button variant="ghost" size="sm" className="mt-2 text-warning">
+            <Alert
+              tone="warning"
+              icon={<AlertTriangle className="size-5" />}
+              title="Outside 14-day return window"
+              description="Order delivered more than 14 days ago. Returns can only be processed with a Manager override and a recorded reason."
+              action={
+                <Button variant="ghost" size="sm" className="text-warning">
                   Request Manager override
                 </Button>
-              </div>
-            </div>
+              }
+              className="mb-4"
+            />
           )}
 
           {r.fullyReturned && (
-            <div className="mb-4 p-4 rounded-lg bg-surface-2 border border-border flex items-start gap-3">
-              <ShieldAlert className="size-5 text-fg-muted flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <div className="font-bold text-sm mb-1">All items already returned</div>
-                <p className="text-xs text-fg-muted">
-                  Every line item on this order has been returned. No additional refund is owed.
-                </p>
-              </div>
-            </div>
+            <Alert
+              tone="neutral"
+              icon={<ShieldAlert className="size-5" />}
+              title="All items already returned"
+              description="Every line item on this order has been returned. No additional refund is owed."
+              className="mb-4"
+            />
           )}
 
           <PageHeader
@@ -78,95 +114,30 @@ export default function AdminReturnDetailPage({ params }: PageProps) {
                   <MessageCircle className="size-3.5" /> WhatsApp customer
                 </Button>
                 {r.status === "requested" && (
-                  <>
-                    <Button variant="secondary" size="sm">
-                      Reject
-                    </Button>
-                    <Button size="sm">Approve return</Button>
-                  </>
+                  <Button variant="secondary" size="sm">
+                    Reject
+                  </Button>
                 )}
-                {r.status === "approved" && <Button size="sm">Issue refund</Button>}
               </>
             }
           />
 
           <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-            {/* Left */}
             <div className="flex flex-col gap-4">
-              <Card title="Items returned">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface-2">
-                    <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
-                      <th className="text-left px-3 py-2">Item</th>
-                      <th className="text-right px-3 py-2">Qty</th>
-                      <th className="text-left px-3 py-2">Condition</th>
-                      <th className="text-left px-3 py-2">Restock</th>
-                      <th className="text-right px-3 py-2">Refund</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      {
-                        name: "Whipped Shea Body Balm",
-                        variant: "250g",
-                        qty: 2,
-                        condition: "Unopened",
-                        restock: true,
-                        refundKobo: 3600000,
-                      },
-                      {
-                        name: "Harmattan Incense Set",
-                        variant: "24 sticks",
-                        qty: 1,
-                        condition: "Damaged",
-                        restock: false,
-                        refundKobo: 480000,
-                      },
-                    ].map((item, i) => (
-                      <tr key={i} className="border-t border-border">
-                        <td className="px-3 py-2.5">
-                          <div className="font-semibold">{item.name}</div>
-                          <div className="text-[11px] text-fg-muted">{item.variant}</div>
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular">{item.qty}</td>
-                        <td className="px-3 py-2.5">
-                          <Badge tone={item.condition === "Damaged" ? "danger" : "success"}>
-                            {item.condition}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <label className="inline-flex items-center gap-2 cursor-pointer">
-                            <Checkbox defaultChecked={item.restock} />
-                            <span className="text-xs">
-                              {item.restock ? "Restock" : "Write off"}
-                            </span>
-                          </label>
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <Money kobo={item.refundKobo} className="font-bold" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-border bg-surface-2 font-bold">
-                      <td colSpan={4} className="px-3 py-2.5 text-right">
-                        Total refund
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <Money kobo={r.refundKobo} />
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-                <p className="text-[11px] text-fg-muted mt-3">
-                  &ldquo;Damaged&rdquo; items default to{" "}
-                  <span className="font-semibold">Write off</span> — restock requires explicit
-                  staff toggle per policy.
-                </p>
+              <Card title="Refund composition">
+                <RefundComposer
+                  lines={lines}
+                  onLinesChange={setLines}
+                  method={method}
+                  onMethodChange={setMethod}
+                  note={note}
+                  onNoteChange={setNote}
+                  onSubmit={issueRefund}
+                  loading={loading}
+                />
               </Card>
 
-              <Card title="Reason">
+              <Card title="Reason from customer">
                 <p className="text-sm mb-3">{r.reason}</p>
                 <Textarea placeholder="Add internal note…" rows={3} />
               </Card>
@@ -185,29 +156,7 @@ export default function AdminReturnDetailPage({ params }: PageProps) {
               </Card>
             </div>
 
-            {/* Right */}
             <div className="flex flex-col gap-4">
-              <Card title="Refund method">
-                <div className="space-y-2">
-                  {["Original payment method", "Store credit (+5% bonus)", "Bank transfer"].map(
-                    (m, i) => (
-                      <label
-                        key={m}
-                        className="flex items-center gap-2 p-2.5 rounded-md border border-border hover:border-border-strong cursor-pointer text-sm"
-                      >
-                        <input
-                          type="radio"
-                          name="refund-method"
-                          defaultChecked={i === 0}
-                          className="accent-brand-primary"
-                        />
-                        {m}
-                      </label>
-                    ),
-                  )}
-                </div>
-              </Card>
-
               <Card title="Customer">
                 <div className="text-sm">
                   <div className="font-semibold">{r.customerName}</div>
@@ -220,6 +169,19 @@ export default function AdminReturnDetailPage({ params }: PageProps) {
                     View customer →
                   </Button>
                 </Link>
+              </Card>
+
+              <Card title="Refund summary">
+                <div className="text-sm">
+                  <div className="flex justify-between py-1">
+                    <span className="text-fg-muted">Requested</span>
+                    <Money kobo={r.refundKobo} className="font-bold" />
+                  </div>
+                </div>
+                <p className="text-xs text-fg-muted mt-3 leading-relaxed">
+                  Damaged items default to <strong>Write off</strong> per policy. Toggle restock
+                  only with explicit approval.
+                </p>
               </Card>
             </div>
           </div>

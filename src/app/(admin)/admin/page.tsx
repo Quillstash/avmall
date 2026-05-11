@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
+import { LineChart, DonutChart } from "@/components/ui/charts";
 import { ORDERS_LIST } from "@/lib/admin-mock-data";
 import { cn } from "@/lib/utils";
 
@@ -208,22 +209,13 @@ function TimeToggle() {
   );
 }
 
-function RevenueChart() {
-  // Stable mock dataset
-  const data = [
-    42, 38, 45, 52, 48, 61, 55, 49, 58, 72, 68, 76, 82, 71, 79, 88, 84, 92, 86, 95, 103, 98, 107,
-    112, 118, 124, 118, 127, 134, 142,
-  ];
-  const max = Math.max(...data);
-  const w = 720;
-  const h = 200;
-  const pad = 16;
-  const sx = (i: number) => pad + i * ((w - pad * 2) / (data.length - 1));
-  const sy = (v: number) => h - pad - (v / max) * (h - pad * 2);
-  const line = data.map((v, i) => `${i ? "L" : "M"} ${sx(i)} ${sy(v)}`).join(" ");
-  const area = `${line} L ${sx(data.length - 1)} ${h - pad} L ${sx(0)} ${h - pad} Z`;
-  const last = data[data.length - 1]!;
+const REVENUE_DATA = [
+  42, 38, 45, 52, 48, 61, 55, 49, 58, 72, 68, 76, 82, 71, 79, 88, 84, 92, 86, 95, 103, 98, 107,
+  112, 118, 124, 118, 127, 134, 142,
+];
+const REVENUE_LABELS = ["Dec 16", "Dec 23", "Dec 30", "Jan 6", "Jan 13"];
 
+function RevenueChart() {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-3">
@@ -233,111 +225,31 @@ function RevenueChart() {
         </span>
         <span className="text-xs text-fg-muted">vs previous 30 days</span>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="rev-g" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="hsl(var(--brand-primary))" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="hsl(var(--brand-primary))" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 0.25, 0.5, 0.75].map((f) => (
-          <line
-            key={f}
-            x1={pad}
-            x2={w - pad}
-            y1={pad + f * (h - pad * 2)}
-            y2={pad + f * (h - pad * 2)}
-            stroke="hsl(var(--border))"
-            strokeDasharray="2 4"
-          />
-        ))}
-        <path d={area} fill="url(#rev-g)" />
-        <path
-          d={line}
-          fill="none"
-          stroke="hsl(var(--brand-primary))"
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-        <circle
-          cx={sx(data.length - 1)}
-          cy={sy(last)}
-          r="5"
-          fill="hsl(var(--brand-primary))"
-          stroke="hsl(var(--surface))"
-          strokeWidth="2"
-        />
-      </svg>
-      <div className="flex justify-between text-[10px] text-fg-muted mt-1 px-4">
-        {["Dec 16", "Dec 23", "Dec 30", "Jan 6", "Jan 13"].map((d) => (
-          <span key={d}>{d}</span>
-        ))}
-      </div>
+      <LineChart data={REVENUE_DATA} labels={REVENUE_LABELS} height={200} />
     </div>
   );
 }
 
-function Donut() {
-  const data = [
-    { label: "Processing", value: 38, color: "hsl(262 83% 58%)" },
-    { label: "Confirmed", value: 24, color: "hsl(var(--brand-primary))" },
-    { label: "Shipped", value: 18, color: "hsl(190 90% 48%)" },
-    { label: "Delivered", value: 14, color: "hsl(var(--brand-accent))" },
-    { label: "Pending", value: 6, color: "hsl(var(--warning))" },
-  ];
-  const total = data.reduce((a, d) => a + d.value, 0);
-  let cumul = 0;
-  const r = 60;
-  const c = 80;
-  const cir = 2 * Math.PI * r;
+const DONUT_DATA = [
+  { label: "Processing", value: 38, color: "hsl(262 83% 58%)" },
+  { label: "Confirmed", value: 24, color: "hsl(var(--brand-primary))" },
+  { label: "Shipped", value: 18, color: "hsl(190 90% 48%)" },
+  { label: "Delivered", value: 14, color: "hsl(var(--brand-accent))" },
+  { label: "Pending", value: 6, color: "hsl(var(--warning))" },
+];
 
+function Donut() {
+  const total = DONUT_DATA.reduce((a, d) => a + d.value, 0);
   return (
-    <div className="flex items-center gap-4">
-      <svg width="160" height="160" viewBox="0 0 160 160" className="flex-shrink-0">
-        <circle cx={c} cy={c} r={r} fill="none" stroke="hsl(var(--surface-2))" strokeWidth="20" />
-        {data.map((d, i) => {
-          const len = (d.value / total) * cir;
-          const off = (-cumul / total) * cir;
-          cumul += d.value;
-          return (
-            <circle
-              key={i}
-              cx={c}
-              cy={c}
-              r={r}
-              fill="none"
-              stroke={d.color}
-              strokeWidth="20"
-              strokeDasharray={`${len} ${cir}`}
-              strokeDashoffset={off}
-              transform="rotate(-90 80 80)"
-            />
-          );
-        })}
-        <text
-          x={c}
-          y={c - 4}
-          textAnchor="middle"
-          fontSize="22"
-          fontWeight="700"
-          fill="hsl(var(--fg))"
-        >
-          {total}
-        </text>
-        <text x={c} y={c + 14} textAnchor="middle" fontSize="10" fill="hsl(var(--fg-muted))">
-          orders
-        </text>
-      </svg>
-      <div className="flex-1 flex flex-col gap-1.5 text-xs">
-        {data.map((d) => (
-          <div key={d.label} className="flex items-center gap-2">
-            <span className="size-2.5 rounded-sm flex-shrink-0" style={{ background: d.color }} />
-            <span className="flex-1">{d.label}</span>
-            <span className="font-bold tabular">{d.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <DonutChart
+      data={DONUT_DATA}
+      centerLabel={
+        <>
+          <div className="text-2xl font-bold tabular">{total}</div>
+          <div className="text-[10px] text-fg-muted">orders</div>
+        </>
+      }
+    />
   );
 }
 

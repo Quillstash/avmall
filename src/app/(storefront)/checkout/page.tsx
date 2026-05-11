@@ -8,13 +8,13 @@ import { Check, Lock, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select } from "@/components/ui/select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Field } from "@/components/ui/field";
 import { Money } from "@/components/ui/money";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { AddressPicker } from "@/components/ui/address-picker";
+import { Stepper, type StepperItem } from "@/components/ui/stepper";
 import { useCart, resolveCart, computeTotals } from "@/stores/cart-store";
-import { NIGERIAN_STATES, LAGOS_LGAS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 type PaymentMethod = "nuqood" | "transfer" | "pod";
@@ -40,11 +40,28 @@ export default function CheckoutPage() {
   const [address, setAddress] = React.useState("14 Bourdillon Road, Apt 3B");
   const [pay, setPay] = React.useState<PaymentMethod>("nuqood");
 
+  const stepperSteps: StepperItem[] = [
+    { id: "1", label: "Contact" },
+    { id: "2", label: "Shipping" },
+    { id: "3", label: "Payment" },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl px-4 lg:px-6 py-6 lg:py-10">
-      <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight mb-8">
+      <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight mb-6">
         Checkout
       </h1>
+
+      <Stepper
+        steps={stepperSteps}
+        current={String(step)}
+        completed={step > 1 ? (step > 2 ? ["1", "2"] : ["1"]) : []}
+        onStepClick={(id) => {
+          const n = Number(id);
+          if (n < step) setStep(n);
+        }}
+        className="mb-8 max-w-xl"
+      />
 
       <div className="grid lg:grid-cols-[1fr_400px] gap-8 lg:gap-12">
         {/* Left — sections */}
@@ -74,31 +91,17 @@ export default function CheckoutPage() {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </Field>
-                <Field id="name" label="Recipient name">
+                <Field id="name" label="Recipient name" className="sm:col-span-2">
                   <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                 </Field>
-                <Field id="state" label="State">
-                  <Select
-                    id="state"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                  >
-                    {NIGERIAN_STATES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field id="lga" label="LGA">
-                  <Select id="lga" value={city} onChange={(e) => setCity(e.target.value)}>
-                    {(state === "Lagos" ? LAGOS_LGAS : ["—"]).map((l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                <div className="sm:col-span-2">
+                  <AddressPicker
+                    state={state}
+                    city={city}
+                    onStateChange={setState}
+                    onCityChange={setCity}
+                  />
+                </div>
                 <Field
                   id="address"
                   label="Street address"

@@ -7,21 +7,14 @@ import { Check, MapPin, Truck, MessageCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderStatusPill } from "@/components/ui/status-pill";
 import { Money } from "@/components/ui/money";
+import { Timeline, type TimelineEvent } from "@/components/ui/timeline";
 import { useCart, resolveCart, computeTotals } from "@/stores/cart-store";
-import { cn } from "@/lib/utils";
 
-interface Step {
-  t: string;
-  s: string;
-  done: boolean;
-  current?: boolean;
-}
-
-const STEPS: Step[] = [
-  { t: "Order placed", s: "2:14 PM today", done: true, current: true },
-  { t: "Confirmed", s: "pending", done: false },
-  { t: "Shipped", s: "", done: false },
-  { t: "Delivered", s: "", done: false },
+const STEPS: TimelineEvent[] = [
+  { title: "Order placed", subtitle: "2:14 PM today", done: true, current: true },
+  { title: "Confirmed", subtitle: "pending" },
+  { title: "Shipped" },
+  { title: "Delivered" },
 ];
 
 interface PageProps {
@@ -106,33 +99,7 @@ export default function OrderConfirmationPage({ params }: PageProps) {
               <Truck className="size-4" />
               <div className="font-bold text-sm">Estimated delivery: tomorrow by 6pm</div>
             </div>
-            <div className="relative pl-1">
-              <div className="absolute left-3 top-3 bottom-3 w-0.5 bg-border" />
-              {STEPS.map((step, i) => (
-                <div key={i} className="relative flex items-center gap-3.5 py-2">
-                  <div
-                    className={cn(
-                      "size-6 rounded-full flex items-center justify-center flex-shrink-0 z-10 text-white",
-                      step.done ? "bg-brand-accent" : "bg-surface border-2 border-border",
-                    )}
-                  >
-                    {step.done && <Check className="size-3" strokeWidth={3} />}
-                  </div>
-                  <div>
-                    <div
-                      className={cn(
-                        "text-sm",
-                        step.current ? "font-bold" : "font-medium",
-                        step.done ? "text-fg" : "text-fg-muted",
-                      )}
-                    >
-                      {step.t}
-                    </div>
-                    {step.s && <div className="text-xs text-fg-subtle">{step.s}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Timeline events={STEPS} />
           </div>
         </div>
 

@@ -1,39 +1,214 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Download,
-  Search,
-  ChevronDown,
   MoreHorizontal,
   MessageCircle,
+  Mail,
+  Printer,
+  XCircle,
+  Eye,
 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
-import { ORDERS_LIST, type OrderSource } from "@/lib/admin-mock-data";
-import { cn } from "@/lib/utils";
+import { DataTable } from "@/components/ui/data-table";
+import { SavedViewBar, type SavedView } from "@/components/ui/saved-view-bar";
+import { FilterBar, type FilterConfig } from "@/components/ui/filter-bar";
+import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toaster";
+import { ORDERS_LIST, type OrderListRow, type OrderSource } from "@/lib/admin-mock-data";
 
-const SAVED_VIEWS = [
-  { l: "Today's orders", n: 47, active: true },
-  { l: "Awaiting confirm", n: 5 },
-  { l: "Partially paid", n: 14 },
-  { l: "Outstanding balance", n: 22 },
-  { l: "Returns pending", n: 3 },
-  { l: "WhatsApp source", n: 38 },
-  { l: "Blacklisted", n: 2 },
-] as const;
+const SAVED_VIEWS: SavedView[] = [
+  { id: "today", label: "Today's orders", count: 47 },
+  { id: "awaiting", label: "Awaiting confirm", count: 5 },
+  { id: "partial", label: "Partially paid", count: 14 },
+  { id: "outstanding", label: "Outstanding balance", count: 22 },
+  { id: "returns", label: "Returns pending", count: 3 },
+  { id: "whatsapp", label: "WhatsApp source", count: 38 },
+  { id: "blacklist", label: "Blacklisted", count: 2 },
+];
 
-const FILTERS = [
-  "Status: Any",
-  "Payment: Any",
-  "Source: Any",
-  "Date: Last 7 days",
-  "Staff: Any",
-] as const;
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "processing", label: "Processing" },
+  { value: "shipped", label: "Shipped" },
+  { value: "delivered", label: "Delivered" },
+  { value: "cancelled", label: "Cancelled" },
+];
+const PAYMENT_OPTIONS = [
+  { value: "paid", label: "Paid" },
+  { value: "partial", label: "Partial" },
+  { value: "unpaid", label: "Unpaid" },
+];
+const SOURCE_OPTIONS = [
+  { value: "web", label: "Web" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "phone", label: "Phone" },
+  { value: "walkin", label: "Walk-in" },
+  { value: "ai", label: "Ada (AI)" },
+];
 
 export default function AdminOrdersListPage() {
+  const router = useRouter();
+  const [view, setView] = React.useState<string>("today");
+  const [search, setSearch] = React.useState("");
+  const [statusValues, setStatusValues] = React.useState<string[]>([]);
+  const [paymentValues, setPaymentValues] = React.useState<string[]>([]);
+  const [sourceValues, setSourceValues] = React.useState<string[]>([]);
+  const [rowSelection, setRowSelection] = React.useState({});
+  const [cancelTarget, setCancelTarget] = React.useState<OrderListRow | null>(null);
+  const [cancelLoading, setCancelLoading] = React.useState(false);
+
+  const filters: FilterConfig[] = [
+    { id: "status", label: "Status", values: statusValues, options: STATUS_OPTIONS, multi: true },
+    { id: "payment", label: "Payment", values: paymentValues, options: PAYMENT_OPTIONS, multi: true },
+    { id: "source", label: "Source", values: sourceValues, options: SOURCE_OPTIONS, multi: true },
+  ];
+
+  const filtered = React.useMemo(() => {
+    return ORDERS_LIST.filter((o) => {
+      if (
+        search &&
+        ![o.number, o.customerName, o.customerPhone]
+          .join(" ")
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      ) {
+        return false;
+      }
+      if (statusValues.length > 0 && !statusValues.includes(o.status)) return false;
+      if (paymentValues.length > 0 && !paymentValues.includes(o.payment)) return false;
+      if (sourceValues.length > 0 && !sourceValues.includes(o.source)) return false;
+      return true;
+    });
+  }, [search, statusValues, paymentValues, sourceValues]);
+
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
+
+  const columns: ColumnDef<OrderListRow>[] = [
+    {
+      accessorKey: "number",
+      header: "Order",
+      cell: ({ row }) => (
+        <Link
+          href={`/admin/orders/${row.original.number}`}
+          className="font-mono text-xs font-bold tabular hover:text-brand-primary"
+        >
+          #{row.original.number}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: "customerName",
+      header: "Customer",
+      cell: ({ row }) => (
+        <div>
+          <div className="font-semibold">{row.original.customerName}</div>
+          <div className="text-[11px] text-fg-muted font-mono tabular">
+            {row.original.customerPhone}
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "items",
+      header: () => <div className="text-right">Items</div>,
+      cell: ({ row }) => <div className="text-right tabular">{row.original.items}</div>,
+    },
+    {
+      accessorKey: "totalKobo",
+      header: () => <div className="text-right">Total</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <Money kobo={row.original.totalKobo} className="font-bold" />
+          <div className="mt-0.5">
+            <PaymentStatusPill status={row.original.payment} bare />
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <OrderStatusPill status={row.original.status} />,
+    },
+    {
+      accessorKey: "source",
+      header: "Source",
+      enableSorting: false,
+      cell: ({ row }) => <SourceChip source={row.original.source} />,
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      cell: ({ row }) => (
+        <div>
+          <div className="text-xs text-fg-muted">{row.original.createdAt}</div>
+          <div className="text-[10px] text-fg-subtle">by {row.original.createdBy}</div>
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="p-1.5 text-fg-muted hover:text-fg rounded-md hover:bg-surface"
+                aria-label="Row actions"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push(`/admin/orders/${row.original.number}`)}>
+                <Eye className="size-3.5" /> View
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Receipt sent")}>
+                <Mail className="size-3.5" /> Email receipt
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("WhatsApp opened")}>
+                <MessageCircle className="size-3.5" /> WhatsApp customer
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Sent to printer")}>
+                <Printer className="size-3.5" /> Print packing slip
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                destructive
+                onClick={() => setCancelTarget(row.original)}
+                disabled={row.original.status === "cancelled" || row.original.status === "delivered"}
+              >
+                <XCircle className="size-3.5" /> Cancel order
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <>
       <AdminTopBar breadcrumbs={[{ label: "Orders" }]} />
@@ -47,132 +222,97 @@ export default function AdminOrdersListPage() {
                 <Button variant="secondary" size="sm">
                   <Download className="size-3.5" /> Export
                 </Button>
-                <Button size="sm">
-                  <Plus className="size-3.5" /> New order
-                </Button>
+                <Link href="/admin/orders/new">
+                  <Button size="sm">
+                    <Plus className="size-3.5" /> New order
+                  </Button>
+                </Link>
               </>
             }
           />
 
-          {/* Saved views */}
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-            {SAVED_VIEWS.map((v) => (
-              <button
-                key={v.l}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
-                  "active" in v && v.active
-                    ? "bg-info-bg border-brand-primary/30 text-brand-primary"
-                    : "bg-surface border-border text-fg hover:border-border-strong",
-                )}
-              >
-                {v.l}
-                <span className="opacity-60 tabular">{v.n}</span>
-              </button>
-            ))}
-          </div>
+          <SavedViewBar
+            views={SAVED_VIEWS}
+            activeId={view}
+            onChange={setView}
+            className="mb-4"
+          />
 
-          {/* Filter bar */}
-          <div className="rounded-lg border border-border bg-surface p-3 mb-4 flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 px-3 h-9 bg-surface-2 rounded-md text-sm text-fg-muted flex-1 min-w-[200px]">
-              <Search className="size-4" />
-              <span>Order #, customer, phone…</span>
-            </div>
-            {FILTERS.map((f) => (
-              <button
-                key={f}
-                className="inline-flex items-center gap-1 px-3 h-9 bg-surface border border-border-strong rounded-md text-xs font-semibold hover:bg-surface-2"
-              >
-                {f} <ChevronDown className="size-3" />
-              </button>
-            ))}
-          </div>
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Order #, customer, phone…"
+            filters={filters}
+            onFilterChange={(id, values) => {
+              if (id === "status") setStatusValues(values);
+              if (id === "payment") setPaymentValues(values);
+              if (id === "source") setSourceValues(values);
+            }}
+            onClear={() => {
+              setStatusValues([]);
+              setPaymentValues([]);
+              setSourceValues([]);
+            }}
+            className="mb-4"
+          />
 
-          {/* Table */}
-          <div className="rounded-lg border border-border bg-surface shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-2">
-                  <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
-                    <th className="px-3.5 py-2.5 w-8">
-                      <input type="checkbox" className="accent-brand-primary" />
-                    </th>
-                    <th className="text-left px-3.5 py-2.5">Order</th>
-                    <th className="text-left px-3.5 py-2.5">Customer</th>
-                    <th className="text-right px-3.5 py-2.5">Items</th>
-                    <th className="text-right px-3.5 py-2.5">Total</th>
-                    <th className="text-left px-3.5 py-2.5">Status</th>
-                    <th className="text-left px-3.5 py-2.5">Source</th>
-                    <th className="text-left px-3.5 py-2.5">Created</th>
-                    <th className="w-10" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {ORDERS_LIST.map((o) => (
-                    <tr key={o.number} className="border-t border-border hover:bg-surface-2">
-                      <td className="px-3.5 py-3">
-                        <input type="checkbox" className="accent-brand-primary" />
-                      </td>
-                      <td className="px-3.5 py-3 font-mono text-xs font-bold tabular">
-                        <Link
-                          href={`/admin/orders/${o.number}`}
-                          className="hover:text-brand-primary"
-                        >
-                          #{o.number}
-                        </Link>
-                      </td>
-                      <td className="px-3.5 py-3">
-                        <div className="font-semibold">{o.customerName}</div>
-                        <div className="text-[11px] text-fg-muted font-mono tabular">
-                          {o.customerPhone}
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-3 text-right tabular">{o.items}</td>
-                      <td className="px-3.5 py-3 text-right">
-                        <Money kobo={o.totalKobo} className="font-bold" />
-                        <div className="mt-0.5">
-                          <PaymentStatusPill status={o.payment} bare />
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-3">
-                        <OrderStatusPill status={o.status} />
-                      </td>
-                      <td className="px-3.5 py-3">
-                        <SourceChip source={o.source} />
-                      </td>
-                      <td className="px-3.5 py-3">
-                        <div className="text-xs text-fg-muted">{o.createdAt}</div>
-                        <div className="text-[10px] text-fg-subtle">by {o.createdBy}</div>
-                      </td>
-                      <td className="px-3.5 py-3 text-right">
-                        <button
-                          className="p-1.5 text-fg-muted hover:text-fg rounded-md hover:bg-surface"
-                          aria-label="Row actions"
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination footer */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-surface-2 text-xs text-fg-muted">
-              <span>Showing 1–10 of 284 orders</span>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="ghost" disabled>
-                  Previous
-                </Button>
-                <Button size="sm" variant="ghost">
-                  Next →
-                </Button>
-              </div>
-            </div>
-          </div>
+          <DataTable
+            columns={columns}
+            data={filtered}
+            enableSelection
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            onRowClick={(row) => router.push(`/admin/orders/${row.number}`)}
+            toolbar={(table) => (
+              <BulkActionsBar
+                count={selectedCount}
+                onClear={() => table.resetRowSelection()}
+                actions={[
+                  {
+                    id: "export",
+                    label: "Export selected",
+                    icon: <Download className="size-3.5" />,
+                    onClick: () => toast.success(`Exporting ${selectedCount} orders`),
+                  },
+                  {
+                    id: "email",
+                    label: "Email customers",
+                    icon: <Mail className="size-3.5" />,
+                    onClick: () => toast.success("Drafts queued"),
+                  },
+                ]}
+              />
+            )}
+          />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => !o && setCancelTarget(null)}
+        title="Cancel this order?"
+        description={
+          cancelTarget && (
+            <>
+              <span className="font-mono font-bold">#{cancelTarget.number}</span> for{" "}
+              <span className="font-semibold">{cancelTarget.customerName}</span>. This releases stock
+              reservations and notifies the customer. Audit log is preserved.
+            </>
+          )
+        }
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        destructive
+        loading={cancelLoading}
+        onConfirm={() => {
+          setCancelLoading(true);
+          window.setTimeout(() => {
+            setCancelLoading(false);
+            setCancelTarget(null);
+            toast.success(`Order ${cancelTarget?.number} cancelled`);
+          }, 500);
+        }}
+      />
     </>
   );
 }

@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -10,9 +13,11 @@ import {
   Link as LinkIcon,
   Truck,
   Phone,
-  ShieldAlert,
   Sparkles,
   AlertTriangle,
+  Check,
+  XCircle,
+  Copy,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { Button } from "@/components/ui/button";
@@ -23,19 +28,34 @@ import {
   PaymentStatusPill,
 } from "@/components/ui/status-pill";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Timeline, type TimelineEvent } from "@/components/ui/timeline";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { PaymentLedger } from "@/components/admin/payment-ledger";
+import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
+import { toast } from "@/components/ui/toaster";
 import {
   ORDER_DETAIL_ITEMS,
   ORDER_PAYMENTS,
+  type OrderPayment,
 } from "@/lib/admin-mock-data";
 import { formatMoney } from "@/lib/money";
-import { cn } from "@/lib/utils";
 
 interface PageProps {
   params: { number: string };
 }
 
 export default function AdminOrderDetailPage({ params }: PageProps) {
-  // Compute totals from items
+  // Totals (mock — Phase 4 will pull from DB)
   const itemsSubtotal = ORDER_DETAIL_ITEMS.reduce(
     (a, i) => a + i.unitKobo * i.qty,
     0,
@@ -47,13 +67,78 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
   const couponDiscount = 500000;
   const shipping = 350000;
   const total = itemsSubtotal - totalLineDiscounts - couponDiscount + shipping;
-  const paid = ORDER_PAYMENTS.filter((p) => p.status === "completed").reduce(
-    (a, p) => a + p.amountKobo,
-    0,
-  );
+
+  // Live payments — let the user record new ones in this session
+  const [payments, setPayments] = React.useState<OrderPayment[]>([...ORDER_PAYMENTS]);
+  const paid = payments
+    .filter((p) => p.status === "completed")
+    .reduce((a, p) => a + p.amountKobo, 0);
   const outstanding = total - paid;
   const isPartiallyPaid = paid > 0 && outstanding > 0;
   const isOverpaid = outstanding < 0;
+
+  // Edge case toggles (real impl will come from DB)
+  const isBlacklisted = false;
+
+  const [recordOpen, setRecordOpen] = React.useState(false);
+  const [cancelOpen, setCancelOpen] = React.useState(false);
+
+  function recordPayment(data: {
+    amountKobo: number;
+    method: string;
+    reference: string;
+    note: string;
+  }) {
+    setPayments((prev) => [
+      ...prev,
+      {
+        method: data.method,
+        amountKobo: data.amountKobo,
+        txRef: data.reference || "—",
+        status: "completed",
+        by: "Funmi A.",
+        time: "just now",
+      },
+    ]);
+    setRecordOpen(false);
+    toast.success(`Payment of ${formatMoney(data.amountKobo)} recorded`);
+  }
+
+  const timeline: TimelineEvent[] = [
+    { title: "Order placed", subtitle: "Tue 14 Jan · 2:14 PM", meta: "Funmi A.", done: true },
+    ...payments
+      .filter((p) => p.status === "completed")
+      .map<TimelineEvent>((p) => ({
+        title: `${p.method} payment recorded`,
+        subtitle: p.time,
+        meta: `${p.by} · ${formatMoney(p.amountKobo)}`,
+        done: true,
+      })),
+    isPartiallyPaid
+      ? {
+          title: "Awaiting final payment",
+          subtitle: `${formatMoney(outstanding)} outstanding`,
+          current: true,
+        }
+      : isOverpaid
+        ? {
+            title: "Credit due",
+            subtitle: `${formatMoney(Math.abs(outstanding))} overpaid`,
+            current: true,
+          }
+        : {
+            title: "Paid in full",
+            subtitle: "ready to ship",
+            done: true,
+          },
+    {
+      title: "Mark as shipped",
+      subtitle: isPartiallyPaid ? "blocked" : "ready",
+      meta: isPartiallyPaid ? "Requires paid in full" : undefined,
+      blocked: isPartiallyPaid,
+    },
+    { title: "Delivered" },
+  ];
 
   return (
     <>
@@ -74,36 +159,77 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                 </h1>
                 <OrderStatusPill status="processing" />
                 <PaymentStatusPill status="partial" />
-                <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-surface-2 border border-border font-medium">
-                  <MessageCircle className="size-3" /> WhatsApp source
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-surface-2 border border-border font-medium cursor-help">
+                      <MessageCircle className="size-3" /> WhatsApp source
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Order originated from WhatsApp conversation with Ada</TooltipContent>
+                </Tooltip>
               </div>
               <div className="text-sm text-fg-muted">
                 Placed Tue 14 Jan, 2:14 PM · by Funmi A. (you) · 3 items
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => toast.success("Edit mode")}>
                 <Edit2 className="size-3.5" /> Edit
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  window.print();
+                }}
+              >
                 <Printer className="size-3.5" /> Print
               </Button>
-              <Button variant="ghost" size="sm">
-                <Mail className="size-3.5" /> Email customer
-              </Button>
-              <Button variant="ghost" size="sm">
-                <MessageCircle className="size-3.5" /> WhatsApp
-              </Button>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal className="size-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="More actions">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => toast.success("Receipt emailed")}>
+                    <Mail className="size-3.5" /> Email customer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.success("WhatsApp opened")}>
+                    <MessageCircle className="size-3.5" /> WhatsApp customer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      void navigator.clipboard.writeText(params.number);
+                      toast.success("Order number copied");
+                    }}
+                  >
+                    <Copy className="size-3.5" /> Copy order #
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem destructive onClick={() => setCancelOpen(true)}>
+                    <XCircle className="size-3.5" /> Cancel order
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
-          {/* Blacklist banner — surfaced for the customer if flag is set.
-              See CLAUDE.md §20 — blacklisted customers cannot transact unless Manager+ overrides. */}
-          {false && <BlacklistBanner />}
+          {/* Blacklist banner */}
+          {isBlacklisted && (
+            <Alert
+              tone="danger"
+              icon={<AlertTriangle className="size-5" />}
+              title="Customer is blacklisted — order locked"
+              description="No further actions can be taken without a manager override."
+              action={
+                <Button size="sm" variant="ghost" className="text-danger">
+                  Override
+                </Button>
+              }
+              className="mb-4"
+            />
+          )}
 
           {/* Three column layout */}
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
@@ -174,9 +300,24 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                           <Money kobo={it.unitKobo * it.qty - it.discountKobo} />
                         </td>
                         <td className="px-3.5 py-3 text-right">
-                          <button className="p-1 text-fg-muted hover:text-fg" aria-label="Row actions">
-                            <MoreHorizontal className="size-3.5" />
-                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className="p-1 text-fg-muted hover:text-fg"
+                                aria-label="Item actions"
+                              >
+                                <MoreHorizontal className="size-3.5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => toast.success("Edit qty")}>
+                                Edit qty
+                              </DropdownMenuItem>
+                              <DropdownMenuItem destructive onClick={() => toast.success("Removed")}>
+                                Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     ))}
@@ -218,7 +359,7 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                     <TotalRow label="Amount paid" value={formatMoney(paid)} muted />
                     <TotalRow
                       label="Outstanding"
-                      value={formatMoney(outstanding)}
+                      value={formatMoney(Math.abs(outstanding))}
                       highlight={isPartiallyPaid}
                     />
                   </div>
@@ -226,7 +367,7 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
               </Card>
 
               <Card title="Status timeline">
-                <Timeline />
+                <Timeline events={timeline} />
               </Card>
 
               <Card
@@ -251,7 +392,7 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
 
             {/* MIDDLE — payments & actions */}
             <div className="flex flex-col gap-4 min-w-0">
-              {/* Outstanding balance — edge case for partial payment per CLAUDE.md §20 */}
+              {/* Partial-payment edge case */}
               {isPartiallyPaid && (
                 <div className="rounded-lg p-4 bg-warning-bg border border-warning/30">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-warning mb-1">
@@ -261,10 +402,14 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                     {formatMoney(outstanding)}
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Button width="full">
+                    <Button width="full" onClick={() => toast.success("Payment link generated")}>
                       <LinkIcon className="size-3.5" /> Generate payment link
                     </Button>
-                    <Button width="full" variant="secondary">
+                    <Button
+                      width="full"
+                      variant="secondary"
+                      onClick={() => setRecordOpen(true)}
+                    >
                       <Plus className="size-3.5" /> Record payment
                     </Button>
                   </div>
@@ -277,7 +422,7 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                 </div>
               )}
 
-              {/* Overpaid edge state — see CLAUDE.md §20: negative outstanding → store credit / refund */}
+              {/* Overpaid edge case */}
               {isOverpaid && (
                 <div className="rounded-lg p-4 bg-info-bg border border-brand-primary/30">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-brand-primary mb-1">
@@ -295,54 +440,28 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                 </div>
               )}
 
+              {/* Paid-in-full happy path */}
+              {!isPartiallyPaid && !isOverpaid && (
+                <Alert
+                  tone="success"
+                  icon={<Check className="size-5" />}
+                  title="Paid in full"
+                  description="Order is ready to be marked shipped."
+                />
+              )}
+
               <Card
                 title="Payments"
                 action={
                   <span className="text-[11px] text-fg-muted">
-                    {ORDER_PAYMENTS.length} records
+                    {payments.length} records
                   </span>
                 }
                 padded={false}
               >
-                <div className="flex flex-col">
-                  {ORDER_PAYMENTS.map((p, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "px-4 py-3 flex items-start gap-3",
-                        i > 0 && "border-t border-border",
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "size-9 rounded-md flex items-center justify-center flex-shrink-0",
-                          p.status === "completed"
-                            ? "bg-success-bg text-success"
-                            : "bg-warning-bg text-warning",
-                        )}
-                      >
-                        <Money kobo={p.amountKobo} className="text-[10px] font-bold" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold">{p.method}</span>
-                          {p.status === "pending" && (
-                            <Badge tone="warning">Pending</Badge>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-fg-muted">
-                          <span className="font-mono tabular">{p.txRef}</span> · by {p.by} · {p.time}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Money kobo={p.amountKobo} className="font-bold text-sm" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <PaymentLedger payments={payments} />
               </Card>
 
-              {/* Next action — disabled because not paid in full */}
               <Card title="Next action">
                 <div className="p-3.5 rounded-md bg-surface-2 flex flex-col gap-2.5">
                   <div className="flex items-center gap-2.5">
@@ -352,11 +471,17 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                     <div className="flex-1">
                       <div className="text-sm font-bold">Mark as shipped</div>
                       <div className="text-[11px] text-fg-muted">
-                        Disabled until paid in full
+                        {isPartiallyPaid
+                          ? "Disabled until paid in full"
+                          : "Ready to dispatch"}
                       </div>
                     </div>
                   </div>
-                  <Button width="full" disabled>
+                  <Button
+                    width="full"
+                    disabled={isPartiallyPaid}
+                    onClick={() => toast.success("Order marked as shipped")}
+                  >
                     Mark as shipped
                   </Button>
                 </div>
@@ -365,9 +490,12 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
               <Card
                 title="AI conversation"
                 action={
-                  <button className="text-xs font-semibold text-brand-primary hover:underline">
+                  <Link
+                    href="/admin/ai"
+                    className="text-xs font-semibold text-brand-primary hover:underline"
+                  >
                     Open thread →
-                  </button>
+                  </Link>
                 }
               >
                 <div className="p-3 rounded-md bg-info-bg border border-brand-primary/15">
@@ -392,9 +520,9 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
             <div className="flex flex-col gap-4 min-w-0">
               <Card title="Customer">
                 <div className="flex items-center gap-2.5 mb-3">
-                  <div className="size-11 rounded-full bg-gradient-to-br from-[hsl(38_80%_60%)] to-[hsl(20_70%_50%)] text-white flex items-center justify-center font-bold text-base">
-                    TA
-                  </div>
+                  <Avatar size="lg">
+                    <AvatarFallback>TA</AvatarFallback>
+                  </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm">Tolu Adeniyi</div>
                     <div className="text-[11px] text-fg-muted font-mono tabular">
@@ -465,10 +593,10 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
                   <Link
                     key={o.id}
                     href={`/admin/orders/${o.id}`}
-                    className={cn(
-                      "flex items-center justify-between py-2",
-                      i > 0 && "border-t border-border",
-                    )}
+                    className={
+                      "flex items-center justify-between py-2 " +
+                      (i > 0 ? "border-t border-border" : "")
+                    }
                   >
                     <div>
                       <div className="font-mono text-xs font-bold tabular">#{o.id}</div>
@@ -487,27 +615,34 @@ export default function AdminOrderDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
-    </>
-  );
-}
 
-function BlacklistBanner() {
-  return (
-    <div className="mb-4 p-4 rounded-lg bg-danger-bg border border-danger/30 flex items-start gap-3">
-      <ShieldAlert className="size-5 text-danger flex-shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <div className="font-bold text-sm text-danger mb-1">
-          Customer is blacklisted — order locked
-        </div>
-        <p className="text-xs text-fg-muted leading-relaxed">
-          This customer has been flagged. No further actions can be taken on this order without an
-          override.{" "}
-          <button className="text-brand-primary font-semibold hover:underline">
-            Manager override
-          </button>
-        </p>
-      </div>
-    </div>
+      <RecordPaymentModal
+        open={recordOpen}
+        onOpenChange={setRecordOpen}
+        outstandingKobo={Math.max(0, outstanding)}
+        onSubmit={recordPayment}
+      />
+
+      <ConfirmDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        title="Cancel this order?"
+        description={
+          <>
+            Order <span className="font-mono font-bold">#{params.number}</span> will be marked
+            cancelled. Stock reservations are released and the customer is notified.
+          </>
+        }
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        destructive
+        typeToConfirm="CANCEL"
+        onConfirm={() => {
+          setCancelOpen(false);
+          toast.success("Order cancelled");
+        }}
+      />
+    </>
   );
 }
 
@@ -552,20 +687,20 @@ function TotalRow({
   return (
     <div className="flex justify-between items-baseline text-sm">
       <span
-        className={cn(
-          strong ? "font-bold text-fg" : "text-fg-muted",
-          muted && "text-fg-subtle",
-        )}
+        className={
+          (strong ? "font-bold text-fg" : "text-fg-muted") +
+          (muted ? " text-fg-subtle" : "")
+        }
       >
         {label}
       </span>
       <span
-        className={cn(
-          "tabular",
-          strong ? "font-bold text-lg" : "font-semibold",
-          accent && "text-brand-accent",
-          highlight && "text-warning font-bold",
-        )}
+        className={
+          "tabular " +
+          (strong ? "font-bold text-lg" : "font-semibold") +
+          (accent ? " text-brand-accent" : "") +
+          (highlight ? " text-warning font-bold" : "")
+        }
       >
         {value}
       </span>
@@ -598,73 +733,6 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">{label}</div>
       <div className="text-sm font-bold tabular mt-0.5">{value}</div>
-    </div>
-  );
-}
-
-function Timeline() {
-  const events = [
-    { t: "Order placed", s: "Tue 14 Jan · 2:14 PM", done: true, by: "Funmi A." },
-    {
-      t: "Partial payment recorded",
-      s: "Tue 14 Jan · 2:18 PM",
-      done: true,
-      by: "Nuqood card · ₦20,000",
-    },
-    {
-      t: "Partial payment recorded",
-      s: "Tue 14 Jan · 3:42 PM",
-      done: true,
-      by: "GTB transfer · ₦10,000",
-    },
-    {
-      t: "Awaiting final payment",
-      s: "Tue 14 Jan · 3:42 PM",
-      done: false,
-      current: true,
-      by: "Customer confirmed transfer pending",
-    },
-    { t: "Mark as shipped", s: "blocked", done: false, by: "Requires paid in full" },
-    { t: "Delivered", s: "", done: false },
-  ];
-  return (
-    <div className="relative">
-      <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-border" />
-      {events.map((e, i) => (
-        <div key={i} className="relative flex items-start gap-3 py-2">
-          <div
-            className={cn(
-              "size-6 rounded-full flex items-center justify-center flex-shrink-0 z-10",
-              e.done
-                ? "bg-brand-accent text-white"
-                : e.current
-                  ? "bg-warning text-white ring-4 ring-warning-bg"
-                  : "bg-surface border-2 border-border",
-            )}
-          >
-            {e.done && <Truck className="size-3" />}
-            {e.current && <AlertTriangle className="size-3" />}
-          </div>
-          <div className="pt-0.5">
-            <div
-              className={cn(
-                "text-sm",
-                e.done
-                  ? "font-semibold text-fg"
-                  : e.current
-                    ? "font-bold text-fg"
-                    : "text-fg-muted",
-              )}
-            >
-              {e.t}
-            </div>
-            <div className="text-[11px] text-fg-muted">
-              {e.s}
-              {e.by && ` · ${e.by}`}
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

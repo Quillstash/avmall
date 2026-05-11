@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Tag } from "lucide-react";
-import { Money } from "@/components/ui/money";
+import { PriceBlock } from "@/components/ui/price-block";
 import { ProductVisual } from "@/components/ui/product-visual";
 import { WishlistButton } from "@/components/storefront/wishlist-button";
 import type { Product } from "@/lib/mock-data";
@@ -62,15 +62,12 @@ export function ProductCard({ product, priority, className }: ProductCardProps) 
         <div className="text-sm font-semibold leading-snug mt-1 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-primary transition-colors">
           {product.name}
         </div>
-        <div className="flex items-baseline gap-2 mt-1.5">
-          <Money
-            kobo={displayKobo}
-            className={cn("text-sm font-bold", onSale && "text-danger")}
-          />
-          {onSale && (
-            <Money kobo={product.price} variant="strikethrough" className="text-xs" />
-          )}
-        </div>
+        <PriceBlock
+          priceKobo={displayKobo}
+          {...(onSale ? { comparePriceKobo: product.price, onSale: true } : {})}
+          size="sm"
+          className="mt-1.5"
+        />
         <div className="flex items-center gap-2 mt-1 min-h-[1rem]">
           {product.bulk.length > 0 && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-accent">

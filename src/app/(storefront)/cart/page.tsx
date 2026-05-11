@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Shield, Check, X, Lock } from "lucide-react";
+import { ShoppingBag, Shield, X, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Money } from "@/components/ui/money";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CouponInput } from "@/components/ui/coupon-input";
 import { useCart, resolveCart, computeTotals } from "@/stores/cart-store";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,6 @@ export default function CartPage() {
 
   const resolved = React.useMemo(() => resolveCart(lines), [lines]);
 
-  const [couponInput, setCouponInput] = React.useState("");
   const [coupon, setCoupon] = React.useState<string | null>(null);
   const couponPct = coupon === "WELCOME10" ? 10 : 0;
 
@@ -173,40 +172,17 @@ export default function CartPage() {
           <div className="rounded-lg border border-border bg-surface p-6 shadow-sm">
             <h2 className="font-bold text-base mb-4">Order summary</h2>
 
-            {/* Coupon */}
-            {coupon ? (
-              <div className="flex items-center justify-between px-3 py-2 rounded-md bg-success-bg text-success text-sm font-semibold mb-4">
-                <span className="flex items-center gap-2">
-                  <Check className="size-3.5" /> Coupon{" "}
-                  <code className="font-mono">{coupon}</code>
-                </span>
-                <button
-                  onClick={() => setCoupon(null)}
-                  className="hover:bg-success/10 p-1 rounded"
-                  aria-label="Remove coupon"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2 mb-4">
-                <Input
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                  placeholder="Coupon code"
-                  className="flex-1 font-mono uppercase"
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => couponInput && setCoupon(couponInput)}
-                >
-                  Apply
-                </Button>
-              </div>
-            )}
-            <p className="text-[11px] text-fg-subtle mb-4">
-              Try <code className="font-mono">WELCOME10</code> for 10% off
-            </p>
+            <CouponInput
+              value={coupon}
+              onApply={setCoupon}
+              onRemove={() => setCoupon(null)}
+              hint={
+                <>
+                  Try <code className="font-mono">WELCOME10</code> for 10% off
+                </>
+              }
+              className="mb-4"
+            />
 
             <SummaryRow label="Subtotal" value={<Money kobo={totals.subtotalKobo} />} />
             {totals.bulkDiscountKobo > 0 && (

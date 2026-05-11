@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PriceBlock } from "@/components/ui/price-block";
+import { VariantPicker } from "@/components/ui/variant-picker";
 import { useCart } from "@/stores/cart-store";
 import { applyPercentageDiscount, formatMoney } from "@/lib/money";
 import type { Product } from "@/lib/mock-data";
@@ -47,23 +49,13 @@ export function PDPDetail({ product }: { product: Product }) {
     <>
       {/* Price block */}
       <div className="mb-6">
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <Money
-            kobo={unitKobo}
-            className={cn(
-              "text-[34px] lg:text-[40px] font-bold tracking-tight",
-              product.saleActive && "text-danger",
-            )}
-          />
-          {product.saleActive && product.sale != null && (
-            <>
-              <Money kobo={product.price} variant="strikethrough" className="text-xl" />
-              <span className="inline-flex items-center text-xs font-bold tracking-wider px-2.5 py-1 bg-danger/10 text-danger rounded">
-                Save {formatMoney(product.price - product.sale)}
-              </span>
-            </>
-          )}
-        </div>
+        <PriceBlock
+          priceKobo={unitKobo}
+          {...(product.saleActive && product.sale != null
+            ? { comparePriceKobo: product.price, onSale: true }
+            : {})}
+          size="xl"
+        />
         {product.negotiate && (
           <button className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-primary hover:underline">
             <MessageCircle className="size-4" /> Negotiate this price on WhatsApp
@@ -77,33 +69,11 @@ export function PDPDetail({ product }: { product: Product }) {
           <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">
             Size · <span className="text-fg normal-case font-semibold">{variant.label}</span>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {product.variants.map((v) => {
-              const selected = v.id === variantId;
-              const out = v.stock === 0;
-              return (
-                <button
-                  key={v.id}
-                  disabled={out}
-                  onClick={() => setVariantId(v.id)}
-                  className={cn(
-                    "px-4 py-3 rounded-md border text-sm font-semibold min-w-[80px]",
-                    selected
-                      ? "border-fg bg-fg text-bg"
-                      : "border-border-strong bg-surface text-fg hover:border-fg",
-                    out && "line-through opacity-50 cursor-not-allowed",
-                  )}
-                >
-                  {v.label}
-                  {v.price && (
-                    <div className="text-[11px] font-medium opacity-80 mt-0.5">
-                      {formatMoney(v.price)}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <VariantPicker
+            variants={[...product.variants]}
+            value={variantId}
+            onChange={setVariantId}
+          />
         </div>
       )}
 

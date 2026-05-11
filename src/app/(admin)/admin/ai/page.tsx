@@ -1,11 +1,40 @@
-import { Sparkles, MessageCircle, Clock, ArrowRight, Settings, AlertTriangle } from "lucide-react";
+"use client";
+
+import * as React from "react";
+import {
+  Sparkles,
+  MessageCircle,
+  Clock,
+  ArrowRight,
+  Settings,
+  AlertTriangle,
+} from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, initialsOf } from "@/components/ui/avatar";
+import { RowDrawer } from "@/components/ui/row-drawer";
+import {
+  AiThreadViewer,
+  type AiMessage,
+} from "@/components/admin/ai-thread-viewer";
+import { toast } from "@/components/ui/toaster";
 
-const HANDOFFS = [
+interface Handoff {
+  id: string;
+  customer: string;
+  phone: string;
+  reason: string;
+  waitMin: number;
+  channel: "WhatsApp" | "Web";
+  breached?: boolean;
+}
+
+const HANDOFFS: Handoff[] = [
   {
+    id: "h1",
     customer: "Henry W.",
     phone: "+234 802 999 0011",
     reason: "Asked about wholesale terms above tier 3",
@@ -14,6 +43,7 @@ const HANDOFFS = [
     breached: true,
   },
   {
+    id: "h2",
     customer: "Aisha M.",
     phone: "+234 814 220 6688",
     reason: "Wants to negotiate price below floor",
@@ -22,7 +52,56 @@ const HANDOFFS = [
   },
 ];
 
+const SEED_THREAD: AiMessage[] = [
+  {
+    id: "m1",
+    role: "ai",
+    text: "Hi Henry! I see you've been browsing wholesale tiers. How can I help?",
+    time: "11:38 AM",
+  },
+  {
+    id: "m2",
+    role: "user",
+    text: "Hello — I want to order 200 units of shea balm. Can I get 20% off?",
+    time: "11:40 AM",
+  },
+  {
+    id: "m3",
+    role: "ai",
+    text: "Our top wholesale tier is 15% off at 50+ units. 20% is below my floor, so I'll need to bring in a human from our team. One moment…",
+    time: "11:40 AM",
+    tools: [{ name: "request_handoff" }],
+  },
+];
+
 export default function AdminAIPage() {
+  const [activeHandoff, setActiveHandoff] = React.useState<Handoff | null>(null);
+  const [thread, setThread] = React.useState<AiMessage[]>(SEED_THREAD);
+  const [claimed, setClaimed] = React.useState(false);
+
+  function openHandoff(h: Handoff) {
+    setActiveHandoff(h);
+    setThread(SEED_THREAD);
+    setClaimed(false);
+  }
+
+  function claim() {
+    setClaimed(true);
+    toast.success("Handoff claimed");
+  }
+
+  function sendStaff(text: string) {
+    setThread((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "staff",
+        text,
+        time: "just now",
+      },
+    ]);
+  }
+
   return (
     <>
       <AdminTopBar breadcrumbs={[{ label: "AI agent" }]} />
@@ -46,13 +125,23 @@ export default function AdminAIPage() {
             }
           />
 
+          {HANDOFFS.some((h) => h.breached) && (
+            <Alert
+              tone="danger"
+              icon={<AlertTriangle className="size-5" />}
+              title="Handoff SLA breached"
+              description="One handoff has been waiting more than 5 minutes. Claim it now."
+              className="mb-5"
+            />
+          )}
+
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
             {[
               { l: "Conversations today", v: "142", s: "vs 128 yesterday" },
               { l: "Orders placed", v: "38", s: "27% of all today" },
               { l: "Avg response", v: "1.4s", s: "tool calls included" },
-              { l: "Handoff rate", v: "1.4%", s: "2 pending now" },
+              { l: "Handoff rate", v: "1.4%", s: `${HANDOFFS.length} pending now` },
             ].map((k) => (
               <div key={k.l} className="rounded-lg border border-border bg-surface p-4">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
@@ -78,16 +167,17 @@ export default function AdminAIPage() {
                 <div className="flex flex-col">
                   {HANDOFFS.map((h, i) => (
                     <div
-                      key={i}
-                      className={`flex items-center gap-3 p-3 ${i > 0 ? "border-t border-border" : ""} ${h.breached ? "bg-warning-bg/50" : ""}`}
+                      key={h.id}
+                      className={
+                        "flex items-center gap-3 p-3 cursor-pointer hover:bg-surface-2 " +
+                        (i > 0 ? "border-t border-border " : "") +
+                        (h.breached ? "bg-warning-bg/50" : "")
+                      }
+                      onClick={() => openHandoff(h)}
                     >
-                      <div className="size-10 rounded-full bg-gradient-to-br from-brand-primary to-[hsl(262_60%_48%)] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                        {h.customer
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase()}
-                      </div>
+                      <Avatar size="sm">
+                        <AvatarFallback>{initialsOf(h.customer)}</AvatarFallback>
+                      </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="font-semibold text-sm">{h.customer}</div>
@@ -104,8 +194,14 @@ export default function AdminAIPage() {
                         <span className="tabular">{h.waitMin}m</span>
                         <Badge>{h.channel}</Badge>
                       </div>
-                      <Button size="sm">
-                        Claim <ArrowRight className="size-3.5" />
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openHandoff(h);
+                        }}
+                      >
+                        Open <ArrowRight className="size-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -160,6 +256,33 @@ export default function AdminAIPage() {
           </div>
         </div>
       </div>
+
+      <RowDrawer
+        open={!!activeHandoff}
+        onOpenChange={(o) => !o && setActiveHandoff(null)}
+        title={activeHandoff ? `Handoff · ${activeHandoff.customer}` : ""}
+        meta={
+          activeHandoff && (
+            <span className="font-mono tabular">{activeHandoff.phone}</span>
+          )
+        }
+        width={560}
+      >
+        {activeHandoff && (
+          <AiThreadViewer
+            customer={{
+              name: activeHandoff.customer,
+              phone: activeHandoff.phone,
+              channel: activeHandoff.channel,
+            }}
+            messages={thread}
+            staffClaimed={claimed}
+            onClaim={claim}
+            onSendStaff={sendStaff}
+            className="h-[calc(100vh-13rem)]"
+          />
+        )}
+      </RowDrawer>
     </>
   );
 }

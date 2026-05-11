@@ -1,13 +1,38 @@
+"use client";
+
+import * as React from "react";
 import { Plus, MoreHorizontal, AlertTriangle, MapPin } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { Badge } from "@/components/ui/badge";
-import { SHIPPING_ZONES } from "@/lib/admin-mock-data";
+import { Switch } from "@/components/ui/switch";
+import { Alert } from "@/components/ui/alert";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/toaster";
+import { SHIPPING_ZONES, type ShippingZone } from "@/lib/admin-mock-data";
 
 export default function AdminShippingPage() {
-  const hasOverlap = SHIPPING_ZONES.some((z) => z.overlapsWith && z.overlapsWith.length > 0);
+  const [zones, setZones] = React.useState<ShippingZone[]>([...SHIPPING_ZONES]);
+  const [fallbackEnabled, setFallbackEnabled] = React.useState(true);
+  const [fallbackKobo, setFallbackKobo] = React.useState<number | null>(900000);
+
+  const hasOverlap = zones.some(
+    (z) => z.active && z.overlapsWith && z.overlapsWith.length > 0,
+  );
+
+  function toggleActive(id: string, next: boolean) {
+    setZones((prev) => prev.map((z) => (z.id === id ? { ...z, active: next } : z)));
+    toast.success(next ? "Zone activated" : "Zone paused");
+  }
 
   return (
     <>
@@ -16,7 +41,7 @@ export default function AdminShippingPage() {
         <div className="p-6 max-w-[1400px] mx-auto">
           <PageHeader
             title="Shipping zones"
-            subtitle="Configure rates and ETAs by state — addresses without a zone fall back to flat rate"
+            subtitle="Configure rates and ETAs by state — addresses without a zone fall back to the flat rate (or an explicit error)"
             actions={
               <Button size="sm">
                 <Plus className="size-3.5" /> New zone
@@ -25,19 +50,18 @@ export default function AdminShippingPage() {
           />
 
           {hasOverlap && (
-            <div className="mb-5 p-4 rounded-md bg-warning-bg border border-warning/30 flex items-start gap-3">
-              <AlertTriangle className="size-5 text-warning flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <div className="font-bold text-sm text-warning mb-1">Overlapping zones detected</div>
-                <p className="text-xs text-fg-muted leading-relaxed">
-                  Two zones cover Lagos. The first match (by priority) wins at checkout. Deactivate
-                  or merge the overlapping zone to prevent surprises.
-                </p>
-              </div>
-              <Button variant="ghost" size="sm" className="text-warning">
-                Resolve →
-              </Button>
-            </div>
+            <Alert
+              tone="warning"
+              icon={<AlertTriangle className="size-5" />}
+              title="Overlapping zones detected"
+              description="Two zones cover Lagos. The first match (by priority) wins at checkout. Deactivate or merge the overlapping zone to prevent surprises."
+              action={
+                <Button variant="ghost" size="sm" className="text-warning">
+                  Resolve →
+                </Button>
+              }
+              className="mb-5"
+            />
           )}
 
           <div className="grid lg:grid-cols-[1fr_320px] gap-4">
@@ -50,12 +74,12 @@ export default function AdminShippingPage() {
                     <th className="text-right px-3.5 py-2.5">Base rate</th>
                     <th className="text-right px-3.5 py-2.5">Free over</th>
                     <th className="text-left px-3.5 py-2.5">ETA</th>
-                    <th className="text-left px-3.5 py-2.5">Status</th>
+                    <th className="text-left px-3.5 py-2.5">Active</th>
                     <th className="w-10" />
                   </tr>
                 </thead>
                 <tbody>
-                  {SHIPPING_ZONES.map((z) => (
+                  {zones.map((z) => (
                     <tr key={z.id} className="border-t border-border hover:bg-surface-2">
                       <td className="px-3.5 py-3">
                         <div className="flex items-center gap-2.5">
@@ -87,17 +111,28 @@ export default function AdminShippingPage() {
                       </td>
                       <td className="px-3.5 py-3 text-xs">{z.etaDays}</td>
                       <td className="px-3.5 py-3">
-                        <Badge tone={z.active ? "success" : "neutral"}>
-                          {z.active ? "Active" : "Inactive"}
-                        </Badge>
+                        <Switch
+                          checked={z.active}
+                          onCheckedChange={(v) => toggleActive(z.id, v)}
+                        />
                       </td>
                       <td className="px-3.5 py-3 text-right">
-                        <button
-                          className="p-1.5 text-fg-muted hover:text-fg rounded-md hover:bg-surface"
-                          aria-label="Row actions"
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="p-1.5 text-fg-muted hover:text-fg rounded-md hover:bg-surface"
+                              aria-label="Row actions"
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                            <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem destructive>Delete zone</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}
@@ -108,21 +143,34 @@ export default function AdminShippingPage() {
             <div className="flex flex-col gap-4">
               <Card title="Fallback rate">
                 <p className="text-xs text-fg-muted leading-relaxed mb-3">
-                  Used when a customer&apos;s state doesn&apos;t match any active zone. Set to{" "}
-                  <span className="font-semibold">disabled</span> to instead show an explicit error
-                  with a WhatsApp contact CTA at checkout.
+                  Used when a customer&apos;s state doesn&apos;t match any active zone. Disable to
+                  show an explicit error with a WhatsApp contact CTA at checkout instead.
                 </p>
-                <div className="flex items-center gap-2 mb-3">
-                  <input type="checkbox" defaultChecked className="accent-brand-primary" />
+                <label className="flex items-center gap-2.5 mb-3 cursor-pointer">
+                  <Switch
+                    checked={fallbackEnabled}
+                    onCheckedChange={setFallbackEnabled}
+                  />
                   <span className="text-sm font-semibold">Enabled</span>
-                </div>
-                <div className="rounded-md border border-border bg-surface-2 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted mb-1">
-                    Flat rate
+                </label>
+                {fallbackEnabled ? (
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted mb-1.5">
+                      Flat rate
+                    </div>
+                    <CurrencyInput
+                      {...(fallbackKobo != null ? { valueKobo: fallbackKobo } : {})}
+                      onValueChange={setFallbackKobo}
+                    />
+                    <div className="text-xs text-fg-muted mt-2">5–7 business days</div>
                   </div>
-                  <div className="text-xl font-bold tabular">₦9,000</div>
-                  <div className="text-xs text-fg-muted">5–7 business days</div>
-                </div>
+                ) : (
+                  <Alert
+                    tone="info"
+                    title="Customers will see an error"
+                    description="At checkout, customers with no matching zone get an explicit error with a WhatsApp contact CTA."
+                  />
+                )}
               </Card>
 
               <Card title="Couriers">

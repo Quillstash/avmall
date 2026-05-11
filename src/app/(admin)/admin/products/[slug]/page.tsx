@@ -1,20 +1,26 @@
+"use client";
+
+import * as React from "react";
 import { notFound } from "next/navigation";
-import Image from "next/image";
-import { Save, Trash2, Eye, Plus, Upload } from "lucide-react";
+import { Save, Trash2, Eye, Plus } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { NumberInput } from "@/components/ui/number-input";
 import { Money } from "@/components/ui/money";
 import { Badge } from "@/components/ui/badge";
-import { PRODUCTS, getProduct, CATEGORIES } from "@/lib/mock-data";
-
-export function generateStaticParams() {
-  return PRODUCTS.map((p) => ({ slug: p.slug }));
-}
+import { BulkTierEditor } from "@/components/ui/bulk-tier-editor";
+import { ImageUploader, type UploadedImage } from "@/components/ui/image-uploader";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { CodeInput } from "@/components/ui/code-input";
+import { TagInput } from "@/components/ui/tag-input";
+import { toast } from "@/components/ui/toaster";
+import { getProduct, CATEGORIES, type BulkTier } from "@/lib/mock-data";
 
 interface PageProps {
   params: { slug: string };
@@ -24,22 +30,51 @@ export default function AdminProductEditorPage({ params }: PageProps) {
   const product = getProduct(params.slug);
   if (!product) notFound();
 
+  const [name, setName] = React.useState(product.name);
+  const [brand, setBrand] = React.useState(product.brand);
+  const [category, setCategory] = React.useState(product.category);
+  const [short, setShort] = React.useState(product.short);
+  const [longDesc, setLongDesc] = React.useState(
+    "Crafted in small batches with sustainably-sourced ingredients.",
+  );
+  const [slug, setSlug] = React.useState(product.slug);
+  const [priceKobo, setPriceKobo] = React.useState<number | null>(product.price);
+  const [saleKobo, setSaleKobo] = React.useState<number | null>(product.sale ?? null);
+  const [moq, setMoq] = React.useState(product.moq ?? 1);
+  const [tags, setTags] = React.useState<string[]>(["handmade", "lagos"]);
+  const [preorder, setPreorder] = React.useState(!!product.preorder);
+  const [featured, setFeatured] = React.useState(false);
+  const [published, setPublished] = React.useState(true);
+  const [bulk, setBulk] = React.useState<BulkTier[]>([...product.bulk]);
+  const [images, setImages] = React.useState<UploadedImage[]>(
+    (product.gallery ?? [product.imageUrl]).map((url, i) => ({
+      id: `img-${i}`,
+      url,
+      alt: product.name,
+      primary: i === 0,
+    })),
+  );
+
   return (
     <>
       <AdminTopBar
         breadcrumbs={[
           { label: "Products", href: "/admin/products" },
-          { label: product.name },
+          { label: name },
         ]}
       />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-[1400px] mx-auto pb-20">
           <PageHeader
-            title={product.name}
+            title={name}
             subtitle={
               <span className="inline-flex items-center gap-2">
-                <span className="font-mono text-xs text-fg-muted tabular">{product.brand.slice(0, 3).toUpperCase()}-{product.id.toUpperCase()}</span>
-                <Badge tone="success">Published</Badge>
+                <code className="font-mono text-xs text-fg-muted tabular">
+                  {product.brand.slice(0, 3).toUpperCase()}-{product.id.toUpperCase()}
+                </code>
+                <Badge tone={published ? "success" : "neutral"}>
+                  {published ? "Published" : "Draft"}
+                </Badge>
               </span>
             }
             actions={
@@ -50,7 +85,7 @@ export default function AdminProductEditorPage({ params }: PageProps) {
                 <Button variant="ghost" size="sm">
                   <Trash2 className="size-3.5" /> Archive
                 </Button>
-                <Button size="sm">
+                <Button size="sm" onClick={() => toast.success("Saved")}>
                   <Save className="size-3.5" /> Save
                 </Button>
               </>
@@ -58,18 +93,23 @@ export default function AdminProductEditorPage({ params }: PageProps) {
           />
 
           <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-            {/* Main */}
             <div className="flex flex-col gap-4">
               <Card title="Basics">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Field id="name" label="Product name" className="md:col-span-2">
-                    <Input id="name" defaultValue={product.name} />
+                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                   </Field>
                   <Field id="brand" label="Brand">
-                    <Input id="brand" defaultValue={product.brand} />
+                    <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} />
                   </Field>
                   <Field id="category" label="Category">
-                    <Select id="category" defaultValue={product.category}>
+                    <Select
+                      id="category"
+                      value={category}
+                      onChange={(e) =>
+                        setCategory(e.target.value as typeof category)
+                      }
+                    >
                       {CATEGORIES.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -78,58 +118,48 @@ export default function AdminProductEditorPage({ params }: PageProps) {
                     </Select>
                   </Field>
                   <Field id="short" label="Short description" className="md:col-span-2">
-                    <Textarea id="short" rows={2} defaultValue={product.short} />
+                    <Input
+                      id="short"
+                      value={short}
+                      onChange={(e) => setShort(e.target.value)}
+                    />
                   </Field>
                   <Field id="long" label="Full description" className="md:col-span-2">
-                    <Textarea
-                      id="long"
-                      rows={5}
-                      defaultValue="Crafted in small batches with sustainably-sourced ingredients."
+                    <RichTextEditor value={longDesc} onChange={setLongDesc} rows={6} />
+                  </Field>
+                  <Field id="tags" label="Tags" className="md:col-span-2">
+                    <TagInput
+                      value={tags}
+                      onChange={setTags}
+                      lowercase
+                      suggestions={["handmade", "small-batch", "lagos", "vegan", "organic"]}
                     />
                   </Field>
                 </div>
               </Card>
 
               <Card title="Media">
-                <div className="grid grid-cols-3 md:grid-cols-5 gap-2.5">
-                  {(product.gallery ?? [product.imageUrl]).map((src, i) => (
-                    <div
-                      key={i}
-                      className="relative aspect-square rounded-md overflow-hidden border-2 border-border"
-                    >
-                      <Image src={src} alt="" fill sizes="200px" className="object-cover" />
-                    </div>
-                  ))}
-                  <button className="aspect-square rounded-md border-2 border-dashed border-border-strong text-fg-muted hover:border-brand-primary hover:text-brand-primary flex flex-col items-center justify-center gap-1.5">
-                    <Upload className="size-5" />
-                    <span className="text-[10px] font-semibold">Upload</span>
-                  </button>
-                </div>
+                <ImageUploader images={images} onChange={setImages} max={8} />
               </Card>
 
               <Card title="Pricing">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <Field id="price" label="Regular price (₦)">
-                    <Input
+                  <Field id="price" label="Regular price">
+                    <CurrencyInput
                       id="price"
-                      defaultValue={(product.price / 100).toLocaleString("en-NG")}
-                      className="tabular text-right"
+                      {...(priceKobo != null ? { valueKobo: priceKobo } : {})}
+                      onValueChange={setPriceKobo}
                     />
                   </Field>
-                  <Field id="sale" label="Sale price (₦)">
-                    <Input
+                  <Field id="sale" label="Sale price" hint="Optional">
+                    <CurrencyInput
                       id="sale"
-                      defaultValue={product.sale ? (product.sale / 100).toLocaleString("en-NG") : ""}
-                      placeholder="Optional"
-                      className="tabular text-right"
+                      {...(saleKobo != null ? { valueKobo: saleKobo } : {})}
+                      onValueChange={setSaleKobo}
                     />
                   </Field>
-                  <Field id="cost" label="Cost (₦)" hint="Internal — for margin reports">
-                    <Input
-                      id="cost"
-                      placeholder="0"
-                      className="tabular text-right"
-                    />
+                  <Field id="cost" label="Cost" hint="Internal — for margin reports">
+                    <CurrencyInput id="cost" placeholder="0" />
                   </Field>
                 </div>
 
@@ -137,32 +167,7 @@ export default function AdminProductEditorPage({ params }: PageProps) {
                   <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted mb-2">
                     Bulk pricing tiers
                   </div>
-                  {product.bulk.length === 0 ? (
-                    <button className="w-full py-3 border-2 border-dashed border-border rounded-md text-sm text-fg-muted hover:border-brand-primary hover:text-brand-primary">
-                      + Add bulk tier
-                    </button>
-                  ) : (
-                    <div className="border border-border rounded-md overflow-hidden">
-                      {product.bulk.map((tier, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-3 px-3.5 py-2.5 border-t border-border first:border-t-0 text-sm"
-                        >
-                          <span className="font-semibold tabular w-28">
-                            {tier.min}
-                            {tier.max ? `–${tier.max}` : "+"} units
-                          </span>
-                          <span className="text-fg-muted">{tier.value}% off</span>
-                          <button className="ml-auto text-xs text-brand-primary font-semibold hover:underline">
-                            Edit
-                          </button>
-                        </div>
-                      ))}
-                      <button className="w-full px-3.5 py-2.5 text-xs font-semibold text-brand-primary hover:bg-surface-2 border-t border-border text-left">
-                        + Add tier
-                      </button>
-                    </div>
-                  )}
+                  <BulkTierEditor tiers={bulk} onChange={setBulk} />
                 </div>
               </Card>
 
@@ -207,50 +212,48 @@ export default function AdminProductEditorPage({ params }: PageProps) {
               </Card>
             </div>
 
-            {/* Right sidebar */}
             <div className="flex flex-col gap-4">
               <Card title="Status">
-                <Field id="status" label="Visibility">
-                  <Select id="status" defaultValue="published">
-                    <option value="published">Published</option>
-                    <option value="draft">Draft</option>
-                    <option value="archived">Archived</option>
-                  </Select>
-                </Field>
-                <Field id="featured" label="Featured" className="mt-3">
-                  <Select id="featured" defaultValue="no">
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </Select>
-                </Field>
+                <div className="flex flex-col gap-3">
+                  <SwitchRow
+                    label="Published"
+                    description="Visible on the storefront"
+                    checked={published}
+                    onChange={setPublished}
+                  />
+                  <SwitchRow
+                    label="Featured"
+                    description="Highlighted on the home page"
+                    checked={featured}
+                    onChange={setFeatured}
+                  />
+                  <SwitchRow
+                    label="Pre-order only"
+                    description="MOQ enforced — won't reserve stock"
+                    checked={preorder}
+                    onChange={setPreorder}
+                  />
+                  {preorder && (
+                    <Field id="moq" label="MOQ (minimum order qty)">
+                      <NumberInput value={moq} onChange={setMoq} min={1} />
+                    </Field>
+                  )}
+                </div>
               </Card>
 
               <Card title="SEO">
                 <Field id="slug" label="URL slug">
-                  <Input id="slug" defaultValue={product.slug} className="font-mono text-xs" />
+                  <CodeInput
+                    id="slug"
+                    value={slug}
+                    onChange={setSlug}
+                    uppercase={false}
+                    pattern={/[a-z0-9-]/i}
+                  />
                 </Field>
                 <Field id="meta" label="Meta description" className="mt-3">
-                  <Textarea id="meta" rows={3} placeholder="Optional" />
+                  <Input id="meta" placeholder="Optional" />
                 </Field>
-              </Card>
-
-              <Card title="Pre-order">
-                <Field id="preorder" label="Pre-order only">
-                  <Select id="preorder" defaultValue={product.preorder ? "yes" : "no"}>
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </Select>
-                </Field>
-                {product.preorder && (
-                  <>
-                    <Field id="moq" label="MOQ (minimum order quantity)" className="mt-3">
-                      <Input id="moq" type="number" defaultValue={product.moq} className="tabular" />
-                    </Field>
-                    <Field id="eta" label="ETA" className="mt-3">
-                      <Input id="eta" defaultValue={product.eta} />
-                    </Field>
-                  </>
-                )}
               </Card>
 
               <Card title="Audit">
@@ -285,5 +288,27 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
       </div>
       <div className="p-4">{children}</div>
     </div>
+  );
+}
+
+function SwitchRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-3 cursor-pointer">
+      <Switch checked={checked} onCheckedChange={onChange} className="mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold">{label}</div>
+        {description && <div className="text-xs text-fg-muted">{description}</div>}
+      </div>
+    </label>
   );
 }
