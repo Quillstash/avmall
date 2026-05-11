@@ -17,7 +17,6 @@ import { ImageUploader, type UploadedImage } from "@/components/ui/image-uploade
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { CodeInput } from "@/components/ui/code-input";
 import { TagInput } from "@/components/ui/tag-input";
-import { Alert } from "@/components/ui/alert";
 import { toast } from "@/components/ui/toaster";
 import { CATEGORIES, type BulkTier, type ProductCategoryId } from "@/lib/mock-data";
 
@@ -29,6 +28,8 @@ function slugify(s: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
 }
+
+type FieldKey = "name" | "brand" | "price" | "sale" | "images";
 
 export default function AdminNewProductPage() {
   const router = useRouter();
@@ -52,22 +53,57 @@ export default function AdminNewProductPage() {
   const [images, setImages] = React.useState<UploadedImage[]>([]);
   const [saving, setSaving] = React.useState(false);
 
+  // Track touched state per field so errors only show after interaction
+  // (or after a publish attempt — see `attemptedPublish`).
+  const [touched, setTouched] = React.useState<Record<FieldKey, boolean>>({
+    name: false,
+    brand: false,
+    price: false,
+    sale: false,
+    images: false,
+  });
+  const [attemptedPublish, setAttemptedPublish] = React.useState(false);
+
+  function markTouched(k: FieldKey) {
+    setTouched((prev) => ({ ...prev, [k]: true }));
+  }
+
   // Auto-derive slug from name until the user edits it manually
   React.useEffect(() => {
     if (!slugTouched) setSlug(slugify(name));
   }, [name, slugTouched]);
 
-  const errors: string[] = [];
-  if (!name.trim()) errors.push("Product name is required");
-  if (!brand.trim()) errors.push("Brand is required");
-  if (priceKobo == null || priceKobo <= 0) errors.push("Regular price is required");
-  if (images.length === 0) errors.push("At least one image is required");
-  if (saleKobo != null && priceKobo != null && saleKobo >= priceKobo)
-    errors.push("Sale price must be lower than regular price");
+  // Per-field validation
+  const fieldErrors = {
+    name: !name.trim() ? "Required" : null,
+    brand: !brand.trim() ? "Required" : null,
+    price:
+      priceKobo == null || priceKobo <= 0
+        ? "Required — must be greater than zero"
+        : null,
+    sale:
+      saleKobo != null && priceKobo != null && saleKobo >= priceKobo
+        ? "Sale price must be lower than regular price"
+        : null,
+    images: images.length === 0 ? "Add at least one product photo" : null,
+  };
+  const canPublish = Object.values(fieldErrors).every((e) => e == null);
 
-  const canSave = errors.length === 0;
+  /** Show the error only after the field has been touched or after a publish attempt. */
+  function showErr(k: FieldKey): string | undefined {
+    if (!touched[k] && !attemptedPublish) return undefined;
+    return fieldErrors[k] ?? undefined;
+  }
 
   function save(asDraft: boolean) {
+    if (!asDraft) {
+      // Mark everything touched so all errors surface
+      setAttemptedPublish(true);
+      if (!canPublish) {
+        toast.error("Fix the highlighted fields before publishing");
+        return;
+      }
+    }
     setSaving(true);
     window.setTimeout(() => {
       setSaving(false);
@@ -109,7 +145,6 @@ export default function AdminNewProductPage() {
                 <Button
                   size="sm"
                   onClick={() => save(false)}
-                  disabled={!canSave || saving}
                   loading={saving}
                 >
                   <Save className="size-3.5" /> Publish
@@ -118,43 +153,38 @@ export default function AdminNewProductPage() {
             }
           />
 
-          {errors.length > 0 && (
-            <Alert
-              tone="warning"
-              title="Before you can publish"
-              description={
-                <ul className="list-disc pl-5 mt-1">
-                  {errors.map((e) => (
-                    <li key={e}>{e}</li>
-                  ))}
-                </ul>
-              }
-              className="mb-5"
-            />
-          )}
-
           <div className="grid lg:grid-cols-[1fr_320px] gap-4">
             <div className="flex flex-col gap-4">
               <Card title="Basics">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Field id="name" label="Product name" className="md:col-span-2">
+                  <Field
+                    id="name"
+                    label="Product name"
+                    required
+                    error={showErr("name")}
+                    className="md:col-span-2"
+                  >
                     <Input
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      onBlur={() => markTouched("name")}
                       placeholder="Whipped Shea Body Balm"
+                      invalid={!!showErr("name")}
                       autoFocus
                     />
                   </Field>
-                  <Field id="brand" label="Brand">
+                  <Field id="brand" label="Brand" required error={showErr("brand")}>
                     <Input
                       id="brand"
                       value={brand}
                       onChange={(e) => setBrand(e.target.value)}
+                      onBlur={() => markTouched("brand")}
                       placeholder="Omolewa"
+                      invalid={!!showErr("brand")}
                     />
                   </Field>
-                  <Field id="category" label="Category">
+                  <Field id="category" label="Category" required>
                     <Select
                       id="category"
                       value={category}
@@ -167,18 +197,29 @@ export default function AdminNewProductPage() {
                       ))}
                     </Select>
                   </Field>
-                  <Field id="short" label="Short description" className="md:col-span-2">
+                  <Field
+                    id="short"
+                    label="Short description"
+                    optional
+                    hint="One sentence shown in product cards and search"
+                    className="md:col-span-2"
+                  >
                     <Input
                       id="short"
                       value={short}
                       onChange={(e) => setShort(e.target.value)}
-                      placeholder="One sentence shown in product cards and search"
+                      placeholder="Whipped in small batches with unrefined Nigerian shea"
                     />
                   </Field>
-                  <Field id="long" label="Full description" className="md:col-span-2">
+                  <Field
+                    id="long"
+                    label="Full description"
+                    optional
+                    className="md:col-span-2"
+                  >
                     <RichTextEditor value={longDesc} onChange={setLongDesc} rows={6} />
                   </Field>
-                  <Field id="tags" label="Tags" className="md:col-span-2">
+                  <Field id="tags" label="Tags" optional className="md:col-span-2">
                     <TagInput
                       value={tags}
                       onChange={setTags}
@@ -190,26 +231,54 @@ export default function AdminNewProductPage() {
               </Card>
 
               <Card title="Media">
-                <ImageUploader images={images} onChange={setImages} max={8} />
+                <Field
+                  id="images"
+                  label="Product photos"
+                  required
+                  error={showErr("images")}
+                  hint="JPEG, PNG, WebP · up to 5 MB each · first image is the primary"
+                >
+                  <ImageUploader
+                    images={images}
+                    onChange={(next) => {
+                      setImages(next);
+                      markTouched("images");
+                    }}
+                    max={8}
+                  />
+                </Field>
               </Card>
 
               <Card title="Pricing">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <Field id="price" label="Regular price">
+                  <Field id="price" label="Regular price" required error={showErr("price")}>
                     <CurrencyInput
                       id="price"
                       {...(priceKobo != null ? { valueKobo: priceKobo } : {})}
-                      onValueChange={setPriceKobo}
+                      onValueChange={(v) => {
+                        setPriceKobo(v);
+                        if (v != null) markTouched("price");
+                      }}
+                      invalid={!!showErr("price")}
                     />
                   </Field>
-                  <Field id="sale" label="Sale price" hint="Optional">
+                  <Field id="sale" label="Sale price" optional error={showErr("sale")}>
                     <CurrencyInput
                       id="sale"
                       {...(saleKobo != null ? { valueKobo: saleKobo } : {})}
-                      onValueChange={setSaleKobo}
+                      onValueChange={(v) => {
+                        setSaleKobo(v);
+                        markTouched("sale");
+                      }}
+                      invalid={!!showErr("sale")}
                     />
                   </Field>
-                  <Field id="cost" label="Cost" hint="Internal — for margin reports">
+                  <Field
+                    id="cost"
+                    label="Cost"
+                    optional
+                    hint="Internal — for margin reports"
+                  >
                     <CurrencyInput id="cost" placeholder="0" />
                   </Field>
                 </div>
@@ -224,12 +293,13 @@ export default function AdminNewProductPage() {
 
               <Card title="Inventory">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Field id="stock" label="Stock on hand">
+                  <Field id="stock" label="Stock on hand" optional>
                     <NumberInput value={stock} onChange={setStock} min={0} />
                   </Field>
                   <Field
                     id="reorder"
                     label="Low stock threshold"
+                    optional
                     hint="Triggers a low-stock badge"
                   >
                     <NumberInput value={20} onChange={() => undefined} min={0} />
@@ -264,7 +334,7 @@ export default function AdminNewProductPage() {
                     onChange={setPreorder}
                   />
                   {preorder && (
-                    <Field id="moq" label="MOQ (minimum order qty)">
+                    <Field id="moq" label="MOQ (minimum order qty)" required>
                       <NumberInput value={moq} onChange={setMoq} min={1} />
                     </Field>
                   )}
@@ -272,7 +342,7 @@ export default function AdminNewProductPage() {
               </Card>
 
               <Card title="SEO">
-                <Field id="slug" label="URL slug" hint="Auto-generated from name">
+                <Field id="slug" label="URL slug" hint="Auto-generated from the product name">
                   <CodeInput
                     id="slug"
                     value={slug}
