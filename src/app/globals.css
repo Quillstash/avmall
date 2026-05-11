@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand */
+    --brand-primary: 220 90% 56%;
+    --brand-primary-hover: 220 90% 48%;
+    --brand-primary-fg: 0 0% 100%;
+    --brand-accent: 158 64% 40%;
+    --brand-accent-hover: 158 64% 32%;
+
+    /* Neutrals — light */
+    --bg: 210 20% 98%;
+    --surface: 0 0% 100%;
+    --surface-2: 210 20% 96%;
+    --border: 220 13% 91%;
+    --border-strong: 220 13% 80%;
+    --fg: 222 47% 11%;
+    --fg-muted: 220 9% 46%;
+    --fg-subtle: 220 9% 60%;
+
+    /* Semantic */
+    --success: 158 64% 40%;
+    --success-bg: 158 64% 95%;
+    --warning: 38 92% 50%;
+    --warning-bg: 38 92% 95%;
+    --danger: 0 72% 51%;
+    --danger-bg: 0 72% 96%;
+    --info: 220 90% 56%;
+    --info-bg: 220 90% 96%;
+
+    /* Order status tokens */
+    --status-pending: 38 92% 50%;
+    --status-confirmed: 220 90% 56%;
+    --status-processing: 262 52% 57%;
+    --status-shipped: 199 89% 48%;
+    --status-delivered: 158 64% 40%;
+    --status-cancelled: 0 72% 51%;
+    --status-refunded: 220 9% 46%;
+
+    /* Typography */
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --font-display: "Fraunces", "Inter", serif;
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 1.875rem;
+    --text-4xl: 2.25rem;
+    --text-5xl: 3rem;
+
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
+    --shadow-focus: 0 0 0 3px hsl(var(--brand-primary) / 0.35);
+  }
+
+  .dark {
+    --bg: 222 47% 8%;
+    --surface: 222 47% 11%;
+    --surface-2: 222 47% 14%;
+    --border: 220 13% 20%;
+    --border-strong: 220 13% 30%;
+    --fg: 210 20% 98%;
+    --fg-muted: 220 9% 70%;
+    --fg-subtle: 220 9% 55%;
+    --success-bg: 158 50% 14%;
+    --warning-bg: 38 60% 14%;
+    --danger-bg: 0 50% 14%;
+    --info-bg: 220 60% 14%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-bg text-fg font-sans;
+    font-feature-settings: "cv11", "ss03";
+  }
+
+  /* Tabular numerals for all money displays */
+  .tabular,
+  [data-num] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
