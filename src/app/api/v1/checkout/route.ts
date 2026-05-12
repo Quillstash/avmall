@@ -136,96 +136,102 @@ export async function POST(req: NextRequest) {
     if (customer.blacklisted) throw new BlacklistedError();
 
     const result = await withIdempotency(idempotencyKey, body, async () => {
+      // ── Read-only hydration happens OUTSIDE the transaction. These reads are
+      //    network-bound (Neon round-trips) and don't need transactional
+      //    consistency — prices read here and used in the order are the
+      //    buyer's quoted prices. Keeping them out of the txn cuts the
+      //    interactive-transaction window from ~8 round-trips to ~3.
+
+      // 1. Hydrate products + variants
+      const productIds = Array.from(new Set(body.items.map((i) => i.productId)));
+      const products = await db.product.findMany({
+        where: { id: { in: productIds }, archivedAt: null },
+        include: { variants: true, bulkTiers: true },
+      });
+      const productById = new Map(products.map((p) => [p.id, p]));
+
+      const inputLines: QuoteInputLine[] = body.items.map((item) => {
+        const p = productById.get(item.productId);
+        if (!p) throw new NotFoundError(`Product ${item.productId}`);
+
+        const variant = item.variantId
+          ? p.variants.find((v) => v.id === item.variantId)
+          : null;
+        if (item.variantId && !variant) {
+          throw new NotFoundError(`Variant ${item.variantId}`);
+        }
+
+        const unitKobo = Number(
+          variant?.priceKobo ?? (p.saleActive && p.saleKobo != null ? p.saleKobo : p.priceKobo),
+        );
+
+        return {
+          productId: p.id,
+          variantId: variant?.id ?? null,
+          quantity: item.quantity,
+          unitKobo,
+          bulkTiers: p.bulkTiers.map((t) => ({
+            min: t.min,
+            max: t.max,
+            type: t.type,
+            value: t.value,
+          })),
+        };
+      });
+
+      // 2. Coupon validation (read-only — usage increment happens inside the txn)
+      let coupon:
+        | { code: string; type: "percentage" | "fixed" | "free_shipping"; value: number }
+        | undefined;
+      if (body.couponCode) {
+        const c = await db.discount.findUnique({
+          where: { code: body.couponCode.toUpperCase() },
+        });
+        const now = new Date();
+        if (
+          c &&
+          c.active &&
+          (!c.validFrom || c.validFrom <= now) &&
+          (!c.validUntil || c.validUntil >= now) &&
+          (c.usageLimit == null || c.usage < c.usageLimit)
+        ) {
+          coupon = { code: c.code!, type: c.valueType, value: c.value };
+        } else if (c) {
+          throw new AppError("COUPON_INVALID", "Coupon no longer valid", 422);
+        }
+      }
+
+      // 3. Shipping zone + free-over check (read-only)
+      let shippingKobo = 0;
+      let freeShippingEligible = false;
+      let shippingZoneId: string | null = null;
+      const zone = await db.shippingZone.findFirst({
+        where: { active: true, states: { has: body.shipping.state } },
+        orderBy: { priority: "asc" },
+      });
+      if (zone) {
+        shippingZoneId = zone.id;
+        shippingKobo = Number(zone.baseRateKobo);
+        if (zone.freeOverKobo != null) {
+          const dry = computeQuote({ lines: inputLines });
+          if (BigInt(dry.subtotalKobo - dry.bulkDiscountKobo) >= zone.freeOverKobo) {
+            freeShippingEligible = true;
+          }
+        }
+      } else {
+        const fb = await db.fallbackShipping.findFirst();
+        if (fb?.enabled) shippingKobo = Number(fb.flatRateKobo);
+      }
+
+      // 4. Server-side quote (authoritative)
+      const quote = computeQuote({
+        lines: inputLines,
+        ...(coupon && { coupon }),
+        shippingKobo,
+        freeShippingEligible,
+      });
+
       const order = await db.$transaction(async (tx) => {
-        // 1. Hydrate products + variants (current price, current bulk tiers)
-        const productIds = Array.from(new Set(body.items.map((i) => i.productId)));
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds }, archivedAt: null },
-          include: { variants: true, bulkTiers: true },
-        });
-        const productById = new Map(products.map((p) => [p.id, p]));
-
-        const inputLines: QuoteInputLine[] = body.items.map((item) => {
-          const p = productById.get(item.productId);
-          if (!p) throw new NotFoundError(`Product ${item.productId}`);
-
-          const variant = item.variantId
-            ? p.variants.find((v) => v.id === item.variantId)
-            : null;
-          if (item.variantId && !variant) {
-            throw new NotFoundError(`Variant ${item.variantId}`);
-          }
-
-          const unitKobo = Number(
-            variant?.priceKobo ?? (p.saleActive && p.saleKobo != null ? p.saleKobo : p.priceKobo),
-          );
-
-          return {
-            productId: p.id,
-            variantId: variant?.id ?? null,
-            quantity: item.quantity,
-            unitKobo,
-            bulkTiers: p.bulkTiers.map((t) => ({
-              min: t.min,
-              max: t.max,
-              type: t.type,
-              value: t.value,
-            })),
-          };
-        });
-
-        // 2. Coupon validation
-        let coupon:
-          | { code: string; type: "percentage" | "fixed" | "free_shipping"; value: number }
-          | undefined;
-        if (body.couponCode) {
-          const c = await tx.discount.findUnique({
-            where: { code: body.couponCode.toUpperCase() },
-          });
-          const now = new Date();
-          if (
-            c &&
-            c.active &&
-            (!c.validFrom || c.validFrom <= now) &&
-            (!c.validUntil || c.validUntil >= now) &&
-            (c.usageLimit == null || c.usage < c.usageLimit)
-          ) {
-            coupon = { code: c.code!, type: c.valueType, value: c.value };
-          } else if (c) {
-            throw new AppError("COUPON_INVALID", "Coupon no longer valid", 422);
-          }
-        }
-
-        // 3. Shipping zone + free-over check
-        let shippingKobo = 0;
-        let freeShippingEligible = false;
-        let shippingZoneId: string | null = null;
-        const zone = await tx.shippingZone.findFirst({
-          where: { active: true, states: { has: body.shipping.state } },
-          orderBy: { priority: "asc" },
-        });
-        if (zone) {
-          shippingZoneId = zone.id;
-          shippingKobo = Number(zone.baseRateKobo);
-          if (zone.freeOverKobo != null) {
-            const dry = computeQuote({ lines: inputLines });
-            if (BigInt(dry.subtotalKobo - dry.bulkDiscountKobo) >= zone.freeOverKobo) {
-              freeShippingEligible = true;
-            }
-          }
-        } else {
-          const fb = await tx.fallbackShipping.findFirst();
-          if (fb?.enabled) shippingKobo = Number(fb.flatRateKobo);
-        }
-
-        // 4. Server-side quote (authoritative)
-        const quote = computeQuote({
-          lines: inputLines,
-          ...(coupon && { coupon }),
-          shippingKobo,
-          freeShippingEligible,
-        });
-
         // 5. Reserve stock — this is the SELECT FOR UPDATE block per §6
         await reserveStock(
           tx,
@@ -315,6 +321,12 @@ export async function POST(req: NextRequest) {
         );
 
         return order;
+      }, {
+        // Neon cold-start + multi-step txn: 5s default is too tight. The txn
+        // body itself is small (SELECT FOR UPDATE + a few inserts), but each
+        // round-trip pays Neon's network latency.
+        timeout: 20_000,
+        maxWait: 10_000,
       });
 
       return {

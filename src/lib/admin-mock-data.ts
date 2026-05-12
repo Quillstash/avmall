@@ -191,7 +191,7 @@ export const ORDER_DETAIL_ITEMS: readonly OrderDetailItem[] = [
     discountKobo: 144000,
     tier: "8% bulk (6+)",
     imageUrl:
-      "https://images.unsplash.com/photo-1601049413050-2f6e7d04930b?w=200&q=80&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&q=80&auto=format&fit=crop",
   },
   {
     id: 2,
@@ -214,7 +214,7 @@ export const ORDER_DETAIL_ITEMS: readonly OrderDetailItem[] = [
     discountKobo: 28800,
     tier: "10% bulk (5+)",
     imageUrl:
-      "https://images.unsplash.com/photo-1602523498668-d62a35c4f9d8?w=200&q=80&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=200&q=80&auto=format&fit=crop",
   },
 ];
 

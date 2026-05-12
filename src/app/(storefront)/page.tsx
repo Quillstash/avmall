@@ -198,7 +198,7 @@ export default async function HomePage() {
           {/* Maker story */}
           <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#1f6f4a] to-[#0d4a2c] text-white p-10 lg:p-14 min-h-[360px] flex flex-col justify-between">
             <Image
-              src="https://images.unsplash.com/photo-1601049413050-2f6e7d04930b?w=1200&q=80&auto=format&fit=crop"
+              src="https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=1200&q=80&auto=format&fit=crop"
               alt="Maker story"
               fill
               sizes="(min-width: 1024px) 50vw, 100vw"
