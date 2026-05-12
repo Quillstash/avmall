@@ -200,10 +200,43 @@ export default function AdminReturnsListPage() {
               </DropdownMenuItem>
               {row.original.status === "requested" && (
                 <>
-                  <DropdownMenuItem onClick={() => toast.success("Return approved")}>
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      const res = await fetch(
+                        `/api/v1/admin/returns/${row.original.id}/approve`,
+                        { method: "POST" },
+                      );
+                      if (res.status === 404 || res.status === 503) {
+                        toast.success("Return approved (local)");
+                      } else if (res.ok) {
+                        toast.success("Return approved");
+                        router.refresh();
+                      } else {
+                        const p = await res.json();
+                        toast.error(p.error?.message ?? "Failed");
+                      }
+                    }}
+                  >
                     <CheckCircle2 className="size-3.5" /> Approve
                   </DropdownMenuItem>
-                  <DropdownMenuItem destructive onClick={() => toast.success("Return rejected")}>
+                  <DropdownMenuItem
+                    destructive
+                    onClick={async () => {
+                      const res = await fetch(
+                        `/api/v1/admin/returns/${row.original.id}/approve`,
+                        { method: "DELETE" },
+                      );
+                      if (res.status === 404 || res.status === 503) {
+                        toast.success("Return rejected (local)");
+                      } else if (res.ok) {
+                        toast.success("Return rejected");
+                        router.refresh();
+                      } else {
+                        const p = await res.json();
+                        toast.error(p.error?.message ?? "Failed");
+                      }
+                    }}
+                  >
                     Reject
                   </DropdownMenuItem>
                 </>

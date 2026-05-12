@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Edit2,
   Printer,
@@ -82,26 +83,128 @@ export function OrderDetailClient({ params }: PageProps) {
 
   const [recordOpen, setRecordOpen] = React.useState(false);
   const [cancelOpen, setCancelOpen] = React.useState(false);
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const router = useRouter();
 
-  function recordPayment(data: {
+  async function recordPayment(data: {
     amountKobo: number;
     method: string;
     reference: string;
     note: string;
   }) {
-    setPayments((prev) => [
-      ...prev,
-      {
-        method: data.method,
-        amountKobo: data.amountKobo,
-        txRef: data.reference || "—",
-        status: "completed",
-        by: "Funmi A.",
-        time: "just now",
-      },
-    ]);
-    setRecordOpen(false);
-    toast.success(`Payment of ${formatMoney(data.amountKobo)} recorded`);
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/payments`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          amountKobo: data.amountKobo,
+          method: methodToBackend(data.method),
+          ...(data.reference && { reference: data.reference }),
+          ...(data.note && { note: data.note }),
+        }),
+      });
+
+      if (res.status === 404 || res.status === 401 || res.status === 503) {
+        // Fallback: append locally (mock mode or not signed in)
+        setPayments((prev) => [
+          ...prev,
+          {
+            method: data.method,
+            amountKobo: data.amountKobo,
+            txRef: data.reference || "—",
+            status: "completed",
+            by: "Funmi A.",
+            time: "just now",
+          },
+        ]);
+        setRecordOpen(false);
+        toast.success(`Payment of ${formatMoney(data.amountKobo)} recorded (local)`);
+        return;
+      }
+
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't record payment");
+
+      setRecordOpen(false);
+      toast.success(`Payment of ${formatMoney(data.amountKobo)} recorded`);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't record payment");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function cancelOrder() {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (res.status === 404 || res.status === 503) {
+        setCancelOpen(false);
+        toast.success("Order cancelled (local)");
+        return;
+      }
+
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't cancel order");
+
+      setCancelOpen(false);
+      toast.success("Order cancelled");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't cancel order");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function shipOrder(override = false) {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/ship`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ override }),
+      });
+
+      if (res.status === 404 || res.status === 503) {
+        toast.success("Order marked as shipped (local)");
+        return;
+      }
+
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't mark as shipped");
+
+      toast.success("Order marked as shipped");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't mark as shipped");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function methodToBackend(uiMethod: string): string {
+    switch (uiMethod) {
+      case "Nuqood card":
+        return "nuqood";
+      case "Bank transfer":
+        return "bank_transfer";
+      case "POS terminal":
+        return "pos";
+      case "Cash":
+        return "cash";
+      case "Store credit":
+        return "store_credit";
+      default:
+        return "bank_transfer";
+    }
   }
 
   const timeline: TimelineEvent[] = [
@@ -479,8 +582,9 @@ export function OrderDetailClient({ params }: PageProps) {
                   </div>
                   <Button
                     width="full"
-                    disabled={isPartiallyPaid}
-                    onClick={() => toast.success("Order marked as shipped")}
+                    disabled={isPartiallyPaid || actionLoading}
+                    loading={actionLoading}
+                    onClick={() => shipOrder(false)}
                   >
                     Mark as shipped
                   </Button>
@@ -637,10 +741,8 @@ export function OrderDetailClient({ params }: PageProps) {
         cancelLabel="Keep order"
         destructive
         typeToConfirm="CANCEL"
-        onConfirm={() => {
-          setCancelOpen(false);
-          toast.success("Order cancelled");
-        }}
+        loading={actionLoading}
+        onConfirm={cancelOrder}
       />
     </>
   );

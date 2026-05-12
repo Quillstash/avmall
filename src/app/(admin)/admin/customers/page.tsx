@@ -273,9 +273,30 @@ export default function AdminCustomersListPage() {
         confirmLabel="Blacklist"
         destructive
         typeToConfirm="BLACKLIST"
-        onConfirm={() => {
-          toast.success(`${blacklistTarget?.name} blacklisted`);
-          setBlacklistTarget(null);
+        onConfirm={async () => {
+          if (!blacklistTarget) return;
+          try {
+            const res = await fetch(
+              `/api/v1/admin/customers/${blacklistTarget.id}/blacklist`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ reason: "Flagged from admin list" }),
+              },
+            );
+            if (res.status === 404 || res.status === 503) {
+              toast.success(`${blacklistTarget.name} blacklisted (local)`);
+            } else {
+              const payload = await res.json();
+              if (!res.ok) throw new Error(payload.error?.message ?? "Failed");
+              toast.success(`${blacklistTarget.name} blacklisted`);
+              router.refresh();
+            }
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed");
+          } finally {
+            setBlacklistTarget(null);
+          }
         }}
       />
     </>

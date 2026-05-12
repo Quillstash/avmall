@@ -49,13 +49,28 @@ export default function AdminReturnDetailPage({ params }: PageProps) {
   const [note, setNote] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
-  function issueRefund() {
+  async function issueRefund() {
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetch(`/api/v1/admin/returns/${params.id}/refund`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ method }),
+      });
+      if (res.status === 404 || res.status === 503) {
+        toast.success("Refund issued (local)");
+        router.push("/admin/returns");
+        return;
+      }
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't issue refund");
       toast.success("Refund issued");
       router.push("/admin/returns");
-    }, 600);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't issue refund");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
