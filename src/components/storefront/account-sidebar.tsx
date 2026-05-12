@@ -1,7 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Package, MapPin, User, LogOut, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,18 +13,49 @@ const ITEMS = [
   { href: "/account/profile", label: "Profile", icon: User },
 ];
 
-export function AccountSidebar() {
+interface Props {
+  /** Current customer profile from server. Optional so the sidebar can render
+   *  before hydration completes. */
+  customer?: { name: string; phone: string } | null;
+}
+
+export function AccountSidebar({ customer }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = React.useState(false);
+
+  const name = customer?.name ?? "Welcome";
+  const phone = customer?.phone ?? "";
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/customer/session", { method: "DELETE" });
+    } finally {
+      setSigningOut(false);
+      router.replace("/");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="sticky top-28">
       <div className="flex items-center gap-3 mb-6 pb-5 border-b border-border">
         <div className="size-12 rounded-full bg-gradient-to-br from-brand-primary to-[hsl(262_60%_48%)] text-white flex items-center justify-center font-bold">
-          TA
+          {initials}
         </div>
-        <div>
-          <div className="font-bold text-sm">Tolu Adeniyi</div>
-          <div className="text-xs text-fg-muted font-mono tabular">+234 803 421 7790</div>
+        <div className="min-w-0">
+          <div className="font-bold text-sm truncate">{name}</div>
+          {phone && (
+            <div className="text-xs text-fg-muted font-mono tabular truncate">{phone}</div>
+          )}
         </div>
       </div>
       <nav className="flex flex-col gap-1">
@@ -48,9 +80,13 @@ export function AccountSidebar() {
             </Link>
           );
         })}
-        <button className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-danger hover:bg-danger-bg mt-2 text-left">
+        <button
+          onClick={signOut}
+          disabled={signingOut}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-danger hover:bg-danger-bg mt-2 text-left disabled:opacity-50"
+        >
           <LogOut className="size-4" />
-          Sign out
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
       </nav>
     </div>

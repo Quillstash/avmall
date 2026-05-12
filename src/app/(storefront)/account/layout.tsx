@@ -1,11 +1,26 @@
 import { AccountSidebar } from "@/components/storefront/account-sidebar";
+import { getCustomerSession } from "@/lib/customer-session";
+import { db, hasDatabase } from "@/lib/db";
+import { formatNigerianPhone } from "@/lib/phone";
 
-export default function AccountLayout({ children }: { children: React.ReactNode }) {
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
+  const session = await getCustomerSession();
+  let customer: { name: string; phone: string } | null = null;
+
+  if (session) {
+    if (session.customerId === "mock-customer" || !hasDatabase) {
+      customer = { name: "Tolu Adeniyi", phone: formatNigerianPhone(session.phone) };
+    } else {
+      const c = await db.customer.findUnique({ where: { id: session.customerId } });
+      if (c) customer = { name: c.name, phone: formatNigerianPhone(c.phone) };
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 lg:px-6 py-6 lg:py-10">
       <div className="grid lg:grid-cols-[240px_1fr] gap-8 lg:gap-12">
         <aside className="hidden lg:block">
-          <AccountSidebar />
+          <AccountSidebar customer={customer} />
         </aside>
         <div>{children}</div>
       </div>

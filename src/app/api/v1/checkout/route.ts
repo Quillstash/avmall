@@ -99,15 +99,40 @@ export async function POST(req: NextRequest) {
     }
     const body = parsed.data;
 
-    // Auth — customer must be signed in to check out. (Mock mode handled above.)
+    // Guest checkout — sign-in is optional. We find-or-create the customer
+    // record by their normalised phone number so the order is always
+    // attached to *some* customer (deduplicates repeat buyers without
+    // forcing them through an OTP first).
     const session = await getCustomerSession();
-    if (!session) {
-      throw new AppError("UNAUTHORIZED", "Sign in before checking out", 401);
+    const normalizedPhone = normaliseNigerianPhone(parsed.data.contact.phone);
+
+    let customer = session
+      ? await db.customer.findUnique({ where: { id: session.customerId } })
+      : await db.customer.findUnique({ where: { phone: normalizedPhone } });
+
+    if (!customer) {
+      customer = await db.customer.create({
+        data: {
+          phone: normalizedPhone,
+          email: parsed.data.contact.email ?? null,
+          name: parsed.data.contact.name,
+        },
+      });
+    } else if (
+      // Auto-update fields when the buyer provides better info than we had.
+      (parsed.data.contact.email && !customer.email) ||
+      (parsed.data.contact.name && customer.name !== parsed.data.contact.name)
+    ) {
+      // Per CLAUDE.md §20 — when a customer's phone matches but name differs,
+      // we *could* ask for consent before overwriting. For now we only fill
+      // empty fields and never overwrite a non-empty name.
+      customer = await db.customer.update({
+        where: { id: customer.id },
+        data: {
+          ...(parsed.data.contact.email && !customer.email && { email: parsed.data.contact.email }),
+        },
+      });
     }
-    const customer = await db.customer.findUnique({
-      where: { id: session.customerId },
-    });
-    if (!customer) throw new AppError("UNAUTHORIZED", "Account not found", 401);
     if (customer.blacklisted) throw new BlacklistedError();
 
     const result = await withIdempotency(idempotencyKey, body, async () => {
@@ -212,9 +237,8 @@ export async function POST(req: NextRequest) {
           null, // we don't have the order id yet — set below after order create
         );
 
-        // 6. Create the order
+        // 6. Create the order — phone already normalised above
         const orderNumber = await nextOrderNumber(tx);
-        const normalizedPhone = normaliseNigerianPhone(body.contact.phone);
 
         const order = await tx.order.create({
           data: {
