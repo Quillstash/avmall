@@ -1,0 +1,681 @@
+// Avmall — Prisma schema
+// Source of truth for the data model. See CLAUDE.md §6 for conventions:
+// — UUIDs, snake_case in SQL / camelCase in Prisma, money as integer kobo (BigInt
+//   for amounts that may exceed ~21M Naira), timestamptz with UTC, soft deletes
+//   via archived_at, audit_logs append-only.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [pg_trgm, pgcrypto]
+}
+
+// ─── Staff & RBAC ────────────────────────────────────────────────────────
+
+enum StaffRole {
+  super_admin
+  manager
+  sales
+  inventory
+  support
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  name          String
+  passwordHash  String    @map("password_hash")
+  role          StaffRole
+  active        Boolean   @default(true)
+  totpSecret    String?   @map("totp_secret")
+  totpEnabled   Boolean   @default(false) @map("totp_enabled")
+  lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  ordersCreated     Order[]         @relation("OrderCreatedBy")
+  paymentsRecorded  OrderPayment[]  @relation("PaymentRecordedBy")
+  notes             OrderNote[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Customers ───────────────────────────────────────────────────────────
+
+model Customer {
+  id            String    @id @default(uuid()) @db.Uuid
+  /// E.164 — always stored with +234 prefix. See lib/phone.ts.
+  phone         String    @unique
+  email         String?
+  name          String
+  segments      String[]  @default([])
+  blacklisted   Boolean   @default(false)
+  blacklistReason String? @map("blacklist_reason")
+  storeCreditKobo BigInt  @default(0) @map("store_credit_kobo")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  addresses     CustomerAddress[]
+  orders        Order[]
+  returns       Return[]
+  conversations AiConversation[]
+  otpCodes      OtpCode[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id          String   @id @default(uuid()) @db.Uuid
+  customerId  String   @map("customer_id") @db.Uuid
+  label       String   // "Home", "Office"
+  recipient   String
+  phone       String
+  line1       String
+  line2       String?
+  city        String   // LGA
+  state       String   // Nigerian state
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+// ─── Products & inventory ────────────────────────────────────────────────
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  name      String
+  /// Display order on the storefront.
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id              String    @id @default(uuid()) @db.Uuid
+  slug            String    @unique
+  name            String
+  brand           String
+  shortDesc       String    @map("short_desc")
+  longDesc        String    @default("") @map("long_desc")
+  categoryId      String    @map("category_id") @db.Uuid
+  /// Display tone hex / gradient for the imagery backdrop.
+  themeBg         String?   @map("theme_bg")
+  /// Money — kobo. Use BigInt to support items > ~21M Naira.
+  priceKobo       BigInt    @map("price_kobo")
+  saleKobo        BigInt?   @map("sale_kobo")
+  saleActive      Boolean   @default(false) @map("sale_active")
+  /// Allow customers to propose a price via the AI / WhatsApp.
+  negotiate       Boolean   @default(false)
+  /// Pre-order only — won't reserve regular stock.
+  preorder        Boolean   @default(false)
+  moq             Int?
+  eta             String?
+  /// Soft delete — archived products are hidden from the storefront but
+  /// remain on past orders.
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz
+  published       Boolean   @default(false)
+  featured        Boolean   @default(false)
+  /// Free-form tags ("handmade", "small-batch").
+  tags            String[]  @default([])
+  /// SEO meta description (falls back to shortDesc).
+  metaDescription String?   @map("meta_description")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  category        Category         @relation(fields: [categoryId], references: [id])
+  variants        ProductVariant[]
+  images          ProductImage[]
+  bulkTiers       BulkTier[]
+  orderLines      OrderLine[]
+  stockReservations StockReservation[]
+
+  @@index([categoryId])
+  @@index([archivedAt])
+  @@index([slug])
+  @@map("products")
+}
+
+model ProductVariant {
+  id          String   @id @default(uuid()) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  label       String   // "50ml", "Tan", "Set of 4"
+  sku         String   @unique
+  /// Optional variant-specific override; null = inherit from product.
+  priceKobo   BigInt?  @map("price_kobo")
+  /// On-hand inventory.
+  onHand      Int      @default(0) @map("on_hand")
+  /// Reserved by in-flight checkouts.
+  reserved    Int      @default(0)
+  position    Int      @default(0)
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderLines  OrderLine[]
+  stockReservations StockReservation[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  /// R2 key — public URL composed as `${R2_PUBLIC_URL}/${key}`.
+  key       String
+  alt       String?
+  position  Int      @default(0)
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+enum BulkTierType {
+  percentage
+  fixed
+}
+
+model BulkTier {
+  id        String        @id @default(uuid()) @db.Uuid
+  productId String        @map("product_id") @db.Uuid
+  min       Int
+  max       Int?
+  type      BulkTierType
+  /// Percent (0-100) when type=percentage, kobo per unit when type=fixed.
+  value     Int
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("bulk_tiers")
+}
+
+// ─── Stock reservations ──────────────────────────────────────────────────
+
+enum StockReservationStatus {
+  active
+  released
+  consumed
+}
+
+model StockReservation {
+  id          String                  @id @default(uuid()) @db.Uuid
+  productId   String                  @map("product_id") @db.Uuid
+  variantId   String?                 @map("variant_id") @db.Uuid
+  orderId     String?                 @map("order_id") @db.Uuid
+  quantity    Int
+  expiresAt   DateTime                @map("expires_at") @db.Timestamptz
+  status      StockReservationStatus  @default(active)
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz
+
+  product     Product                 @relation(fields: [productId], references: [id])
+  variant     ProductVariant?         @relation(fields: [variantId], references: [id])
+  order       Order?                  @relation(fields: [orderId], references: [id])
+
+  @@index([expiresAt, status])
+  @@index([orderId])
+  @@map("stock_reservations")
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  pending
+  confirmed
+  processing
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  unpaid
+  partial
+  paid
+  refunded
+}
+
+enum OrderSource {
+  web
+  whatsapp
+  phone
+  walkin
+  ai
+}
+
+model Order {
+  id              String        @id @default(uuid()) @db.Uuid
+  /// Customer-facing order number, AVM-YYYY-XXXXXXXX (Postgres sequence).
+  number          String        @unique
+  customerId      String?       @map("customer_id") @db.Uuid
+  status          OrderStatus   @default(pending)
+  paymentStatus   PaymentStatus @default(unpaid) @map("payment_status")
+  source          OrderSource
+
+  // Shipping address snapshot (captured at order time so address edits later
+  // don't rewrite history).
+  shipName        String        @map("ship_name")
+  shipPhone       String        @map("ship_phone")
+  shipLine1       String        @map("ship_line1")
+  shipLine2       String?       @map("ship_line2")
+  shipCity        String        @map("ship_city")
+  shipState       String        @map("ship_state")
+  shippingZoneId  String?       @map("shipping_zone_id") @db.Uuid
+
+  // Totals (kobo) — recomputed on every mutation; never trusted from client.
+  subtotalKobo     BigInt @default(0) @map("subtotal_kobo")
+  bulkDiscountKobo BigInt @default(0) @map("bulk_discount_kobo")
+  couponDiscountKobo BigInt @default(0) @map("coupon_discount_kobo")
+  manualDiscountKobo BigInt @default(0) @map("manual_discount_kobo")
+  shippingKobo     BigInt @default(0) @map("shipping_kobo")
+  totalKobo        BigInt @default(0) @map("total_kobo")
+  paidKobo         BigInt @default(0) @map("paid_kobo")
+
+  appliedCouponCode String? @map("applied_coupon_code")
+
+  createdById     String?       @map("created_by_id") @db.Uuid
+  customerNote    String?       @map("customer_note")
+  /// ISO from cart-quote — server validates totals before checkout.
+  quoteId         String?       @map("quote_id")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  shippedAt       DateTime?     @map("shipped_at") @db.Timestamptz
+  deliveredAt     DateTime?     @map("delivered_at") @db.Timestamptz
+  cancelledAt     DateTime?     @map("cancelled_at") @db.Timestamptz
+
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  createdBy       User?         @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  shippingZone    ShippingZone? @relation(fields: [shippingZoneId], references: [id])
+  lines           OrderLine[]
+  payments        OrderPayment[]
+  reservations    StockReservation[]
+  returns         Return[]
+  notes           OrderNote[]
+  conversations   AiConversation[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  orderId      String  @map("order_id") @db.Uuid
+  productId    String  @map("product_id") @db.Uuid
+  variantId    String? @map("variant_id") @db.Uuid
+  /// Snapshotted at order time so future product edits don't rewrite history.
+  nameSnapshot    String @map("name_snapshot")
+  variantSnapshot String? @map("variant_snapshot")
+  skuSnapshot     String  @map("sku_snapshot")
+  quantity        Int
+  unitKobo        BigInt @map("unit_kobo")
+  /// Per-line discount from bulk tier.
+  bulkDiscountKobo BigInt @default(0) @map("bulk_discount_kobo")
+  bulkTierLabel   String? @map("bulk_tier_label")
+  preorder        Boolean @default(false)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product        @relation(fields: [productId], references: [id])
+  variant      ProductVariant? @relation(fields: [variantId], references: [id])
+  returnLines  ReturnLine[]
+
+  @@index([orderId])
+  @@map("order_lines")
+}
+
+enum PaymentMethod {
+  nuqood
+  bank_transfer
+  pos
+  cash
+  store_credit
+}
+
+enum PaymentRecordStatus {
+  pending
+  completed
+  failed
+  reversed
+}
+
+model OrderPayment {
+  id          String              @id @default(uuid()) @db.Uuid
+  orderId     String              @map("order_id") @db.Uuid
+  method      PaymentMethod
+  amountKobo  BigInt              @map("amount_kobo")
+  /// Nuqood/bank transaction reference.
+  reference   String?
+  status      PaymentRecordStatus @default(pending)
+  recordedById String?            @map("recorded_by_id") @db.Uuid
+  note        String?
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  order       Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recordedBy  User?               @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([orderId])
+  @@map("order_payments")
+}
+
+model OrderNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  authorId  String?  @map("author_id") @db.Uuid
+  text      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author    User?    @relation(fields: [authorId], references: [id])
+
+  @@index([orderId])
+  @@map("order_notes")
+}
+
+// ─── Returns ─────────────────────────────────────────────────────────────
+
+enum ReturnStatus {
+  requested
+  approved
+  in_transit
+  received
+  refunded
+  rejected
+}
+
+enum ReturnCondition {
+  unopened
+  used
+  damaged
+}
+
+enum ReturnRefundMethod {
+  original
+  credit
+  transfer
+}
+
+model Return {
+  id              String              @id @default(uuid()) @db.Uuid
+  /// Customer-facing return ID, RET-XXXXXXX.
+  number          String              @unique
+  orderId         String              @map("order_id") @db.Uuid
+  customerId      String              @map("customer_id") @db.Uuid
+  status          ReturnStatus        @default(requested)
+  reason          String
+  refundKobo      BigInt              @default(0) @map("refund_kobo")
+  refundMethod    ReturnRefundMethod  @default(original) @map("refund_method")
+  /// Set when the originating order was delivered > 14 days ago.
+  outsideWindow   Boolean             @default(false) @map("outside_window")
+  /// Set if every line on the originating order has already been returned.
+  fullyReturned   Boolean             @default(false) @map("fully_returned")
+  internalNote    String?             @map("internal_note")
+  photos          String[]            @default([])
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  order           Order               @relation(fields: [orderId], references: [id])
+  customer        Customer            @relation(fields: [customerId], references: [id])
+  lines           ReturnLine[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("returns")
+}
+
+model ReturnLine {
+  id              String          @id @default(uuid()) @db.Uuid
+  returnId        String          @map("return_id") @db.Uuid
+  orderLineId     String          @map("order_line_id") @db.Uuid
+  quantity        Int
+  condition       ReturnCondition
+  /// Damaged items default to false (write off).
+  restock         Boolean         @default(false)
+  refundKobo      BigInt          @map("refund_kobo")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  return          Return          @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderLine       OrderLine       @relation(fields: [orderLineId], references: [id])
+
+  @@map("return_lines")
+}
+
+// ─── Discounts ───────────────────────────────────────────────────────────
+
+enum DiscountKind {
+  coupon
+  automatic
+}
+
+enum DiscountValueType {
+  percentage
+  fixed
+  free_shipping
+}
+
+model Discount {
+  id             String            @id @default(uuid()) @db.Uuid
+  /// Coupon code (uppercase). Null for automatic discounts.
+  code           String?           @unique
+  kind           DiscountKind
+  name           String
+  valueType      DiscountValueType @map("value_type")
+  /// Percent (0-100) for percentage, kobo for fixed, ignored for free_shipping.
+  value          Int               @default(0)
+  scope          String            @default("all") // "all", "category:beauty", "segment:wholesale"
+  usage          Int               @default(0)
+  usageLimit     Int?              @map("usage_limit")
+  validFrom      DateTime?         @map("valid_from") @db.Timestamptz
+  validUntil     DateTime?         @map("valid_until") @db.Timestamptz
+  active         Boolean           @default(true)
+  /// Locked once `usage > 0` per CLAUDE.md §20 — value & scope become immutable.
+  locked         Boolean           @default(false)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("discounts")
+}
+
+// ─── Shipping ────────────────────────────────────────────────────────────
+
+model ShippingZone {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  /// Nigerian states this zone covers.
+  states          String[]
+  baseRateKobo    BigInt   @map("base_rate_kobo")
+  /// Order subtotal above which shipping is free; null = never.
+  freeOverKobo    BigInt?  @map("free_over_kobo")
+  etaDays         String   @map("eta_days")
+  /// Lower priority wins when zones overlap (e.g. Lagos express beats Lagos standard).
+  priority        Int      @default(100)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  orders          Order[]
+
+  @@map("shipping_zones")
+}
+
+model FallbackShipping {
+  id            String  @id @default(uuid()) @db.Uuid
+  enabled       Boolean @default(true)
+  flatRateKobo  BigInt  @map("flat_rate_kobo")
+  etaDays       String  @map("eta_days")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("fallback_shipping")
+}
+
+// ─── Cart (server-side, replaces client mock store in Phase 4) ───────────
+
+model Cart {
+  id            String     @id @default(uuid()) @db.Uuid
+  /// Anonymous carts have no customer.
+  customerId    String?    @map("customer_id") @db.Uuid
+  /// Set when an Idempotency-Key has been used to lock a quote in.
+  lastQuoteId   String?    @map("last_quote_id")
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  abandonedAt   DateTime?  @map("abandoned_at") @db.Timestamptz
+
+  items         CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  cartId      String   @map("cart_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  variantId   String?  @map("variant_id") @db.Uuid
+  quantity    Int
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId, variantId])
+  @@index([cartId])
+  @@map("cart_items")
+}
+
+// ─── OTP (customer auth) ─────────────────────────────────────────────────
+
+model OtpCode {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Phone (E.164) or email, normalized.
+  identifier  String
+  customerId  String?  @map("customer_id") @db.Uuid
+  /// Bcrypt hash of the 6-digit code.
+  codeHash    String   @map("code_hash")
+  attempts    Int      @default(0)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  customer    Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([identifier, expiresAt])
+  @@map("otp_codes")
+}
+
+// ─── AI conversations ────────────────────────────────────────────────────
+
+enum AiConversationStatus {
+  active
+  handoff_pending
+  handoff_active
+  closed
+}
+
+enum AiMessageRole {
+  user
+  ai
+  staff
+}
+
+enum AiChannel {
+  whatsapp
+  web
+}
+
+model AiConversation {
+  id             String                @id @default(uuid()) @db.Uuid
+  customerId     String?               @map("customer_id") @db.Uuid
+  orderId        String?               @map("order_id") @db.Uuid
+  channel        AiChannel
+  status         AiConversationStatus  @default(active)
+  assignedStaffId String?              @map("assigned_staff_id") @db.Uuid
+  startedAt      DateTime              @default(now()) @map("started_at") @db.Timestamptz
+  closedAt       DateTime?             @map("closed_at") @db.Timestamptz
+  /// Set when SLA breached and not yet claimed.
+  slaBreachedAt  DateTime?             @map("sla_breached_at") @db.Timestamptz
+
+  customer       Customer?             @relation(fields: [customerId], references: [id])
+  order          Order?                @relation(fields: [orderId], references: [id])
+  messages       AiMessage[]
+
+  @@index([status])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id              String         @id @default(uuid()) @db.Uuid
+  conversationId  String         @map("conversation_id") @db.Uuid
+  role            AiMessageRole
+  text            String
+  /// Tool calls + results from the LLM orchestrator.
+  toolCalls       Json?          @map("tool_calls")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation    AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+// ─── Audit log (append-only) ─────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorType   String   @map("actor_type") // "staff", "customer", "ai", "system"
+  action      String   // "order.cancel", "customer.blacklist", "product.price.change"
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  before      Json?
+  after       Json?
+  /// Request metadata: ip, user_agent, channel.
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── Idempotency keys ────────────────────────────────────────────────────
+
+model IdempotencyKey {
+  key         String   @id
+  bodyHash    String   @map("body_hash")
+  /// JSON-serialised response to replay on retry.
+  response    Json
+  statusCode  Int      @map("status_code")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
