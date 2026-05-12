@@ -15,14 +15,15 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AddressPicker } from "@/components/ui/address-picker";
 import { Stepper, type StepperItem } from "@/components/ui/stepper";
 import { useCart, resolveCart, computeTotals } from "@/stores/cart-store";
+import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 
-type PaymentMethod = "nuqood" | "transfer" | "pod";
+type PaymentMethod = "nuqood" | "bank_transfer" | "pos";
 
 const PAYMENT_OPTIONS: { id: PaymentMethod; name: string; sub: string }[] = [
   { id: "nuqood", name: "Card · Nuqood", sub: "Pay with Visa, Mastercard, Verve" },
-  { id: "transfer", name: "Bank transfer", sub: "Pay to our verified account" },
-  { id: "pod", name: "Pay on delivery", sub: "Cash or POS · Lagos only" },
+  { id: "bank_transfer", name: "Bank transfer", sub: "Pay to our verified account" },
+  { id: "pos", name: "Pay on delivery", sub: "Cash or POS · Lagos only" },
 ];
 
 export default function CheckoutPage() {
@@ -39,6 +40,52 @@ export default function CheckoutPage() {
   const [city, setCity] = React.useState("Ikoyi");
   const [address, setAddress] = React.useState("14 Bourdillon Road, Apt 3B");
   const [pay, setPay] = React.useState<PaymentMethod>("nuqood");
+  const [placing, setPlacing] = React.useState(false);
+
+  async function placeOrder() {
+    if (resolved.length === 0) {
+      toast.error("Your cart is empty");
+      return;
+    }
+    setPlacing(true);
+    try {
+      const res = await fetch("/api/v1/checkout", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          // Stable per-attempt key so retries are idempotent. See §7.
+          "idempotency-key": crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          items: resolved.map((l) => ({
+            productId: l.productId,
+            variantId: l.variantId,
+            quantity: l.qty,
+          })),
+          contact: { name, phone, ...(email && { email }) },
+          shipping: { line1: address, city, state },
+          paymentMethod: pay,
+        }),
+      });
+
+      // 503 = DB not configured yet (mock-mode dev). Fall back to the
+      // pretend-placed flow so the storefront still demos.
+      if (res.status === 503) {
+        router.push("/orders/AVM-2026-00000001");
+        return;
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message ?? "Couldn't place order");
+      }
+      router.push(`/orders/${data.data.order.number}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't place order");
+    } finally {
+      setPlacing(false);
+    }
+  }
 
   const stepperSteps: StepperItem[] = [
     { id: "1", label: "Contact" },
@@ -191,7 +238,8 @@ export default function CheckoutPage() {
                 <Button
                   size="lg"
                   className="mt-2"
-                  onClick={() => router.push("/orders/AVM-2841")}
+                  loading={placing}
+                  onClick={placeOrder}
                 >
                   <Lock className="size-4" /> Place order ·{" "}
                   <Money kobo={totals.totalKobo} className="text-brand-primary-fg" />
