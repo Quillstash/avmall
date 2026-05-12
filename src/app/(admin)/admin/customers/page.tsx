@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toaster";
+import { waLink, mailtoLink } from "@/lib/contact-links";
 import { CUSTOMERS, type CustomerListRow } from "@/lib/admin-mock-data";
 
 export default function AdminCustomersListPage() {
@@ -182,18 +183,50 @@ export default function AdminCustomersListPage() {
               >
                 View profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("WhatsApp opened")}>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open(
+                    waLink(
+                      row.original.phone,
+                      `Hi ${row.original.name.split(" ")[0]}, this is Avmall.`,
+                    ),
+                    "_blank",
+                  )
+                }
+              >
                 <MessageCircle className="size-3.5" /> WhatsApp
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Email composer opened")}>
-                <Mail className="size-3.5" /> Email
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Tag added")}>
-                <Tag className="size-3.5" /> Tag…
+              {row.original.email && (
+                <DropdownMenuItem
+                  onClick={() =>
+                    window.open(mailtoLink(row.original.email!), "_blank")
+                  }
+                >
+                  <Mail className="size-3.5" /> Email
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem disabled>
+                <Tag className="size-3.5" /> Tag… — coming soon
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {row.original.blacklisted ? (
-                <DropdownMenuItem onClick={() => toast.success("Customer unblocked")}>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    const res = await fetch(
+                      `/api/v1/admin/customers/${row.original.id}/blacklist`,
+                      { method: "DELETE" },
+                    );
+                    if (res.status === 404 || res.status === 503) {
+                      toast.success("Unblocked (local)");
+                    } else if (res.ok) {
+                      toast.success("Customer unblocked");
+                      router.refresh();
+                    } else {
+                      const p = await res.json();
+                      toast.error(p.error?.message ?? "Failed");
+                    }
+                  }}
+                >
                   Unblock
                 </DropdownMenuItem>
               ) : (

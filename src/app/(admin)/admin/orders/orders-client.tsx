@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toaster";
+import { waLink } from "@/lib/contact-links";
 import { type OrderListRow, type OrderSource } from "@/lib/admin-mock-data";
 
 const SAVED_VIEWS: SavedView[] = [
@@ -190,13 +191,22 @@ export function OrdersListClient({ orders, totals }: Props) {
               <DropdownMenuItem onClick={() => router.push(`/admin/orders/${row.original.number}`)}>
                 <Eye className="size-3.5" /> View
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Receipt sent")}>
-                <Mail className="size-3.5" /> Email receipt
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("WhatsApp opened")}>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open(
+                    waLink(
+                      row.original.customerPhone,
+                      `Hi ${row.original.customerName.split(" ")[0]}, this is Avmall about order #${row.original.number}.`,
+                    ),
+                    "_blank",
+                  )
+                }
+              >
                 <MessageCircle className="size-3.5" /> WhatsApp customer
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Sent to printer")}>
+              <DropdownMenuItem
+                onClick={() => router.push(`/admin/orders/${row.original.number}?print=1`)}
+              >
                 <Printer className="size-3.5" /> Print packing slip
               </DropdownMenuItem>
               <DropdownMenuSeparator />

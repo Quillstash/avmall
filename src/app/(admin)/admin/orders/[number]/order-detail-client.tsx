@@ -44,6 +44,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { PaymentLedger } from "@/components/admin/payment-ledger";
 import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
 import { toast } from "@/components/ui/toaster";
+import { telLink, waLink } from "@/lib/contact-links";
 import type { OrderPayment } from "@/lib/admin-mock-data";
 import type { OrderDetail } from "@/lib/data/orders";
 import { formatMoney } from "@/lib/money";
@@ -321,11 +322,21 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => toast.success("Receipt emailed")}>
-                    <Mail className="size-3.5" /> Email customer
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.success("WhatsApp opened")}>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      window.open(
+                        waLink(
+                          customerPhone,
+                          `Hi ${customerName.split(" ")[0]}, this is Avmall about order #${order.number}.`,
+                        ),
+                        "_blank",
+                      )
+                    }
+                  >
                     <MessageCircle className="size-3.5" /> WhatsApp customer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    <Mail className="size-3.5" /> Email receipt — Phase 5
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
@@ -661,13 +672,25 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </div>
                 </div>
                 <div className="flex gap-1 mt-3">
-                  <Button variant="ghost" size="icon" aria-label="Phone">
-                    <Phone className="size-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" aria-label="WhatsApp">
-                    <MessageCircle className="size-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" aria-label="Email">
+                  <a href={telLink(customerPhone)}>
+                    <Button variant="ghost" size="icon" aria-label="Call">
+                      <Phone className="size-3.5" />
+                    </Button>
+                  </a>
+                  <a
+                    href={waLink(
+                      customerPhone,
+                      `Hi ${customerName.split(" ")[0]}, this is Avmall about order #${order.number}.`,
+                    )}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <Button variant="ghost" size="icon" aria-label="WhatsApp">
+                      <MessageCircle className="size-3.5" />
+                    </Button>
+                  </a>
+                  {/* Email only shown when we have one — Customer.email is nullable */}
+                  <Button variant="ghost" size="icon" aria-label="Email" disabled>
                     <Mail className="size-3.5" />
                   </Button>
                   {order.customer && (
