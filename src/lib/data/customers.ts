@@ -1,0 +1,120 @@
+/**
+ * Customer data layer with mock fallback.
+ */
+
+import "server-only";
+
+import { db, hasDatabase } from "@/lib/db";
+import {
+  CUSTOMERS as MOCK_CUSTOMERS,
+  type CustomerListRow,
+} from "@/lib/admin-mock-data";
+
+export type { CustomerListRow };
+
+export interface AdminCustomerDetail {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  segments: string[];
+  blacklisted: boolean;
+  blacklistReason: string | null;
+  storeCreditKobo: number;
+  lifetimeKobo: number;
+  ordersCount: number;
+  lastOrderAt: Date | null;
+  createdAt: Date;
+}
+
+export async function listCustomers(): Promise<CustomerListRow[]> {
+  if (!hasDatabase) return [...MOCK_CUSTOMERS];
+
+  const rows = await db.customer.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    include: {
+      orders: {
+        select: { totalKobo: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  return rows.map((c) => {
+    const lifetime = c.orders.reduce((a, o) => a + Number(o.totalKobo), 0);
+    const last = c.orders[0]?.createdAt;
+    return {
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      ...(c.email && { email: c.email }),
+      lifetimeKobo: lifetime,
+      orders: c.orders.length,
+      lastOrder: last ? formatDate(last) : "Never",
+      segments: c.segments,
+      ...(c.blacklisted && { blacklisted: true }),
+    } satisfies CustomerListRow;
+  });
+}
+
+export async function getCustomer(id: string): Promise<AdminCustomerDetail | null> {
+  if (!hasDatabase) {
+    const m = MOCK_CUSTOMERS.find((c) => c.id === id);
+    if (!m) return null;
+    return {
+      id: m.id,
+      name: m.name,
+      phone: m.phone,
+      email: m.email ?? null,
+      segments: m.segments,
+      blacklisted: !!m.blacklisted,
+      blacklistReason: m.blacklisted ? "Repeated chargebacks" : null,
+      storeCreditKobo: 0,
+      lifetimeKobo: m.lifetimeKobo,
+      ordersCount: m.orders,
+      lastOrderAt: null,
+      createdAt: new Date(),
+    };
+  }
+  const c = await db.customer.findUnique({
+    where: { id },
+    include: {
+      orders: {
+        select: { totalKobo: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!c) return null;
+  const lifetime = c.orders.reduce((a, o) => a + Number(o.totalKobo), 0);
+  return {
+    id: c.id,
+    name: c.name,
+    phone: c.phone,
+    email: c.email,
+    segments: c.segments,
+    blacklisted: c.blacklisted,
+    blacklistReason: c.blacklistReason,
+    storeCreditKobo: Number(c.storeCreditKobo),
+    lifetimeKobo: lifetime,
+    ordersCount: c.orders.length,
+    lastOrderAt: c.orders[0]?.createdAt ?? null,
+    createdAt: c.createdAt,
+  };
+}
+
+function formatDate(d: Date): string {
+  const today = new Date();
+  const diffDays = Math.floor(
+    (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return d.toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Africa/Lagos",
+  });
+}

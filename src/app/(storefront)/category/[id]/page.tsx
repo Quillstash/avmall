@@ -3,33 +3,35 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { ProductCard } from "@/components/storefront/product-card";
 import {
-  CATEGORIES,
-  PRODUCTS,
-  getCategory,
-  getProductsByCategory,
-  type ProductCategoryId,
-} from "@/lib/mock-data";
+  listCategories,
+  getCategoryBySlug,
+  listProducts,
+} from "@/lib/data/products";
 import { CategoryToolbar } from "./toolbar";
 import { CategorySidebar } from "./sidebar";
 
-export function generateStaticParams() {
-  return CATEGORIES.map((c) => ({ id: c.id }));
+export async function generateStaticParams() {
+  const cats = await listCategories();
+  return cats.map((c) => ({ id: c.id }));
 }
 
 interface CategoryPageProps {
   params: { id: string };
 }
 
-export default function CategoryPage({ params }: CategoryPageProps) {
-  const category = getCategory(params.id);
+export default async function CategoryPage({ params }: CategoryPageProps) {
+  const category = await getCategoryBySlug(params.id);
   if (!category) notFound();
 
-  let products = getProductsByCategory(params.id as ProductCategoryId);
+  let products = await listProducts({ category: params.id });
+  // Pad to keep the grid lively when a fresh category is sparse.
   if (products.length < 8) {
-    products = [
-      ...products,
-      ...PRODUCTS.filter((p) => !products.includes(p)).slice(0, 8 - products.length),
-    ];
+    const pool = await listProducts({ limit: 8 });
+    const ids = new Set(products.map((p) => p.id));
+    for (const p of pool) {
+      if (products.length >= 8) break;
+      if (!ids.has(p.id)) products.push(p);
+    }
   }
 
   return (

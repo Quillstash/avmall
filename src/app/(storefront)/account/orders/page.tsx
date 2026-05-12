@@ -1,25 +1,16 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Money } from "@/components/ui/money";
-import { OrderStatusPill, type OrderStatus } from "@/components/ui/status-pill";
+import { OrderStatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { getCustomerSession } from "@/lib/customer-session";
+import { listCustomerOrders } from "@/lib/data/orders";
 
-const ORDERS: {
-  number: string;
-  date: string;
-  totalKobo: number;
-  status: OrderStatus;
-  items: number;
-}[] = [
-  { number: "AVM-2841", date: "Tue 14 Jan 2026", totalKobo: 6294000, status: "confirmed", items: 3 },
-  { number: "AVM-2811", date: "8 Jan 2026", totalKobo: 18900000, status: "delivered", items: 6 },
-  { number: "AVM-2790", date: "2 Jan 2026", totalKobo: 8400000, status: "delivered", items: 2 },
-  { number: "AVM-2754", date: "24 Dec 2025", totalKobo: 14200000, status: "refunded", items: 4 },
-  { number: "AVM-2718", date: "10 Dec 2025", totalKobo: 2980000, status: "delivered", items: 1 },
-];
+export default async function AccountOrdersPage() {
+  const session = await getCustomerSession();
+  const orders = await listCustomerOrders(session?.customerId ?? "");
 
-export default function AccountOrdersPage() {
   return (
     <div>
       <div className="flex items-end justify-between mb-6 gap-4">
@@ -27,7 +18,7 @@ export default function AccountOrdersPage() {
           <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight">
             Orders
           </h1>
-          <p className="text-sm text-fg-muted mt-1">{ORDERS.length} orders to date</p>
+          <p className="text-sm text-fg-muted mt-1">{orders.length} orders to date</p>
         </div>
         <Select className="h-10 w-40 text-sm">
           <option>All time</option>
@@ -37,42 +28,51 @@ export default function AccountOrdersPage() {
         </Select>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {ORDERS.map((o) => (
-          <div
-            key={o.number}
-            className="p-5 rounded-lg border border-border bg-surface hover:border-border-strong transition-colors"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono font-bold text-sm tabular">#{o.number}</span>
-                  <OrderStatusPill status={o.status} />
+      {orders.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-surface p-10 text-center">
+          <p className="text-sm text-fg-muted mb-4">You haven&apos;t placed any orders yet.</p>
+          <Link href="/">
+            <Button>Start shopping</Button>
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {orders.map((o) => (
+            <div
+              key={o.number}
+              className="p-5 rounded-lg border border-border bg-surface hover:border-border-strong transition-colors"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-bold text-sm tabular">#{o.number}</span>
+                    <OrderStatusPill status={o.status} />
+                  </div>
+                  <div className="text-xs text-fg-muted mt-1">
+                    {o.date} · {o.items} items
+                  </div>
                 </div>
-                <div className="text-xs text-fg-muted mt-1">
-                  {o.date} · {o.items} items
-                </div>
+                <Money kobo={o.totalKobo} className="text-base font-bold" />
               </div>
-              <Money kobo={o.totalKobo} className="text-base font-bold" />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href={`/orders/${o.number}`}>
-                <Button variant="secondary" size="sm">
-                  Track order <ChevronRight className="size-3.5" />
-                </Button>
-              </Link>
-              <Button variant="ghost" size="sm">
-                Buy again
-              </Button>
-              {o.status === "delivered" && (
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/orders/${o.number}`}>
+                  <Button variant="secondary" size="sm">
+                    Track order <ChevronRight className="size-3.5" />
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="sm">
-                  Request return
+                  Buy again
                 </Button>
-              )}
+                {o.status === "delivered" && (
+                  <Button variant="ghost" size="sm">
+                    Request return
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/storefront/product-card";
-import { PRODUCTS, CATEGORIES } from "@/lib/mock-data";
+import { listProducts } from "@/lib/data/products";
 
 const TRUST_ITEMS = [
   { t: "Same-day Lagos", s: "Order before 1pm" },
@@ -50,9 +50,10 @@ const CATEGORY_VISUALS = [
   },
 ];
 
-export default function HomePage() {
-  const newArrivals = PRODUCTS.slice(0, 4);
-  const bestsellers = PRODUCTS.slice(2, 6);
+export default async function HomePage() {
+  const all = await listProducts({ limit: 8, featuredFirst: true });
+  const newArrivals = all.slice(0, 4);
+  const bestsellers = all.slice(4, 8).length === 4 ? all.slice(4, 8) : all.slice(0, 4);
 
   return (
     <div>

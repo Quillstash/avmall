@@ -2,25 +2,28 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, Star, Truck, RefreshCcw, Shield } from "lucide-react";
-import { PRODUCTS, getProduct } from "@/lib/mock-data";
 import { ProductCard } from "@/components/storefront/product-card";
+import {
+  getProductBySlug,
+  getRelatedProducts,
+  listAllProductSlugs,
+} from "@/lib/data/products";
 import { PDPDetail } from "./detail";
 
-export function generateStaticParams() {
-  return PRODUCTS.map((p) => ({ slug: p.slug }));
+export async function generateStaticParams() {
+  const slugs = await listAllProductSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 interface PDPProps {
   params: { slug: string };
 }
 
-export default function PDPPage({ params }: PDPProps) {
-  const product = getProduct(params.slug);
+export default async function PDPPage({ params }: PDPProps) {
+  const product = await getProductBySlug(params.slug);
   if (!product) notFound();
 
-  const related = PRODUCTS.filter(
-    (p) => p.category === product.category && p.id !== product.id,
-  ).slice(0, 4);
+  const related = await getRelatedProducts(product, 4);
   const gallery = product.gallery ?? [product.imageUrl];
 
   return (
