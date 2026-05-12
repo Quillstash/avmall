@@ -23,6 +23,7 @@ export default function CustomerLoginPage() {
   const [otp, setOtp] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [hint, setHint] = React.useState<string | null>(null);
   const [resendIn, setResendIn] = React.useState(0);
 
   React.useEffect(() => {
@@ -31,29 +32,54 @@ export default function CustomerLoginPage() {
     return () => clearTimeout(t);
   }, [resendIn]);
 
-  function startVerification() {
+  const identifier = method === "phone" ? phone : email;
+
+  async function startVerification() {
     setError(null);
+    setHint(null);
     setLoading(true);
-    // Phase 4 will wire OTP API. For now jump to verify step.
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetch("/api/auth/customer/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message ?? "Couldn't send a code");
+
+      if (data.data?.mock) {
+        setHint("Mock mode (no DB) — use code 123456");
+      }
       setStep("verify");
       setResendIn(60);
-    }, 500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function verifyOtp(code: string) {
+  async function verifyOtp(code: string) {
     setError(null);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (code === "123456") {
-        router.push("/account");
-      } else {
-        setError("Incorrect code. Try again.");
+    try {
+      const res = await fetch("/api/auth/customer/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
         setOtp("");
+        throw new Error(data.error?.message ?? "Couldn't verify the code");
       }
-    }, 600);
+      router.push("/account");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (step === "verify") {
@@ -85,9 +111,8 @@ export default function CustomerLoginPage() {
           invalid={!!error}
         />
 
-        {error && (
-          <Alert tone="danger" title={error} className="mt-4" />
-        )}
+        {error && <Alert tone="danger" title={error} className="mt-4" />}
+        {!error && hint && <Alert tone="info" title={hint} className="mt-4" />}
 
         <p className="text-xs text-fg-muted mt-5">
           Didn&apos;t get it?{" "}
@@ -102,10 +127,6 @@ export default function CustomerLoginPage() {
             </button>
           )}
         </p>
-
-        <p className="text-[11px] text-fg-subtle mt-2">
-          Try <code className="font-mono">123456</code> as the code (mock).
-        </p>
       </div>
     );
   }
@@ -118,6 +139,8 @@ export default function CustomerLoginPage() {
       <p className="text-sm text-fg-muted mb-7">
         We&apos;ll send you a 6-digit code. No password required.
       </p>
+
+      {error && <Alert tone="danger" title={error} className="mb-4" />}
 
       <Tabs value={method} onValueChange={(v) => setMethod(v as "phone" | "email")} className="mb-5">
         <TabsList className="w-full">

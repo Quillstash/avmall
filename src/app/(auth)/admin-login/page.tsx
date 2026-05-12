@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 import { Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ type Step = "credentials" | "totp";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { data: session, update } = useSession();
   const [step, setStep] = React.useState<Step>("credentials");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -24,30 +26,49 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  function submitCredentials(e: React.FormEvent) {
+  React.useEffect(() => {
+    if (session?.user && !session.user.pendingTotp) {
+      router.replace("/admin");
+    } else if (session?.user?.pendingTotp) {
+      setStep("totp");
+    }
+  }, [session, router]);
+
+  async function submitCredentials(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // Mock: any non-empty creds advance to 2FA
-      if (email && password) setStep("totp");
-      else setError("Email and password are required.");
-    }, 500);
+    const res = await signIn("staff", { email, password, redirect: false });
+    setLoading(false);
+    if (!res || res.error) {
+      setError(res?.error ?? "Couldn't sign in");
+      return;
+    }
+    // Session effect above will route us — either to /admin if no TOTP, or
+    // to the TOTP step.
   }
 
-  function verifyTotp(code: string) {
+  async function verifyTotp(code: string) {
     setError(null);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (code === "123456") {
-        router.push("/admin");
-      } else {
-        setError("Incorrect code.");
+    try {
+      const res = await fetch("/api/auth/totp/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
         setTotp("");
+        throw new Error(data.error?.message ?? "Incorrect code");
       }
-    }, 500);
+      await update({ user: { pendingTotp: false } });
+      router.replace("/admin");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (step === "totp") {
@@ -80,10 +101,6 @@ export default function AdminLoginPage() {
         >
           ← Use a different account
         </button>
-
-        <p className="text-[11px] text-fg-subtle mt-2">
-          Try <code className="font-mono">123456</code> as the code (mock).
-        </p>
       </div>
     );
   }
@@ -101,7 +118,7 @@ export default function AdminLoginPage() {
       </p>
 
       <form onSubmit={submitCredentials} className="flex flex-col gap-4">
-        <Field id="email" label="Email">
+        <Field id="email" label="Email" required>
           <Input
             id="email"
             type="email"
@@ -111,7 +128,7 @@ export default function AdminLoginPage() {
             autoFocus
           />
         </Field>
-        <Field id="password" label="Password">
+        <Field id="password" label="Password" required>
           <div className="relative">
             <Input
               id="password"
