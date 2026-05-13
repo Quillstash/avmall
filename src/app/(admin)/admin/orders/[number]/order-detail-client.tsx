@@ -279,12 +279,12 @@ export function OrderDetailClient({ params, order }: PageProps) {
         ]}
       />
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-[1500px] mx-auto pb-20">
+        <div className="p-6 lg:p-8 max-w-[1500px] mx-auto pb-20">
           {/* Header */}
-          <div className="flex flex-wrap items-start gap-4 mb-5">
+          <div className="flex flex-wrap items-start gap-4 mb-6 lg:mb-8">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                <h1 className="text-2xl font-bold font-mono tracking-tight tabular">
+              <div className="flex items-center gap-3 flex-wrap mb-2">
+                <h1 className="text-2xl lg:text-3xl font-bold font-mono tracking-tight tabular">
                   #{params.number}
                 </h1>
                 <OrderStatusPill status={order.status} />
@@ -372,9 +372,9 @@ export function OrderDetailClient({ params, order }: PageProps) {
           )}
 
           {/* Three column layout */}
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-5 xl:gap-6">
             {/* LEFT — order body */}
-            <div className="flex flex-col gap-4 min-w-0">
+            <div className="flex flex-col gap-5 lg:gap-6 min-w-0">
               <Card
                 title="Items"
                 action={
@@ -386,32 +386,32 @@ export function OrderDetailClient({ params, order }: PageProps) {
               >
                 <table className="w-full">
                   <thead>
-                    <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted bg-surface-2">
-                      <th className="text-left px-3.5 py-2.5">Product</th>
-                      <th className="text-right px-3.5 py-2.5">Qty</th>
-                      <th className="text-right px-3.5 py-2.5">Unit</th>
-                      <th className="text-right px-3.5 py-2.5">Discount</th>
-                      <th className="text-right px-3.5 py-2.5">Total</th>
-                      <th className="w-8" />
+                    <tr className="text-[11px] font-bold uppercase tracking-wider text-fg-muted bg-surface-2">
+                      <th className="text-left px-5 py-3">Product</th>
+                      <th className="text-right px-5 py-3">Qty</th>
+                      <th className="text-right px-5 py-3">Unit</th>
+                      <th className="text-right px-5 py-3">Discount</th>
+                      <th className="text-right px-5 py-3">Total</th>
+                      <th className="w-10" />
                     </tr>
                   </thead>
                   <tbody>
                     {orderItems.map((it) => (
                       <tr key={it.id} className="border-t border-border">
-                        <td className="px-3.5 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="relative size-10 rounded-md overflow-hidden flex-shrink-0 bg-surface-2">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative size-12 rounded-md overflow-hidden flex-shrink-0 bg-surface-2">
                               <Image
                                 src={it.imageUrl}
                                 alt={it.name}
                                 fill
-                                sizes="40px"
+                                sizes="48px"
                                 className="object-cover"
                               />
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm font-semibold truncate">{it.name}</div>
-                              <div className="text-[11px] text-fg-muted">
+                              <div className="text-xs text-fg-muted mt-0.5">
                                 {it.variant} ·{" "}
                                 <span className="font-mono tabular">{it.sku}</span>
                                 {it.tier && (
@@ -423,11 +423,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3.5 py-3 text-right font-semibold tabular">{it.qty}</td>
-                        <td className="px-3.5 py-3 text-right">
+                        <td className="px-5 py-4 text-right font-semibold tabular">{it.qty}</td>
+                        <td className="px-5 py-4 text-right">
                           <Money kobo={it.unitKobo} />
                         </td>
-                        <td className="px-3.5 py-3 text-right">
+                        <td className="px-5 py-4 text-right">
                           {it.discountKobo > 0 ? (
                             <span className="text-brand-accent">
                               −{formatMoney(it.discountKobo)}
@@ -436,10 +436,10 @@ export function OrderDetailClient({ params, order }: PageProps) {
                             <span className="text-fg-subtle">—</span>
                           )}
                         </td>
-                        <td className="px-3.5 py-3 text-right font-bold">
+                        <td className="px-5 py-4 text-right font-bold">
                           <Money kobo={it.unitKobo * it.qty - it.discountKobo} />
                         </td>
-                        <td className="px-3.5 py-3 text-right">
+                        <td className="px-5 py-4 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
@@ -465,8 +465,8 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 </table>
 
                 {/* Totals */}
-                <div className="flex justify-end px-4 py-3 border-t border-border">
-                  <div className="min-w-[280px] space-y-0.5">
+                <div className="flex justify-end px-5 py-5 border-t border-border bg-surface-2/50">
+                  <div className="min-w-[320px] space-y-1.5">
                     <TotalRow label="Subtotal" value={formatMoney(itemsSubtotal)} />
                     <TotalRow
                       label="Bulk discounts"
@@ -512,9 +512,9 @@ export function OrderDetailClient({ params, order }: PageProps) {
 
               <Card
                 title="Internal notes"
-                action={<span className="text-[11px] text-fg-subtle">autosaved</span>}
+                action={<span className="text-xs text-fg-subtle">autosaved</span>}
               >
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-4">
                   <NoteEntry
                     author="Funmi A."
                     time="2 min ago"
@@ -525,23 +525,23 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     time="14 min ago"
                     text="Confirmed all items in stock. Boxes labeled, ready for courier pickup once paid in full."
                   />
-                  <Textarea placeholder="Add a note for the team…" rows={2} />
+                  <Textarea placeholder="Add a note for the team…" rows={3} />
                 </div>
               </Card>
             </div>
 
             {/* MIDDLE — payments & actions */}
-            <div className="flex flex-col gap-4 min-w-0">
+            <div className="flex flex-col gap-5 lg:gap-6 min-w-0">
               {/* Partial-payment edge case */}
               {isPartiallyPaid && (
-                <div className="rounded-lg p-4 bg-warning-bg border border-warning/30">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-warning mb-1">
+                <div className="rounded-lg p-5 lg:p-6 bg-warning-bg border border-warning/30">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-warning mb-2">
                     Outstanding balance
                   </div>
-                  <div className="text-[30px] font-bold tracking-tight mb-3 tabular">
+                  <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
                     {formatMoney(outstanding)}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2.5">
                     <Button width="full" onClick={() => toast.success("Payment link generated")}>
                       <LinkIcon className="size-3.5" /> Generate payment link
                     </Button>
@@ -553,7 +553,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
                       <Plus className="size-3.5" /> Record payment
                     </Button>
                   </div>
-                  <p className="text-[11px] text-fg-muted mt-2.5 leading-snug">
+                  <p className="text-xs text-fg-muted mt-3.5 leading-relaxed">
                     Fulfilment policy: order must be paid in full before shipping.{" "}
                     <button className="text-brand-primary font-semibold hover:underline">
                       Override
@@ -564,14 +564,14 @@ export function OrderDetailClient({ params, order }: PageProps) {
 
               {/* Overpaid edge case */}
               {isOverpaid && (
-                <div className="rounded-lg p-4 bg-info-bg border border-brand-primary/30">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-brand-primary mb-1">
+                <div className="rounded-lg p-5 lg:p-6 bg-info-bg border border-brand-primary/30">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-brand-primary mb-2">
                     Overpaid · credit due
                   </div>
-                  <div className="text-[30px] font-bold tracking-tight mb-3 tabular">
+                  <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
                     {formatMoney(Math.abs(outstanding))}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2.5">
                     <Button width="full">Issue store credit (+5% bonus)</Button>
                     <Button width="full" variant="secondary">
                       Refund to original method
@@ -603,14 +603,14 @@ export function OrderDetailClient({ params, order }: PageProps) {
               </Card>
 
               <Card title="Next action">
-                <div className="p-3.5 rounded-md bg-surface-2 flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="size-9 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center flex-shrink-0">
+                <div className="p-4 rounded-md bg-surface-2 flex flex-col gap-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="size-10 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center flex-shrink-0">
                       <Truck className="size-4" />
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-bold">Mark as shipped</div>
-                      <div className="text-[11px] text-fg-muted">
+                      <div className="text-xs text-fg-muted mt-0.5">
                         {isPartiallyPaid
                           ? "Disabled until paid in full"
                           : "Ready to dispatch"}
@@ -639,15 +639,15 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </Link>
                 }
               >
-                <div className="p-3 rounded-md bg-info-bg border border-brand-primary/15">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="p-4 rounded-md bg-info-bg border border-brand-primary/15">
+                  <div className="flex items-center gap-2 mb-2.5">
                     <Sparkles className="size-3.5" />
                     <span className="text-xs font-bold">Ada (AI agent)</span>
-                    <span className="ml-auto text-[11px] text-fg-muted">
+                    <span className="ml-auto text-xs text-fg-muted">
                       WhatsApp · 18 messages
                     </span>
                   </div>
-                  <div className="text-xs leading-snug text-fg-muted">
+                  <div className="text-xs leading-relaxed text-fg-muted">
                     Customer asked for bulk pricing on shea balm and incense; Ada quoted a 9%
                     blended discount and the customer accepted at{" "}
                     <code className="font-mono text-fg">JANUARY10</code> coupon equivalent. No
@@ -658,20 +658,20 @@ export function OrderDetailClient({ params, order }: PageProps) {
             </div>
 
             {/* RIGHT — context */}
-            <div className="flex flex-col gap-4 min-w-0">
+            <div className="flex flex-col gap-5 lg:gap-6 min-w-0">
               <Card title="Customer">
-                <div className="flex items-center gap-2.5 mb-3">
+                <div className="flex items-center gap-3 mb-4">
                   <Avatar size="lg">
                     <AvatarFallback>{customerInitials}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm">{customerName}</div>
-                    <div className="text-[11px] text-fg-muted font-mono tabular">
+                    <div className="font-bold text-base">{customerName}</div>
+                    <div className="text-xs text-fg-muted font-mono tabular mt-0.5">
                       {customerPhone}
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-1 mt-3">
+                <div className="flex gap-2 mt-4">
                   <a href={telLink(customerPhone)}>
                     <Button variant="ghost" size="icon" aria-label="Call">
                       <Phone className="size-3.5" />
@@ -724,9 +724,9 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     {order.shipping.phone}
                   </div>
                 </div>
-                <div className="mt-3 p-2.5 rounded-md bg-surface-2 flex items-center gap-2">
-                  <Truck className="size-3.5" />
-                  <div className="text-[11px] leading-snug">
+                <div className="mt-4 p-3 rounded-md bg-surface-2 flex items-center gap-2.5">
+                  <Truck className="size-4 flex-shrink-0" />
+                  <div className="text-xs leading-relaxed">
                     <div className="font-semibold">Lagos · 24h</div>
                     <div className="text-fg-muted">GIG Logistics · ₦3,500</div>
                   </div>
@@ -743,17 +743,17 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     key={o.id}
                     href={`/admin/orders/${o.id}`}
                     className={
-                      "flex items-center justify-between py-2 " +
+                      "flex items-center justify-between py-3 hover:bg-surface-2 -mx-2 px-2 rounded transition-colors " +
                       (i > 0 ? "border-t border-border" : "")
                     }
                   >
                     <div>
-                      <div className="font-mono text-xs font-bold tabular">#{o.id}</div>
-                      <div className="text-[11px] text-fg-muted">{o.date}</div>
+                      <div className="font-mono text-sm font-bold tabular">#{o.id}</div>
+                      <div className="text-xs text-fg-muted mt-0.5">{o.date}</div>
                     </div>
                     <div className="text-right">
-                      <Money kobo={o.total} className="text-xs font-bold" />
-                      <div className="mt-0.5">
+                      <Money kobo={o.total} className="text-sm font-bold" />
+                      <div className="mt-1">
                         <OrderStatusPill status={o.status} bare />
                       </div>
                     </div>
@@ -806,12 +806,12 @@ function Card({
 }) {
   return (
     <div className="rounded-lg border border-border bg-surface shadow-sm">
-      <div className="px-4 py-3 flex items-center justify-between gap-2">
-        <div className="text-sm font-bold">{title}</div>
+      <div className="px-5 py-4 flex items-center justify-between gap-2">
+        <div className="text-sm font-bold tracking-tight">{title}</div>
         {action}
       </div>
       <div className="h-px bg-border" />
-      <div className={padded ? "p-4" : ""}>{children}</div>
+      <div className={padded ? "p-5" : ""}>{children}</div>
     </div>
   );
 }
@@ -882,10 +882,10 @@ function NoteEntry({
   text: string;
 }) {
   return (
-    <div className="text-xs leading-relaxed">
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="text-sm leading-relaxed">
+      <div className="flex items-center gap-1.5 mb-1.5">
         <span className="font-bold text-fg">{author}</span>
-        <span className="text-fg-subtle">· {time}</span>
+        <span className="text-xs text-fg-subtle">· {time}</span>
       </div>
       <p className="text-fg-muted">{text}</p>
     </div>
