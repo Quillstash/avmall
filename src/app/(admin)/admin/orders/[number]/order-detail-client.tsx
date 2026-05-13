@@ -371,9 +371,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
             />
           )}
 
-          {/* Three column layout */}
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-5 xl:gap-6">
-            {/* LEFT — order body */}
+          {/* Two-column layout — workflow on the left, context on the right.
+              Three-column was too tight at 1280-1600px; the items table's
+              Total column was truncating. */}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)] gap-5 xl:gap-6">
+            {/* MAIN — items, payment status, actions, timeline, notes */}
             <div className="flex flex-col gap-5 lg:gap-6 min-w-0">
               <Card
                 title="Items"
@@ -506,110 +508,84 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 </div>
               </Card>
 
-              <Card title="Status timeline">
-                <Timeline events={timeline} />
-              </Card>
-
-              <Card
-                title="Internal notes"
-                action={<span className="text-xs text-fg-subtle">autosaved</span>}
-              >
-                <div className="flex flex-col gap-4">
-                  <NoteEntry
-                    author="Funmi A."
-                    time="2 min ago"
-                    text="Customer requested split between Nuqood (₦20k) and bank transfer for the rest. Awaiting transfer confirmation from accounting."
-                  />
-                  <NoteEntry
-                    author="Tunde I."
-                    time="14 min ago"
-                    text="Confirmed all items in stock. Boxes labeled, ready for courier pickup once paid in full."
-                  />
-                  <Textarea placeholder="Add a note for the team…" rows={3} />
-                </div>
-              </Card>
-            </div>
-
-            {/* MIDDLE — payments & actions */}
-            <div className="flex flex-col gap-5 lg:gap-6 min-w-0">
-              {/* Partial-payment edge case */}
-              {isPartiallyPaid && (
-                <div className="rounded-lg p-5 lg:p-6 bg-warning-bg border border-warning/30">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-warning mb-2">
-                    Outstanding balance
+              {/* Payment status + next action are paired at md+ so the
+                  operator sees "where the money is" and "what to do next"
+                  side-by-side. Stacks below md. */}
+              <div className="grid md:grid-cols-2 gap-5 lg:gap-6 items-stretch">
+                {/* Partial-payment edge case */}
+                {isPartiallyPaid && (
+                  <div className="rounded-lg p-5 lg:p-6 bg-warning-bg border border-warning/30">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-warning mb-2">
+                      Outstanding balance
+                    </div>
+                    <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
+                      {formatMoney(outstanding)}
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      <Button width="full" onClick={() => toast.success("Payment link generated")}>
+                        <LinkIcon className="size-3.5" /> Generate payment link
+                      </Button>
+                      <Button
+                        width="full"
+                        variant="secondary"
+                        onClick={() => setRecordOpen(true)}
+                      >
+                        <Plus className="size-3.5" /> Record payment
+                      </Button>
+                    </div>
+                    <p className="text-xs text-fg-muted mt-3.5 leading-relaxed">
+                      Fulfilment policy: order must be paid in full before shipping.{" "}
+                      <button className="text-brand-primary font-semibold hover:underline">
+                        Override
+                      </button>
+                    </p>
                   </div>
-                  <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
-                    {formatMoney(outstanding)}
-                  </div>
-                  <div className="flex flex-col gap-2.5">
-                    <Button width="full" onClick={() => toast.success("Payment link generated")}>
-                      <LinkIcon className="size-3.5" /> Generate payment link
-                    </Button>
-                    <Button
-                      width="full"
-                      variant="secondary"
-                      onClick={() => setRecordOpen(true)}
-                    >
-                      <Plus className="size-3.5" /> Record payment
-                    </Button>
-                  </div>
-                  <p className="text-xs text-fg-muted mt-3.5 leading-relaxed">
-                    Fulfilment policy: order must be paid in full before shipping.{" "}
-                    <button className="text-brand-primary font-semibold hover:underline">
-                      Override
-                    </button>
-                  </p>
-                </div>
-              )}
+                )}
 
-              {/* Overpaid edge case */}
-              {isOverpaid && (
-                <div className="rounded-lg p-5 lg:p-6 bg-info-bg border border-brand-primary/30">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-brand-primary mb-2">
-                    Overpaid · credit due
+                {/* Overpaid edge case */}
+                {isOverpaid && (
+                  <div className="rounded-lg p-5 lg:p-6 bg-info-bg border border-brand-primary/30">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-brand-primary mb-2">
+                      Overpaid · credit due
+                    </div>
+                    <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
+                      {formatMoney(Math.abs(outstanding))}
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      <Button width="full">Issue store credit (+5% bonus)</Button>
+                      <Button width="full" variant="secondary">
+                        Refund to original method
+                      </Button>
+                    </div>
                   </div>
-                  <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
-                    {formatMoney(Math.abs(outstanding))}
+                )}
+
+                {/* Paid-in-full happy path */}
+                {!isPartiallyPaid && !isOverpaid && (
+                  <div className="rounded-lg p-5 lg:p-6 bg-success-bg border border-brand-accent/30 flex flex-col">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-brand-accent mb-2 inline-flex items-center gap-1.5">
+                      <Check className="size-3.5" /> Paid in full
+                    </div>
+                    <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-2 tabular">
+                      {formatMoney(paid)}
+                    </div>
+                    <p className="text-sm text-fg-muted">
+                      Order is settled. Ready to mark shipped.
+                    </p>
                   </div>
-                  <div className="flex flex-col gap-2.5">
-                    <Button width="full">Issue store credit (+5% bonus)</Button>
-                    <Button width="full" variant="secondary">
-                      Refund to original method
-                    </Button>
+                )}
+
+                {/* Next action — always rendered, paired with the payment block */}
+                <div className="rounded-lg p-5 lg:p-6 bg-surface border border-border flex flex-col">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-3">
+                    Next action
                   </div>
-                </div>
-              )}
-
-              {/* Paid-in-full happy path */}
-              {!isPartiallyPaid && !isOverpaid && (
-                <Alert
-                  tone="success"
-                  icon={<Check className="size-5" />}
-                  title="Paid in full"
-                  description="Order is ready to be marked shipped."
-                />
-              )}
-
-              <Card
-                title="Payments"
-                action={
-                  <span className="text-[11px] text-fg-muted">
-                    {payments.length} records
-                  </span>
-                }
-                padded={false}
-              >
-                <PaymentLedger payments={payments} />
-              </Card>
-
-              <Card title="Next action">
-                <div className="p-4 rounded-md bg-surface-2 flex flex-col gap-3.5">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 mb-4">
                     <div className="size-10 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center flex-shrink-0">
                       <Truck className="size-4" />
                     </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-bold">Mark as shipped</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-base font-bold">Mark as shipped</div>
                       <div className="text-xs text-fg-muted mt-0.5">
                         {isPartiallyPaid
                           ? "Disabled until paid in full"
@@ -622,10 +598,27 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     disabled={isPartiallyPaid || actionLoading}
                     loading={actionLoading}
                     onClick={() => shipOrder(false)}
+                    className="mt-auto"
                   >
                     Mark as shipped
                   </Button>
                 </div>
+              </div>
+
+              <Card
+                title="Payments"
+                action={
+                  <span className="text-xs text-fg-muted">
+                    {payments.length} {payments.length === 1 ? "record" : "records"}
+                  </span>
+                }
+                padded={false}
+              >
+                <PaymentLedger payments={payments} />
+              </Card>
+
+              <Card title="Status timeline">
+                <Timeline events={timeline} />
               </Card>
 
               <Card
@@ -655,9 +648,28 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </div>
                 </div>
               </Card>
+
+              <Card
+                title="Internal notes"
+                action={<span className="text-xs text-fg-subtle">autosaved</span>}
+              >
+                <div className="flex flex-col gap-4">
+                  <NoteEntry
+                    author="Funmi A."
+                    time="2 min ago"
+                    text="Customer requested split between Nuqood (₦20k) and bank transfer for the rest. Awaiting transfer confirmation from accounting."
+                  />
+                  <NoteEntry
+                    author="Tunde I."
+                    time="14 min ago"
+                    text="Confirmed all items in stock. Boxes labeled, ready for courier pickup once paid in full."
+                  />
+                  <Textarea placeholder="Add a note for the team…" rows={3} />
+                </div>
+              </Card>
             </div>
 
-            {/* RIGHT — context */}
+            {/* SIDEBAR — customer, shipping, recent orders */}
             <div className="flex flex-col gap-5 lg:gap-6 min-w-0">
               <Card title="Customer">
                 <div className="flex items-center gap-3 mb-4">
