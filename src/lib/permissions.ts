@@ -28,7 +28,6 @@ export type PermissionKey =
   | "customers.view"
   | "customers.edit"
   | "customers.blacklist"
-  | "customers.store_credit"
   // Discounts
   | "discounts.view"
   | "discounts.create"
@@ -39,6 +38,7 @@ export type PermissionKey =
   | "shipping.edit"
   // Returns
   | "returns.view"
+  | "returns.create"
   | "returns.approve"
   | "returns.refund"
   // Staff
@@ -68,10 +68,10 @@ const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<PermissionKey>> = {
     "orders.apply_manual_discount", "orders.override_partial_paid",
     "products.view", "products.create", "products.edit", "products.edit_pricing",
     "products.delete", "products.stock_adjust",
-    "customers.view", "customers.edit", "customers.blacklist", "customers.store_credit",
+    "customers.view", "customers.edit", "customers.blacklist",
     "discounts.view", "discounts.create", "discounts.edit", "discounts.delete",
     "shipping.view", "shipping.edit",
-    "returns.view", "returns.approve", "returns.refund",
+    "returns.view", "returns.create", "returns.approve", "returns.refund",
     "staff.view", "staff.create", "staff.edit", "staff.disable",
     "reports.view", "reports.export",
     "ai.view", "ai.settings", "ai.handoff",
@@ -82,10 +82,10 @@ const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<PermissionKey>> = {
     "orders.apply_manual_discount", "orders.override_partial_paid",
     "products.view", "products.create", "products.edit", "products.edit_pricing",
     "products.stock_adjust",
-    "customers.view", "customers.edit", "customers.blacklist", "customers.store_credit",
+    "customers.view", "customers.edit", "customers.blacklist",
     "discounts.view", "discounts.create", "discounts.edit", "discounts.delete",
     "shipping.view", "shipping.edit",
-    "returns.view", "returns.approve", "returns.refund",
+    "returns.view", "returns.create", "returns.approve", "returns.refund",
     "staff.view", "staff.create", "staff.edit", "staff.disable",
     "reports.view", "reports.export",
     "ai.view", "ai.settings", "ai.handoff",
@@ -96,7 +96,7 @@ const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<PermissionKey>> = {
     "products.view",
     "customers.view", "customers.edit",
     "discounts.view",
-    "returns.view",
+    "returns.view", "returns.create",
     "ai.view", "ai.handoff",
     "reports.view",
   ]),
@@ -109,8 +109,8 @@ const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<PermissionKey>> = {
   support: new Set<PermissionKey>([
     "orders.view", "orders.edit",
     "products.view",
-    "customers.view", "customers.edit", "customers.store_credit",
-    "returns.view", "returns.approve",
+    "customers.view", "customers.edit",
+    "returns.view", "returns.create", "returns.approve",
     "ai.view", "ai.handoff",
   ]),
 };

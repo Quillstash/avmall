@@ -23,13 +23,17 @@ const bodySchema = z.object({
   longDesc: z.string().default(""),
   themeBg: z.string().optional(),
   priceKobo: z.number().int().positive(),
+  /** Internal cost of goods (kobo). Defaults to 0 — staff should set it. */
+  costPriceKobo: z.number().int().nonnegative().default(0),
   saleKobo: z.number().int().positive().optional(),
   saleActive: z.boolean().default(false),
-  /** Initial stock on the default variant. */
+  /** Initial stock on the default variant — only used when `variants` is empty. */
   stock: z.number().int().nonnegative().default(0),
   /** Custom slug; auto-derived from name when omitted. */
   slug: z.string().optional(),
   negotiate: z.boolean().default(false),
+  negotiateFloorKobo: z.number().int().nonnegative().optional(),
+  negotiateMaxPct: z.number().int().min(0).max(50).optional(),
   preorder: z.boolean().default(false),
   moq: z.number().int().positive().optional(),
   eta: z.string().optional(),
@@ -46,6 +50,33 @@ const bodySchema = z.object({
       }),
     )
     .default([]),
+  /** R2 image keys returned by /api/v1/admin/upload. First entry is primary
+   *  unless an entry has primary:true. */
+  images: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        alt: z.string().optional(),
+        primary: z.boolean().optional(),
+      }),
+    )
+    .default([]),
+  /** Optional variant matrix. Omit (or send empty values) for a single
+   *  default variant — the legacy single-variant behaviour. */
+  option1Name: z.string().optional(),
+  option2Name: z.string().optional(),
+  variants: z
+    .array(
+      z.object({
+        label: z.string().min(1),
+        sku: z.string().min(1),
+        option1Value: z.string().nullable().optional(),
+        option2Value: z.string().nullable().optional(),
+        stock: z.number().int().nonnegative().default(0),
+        priceOverrideKobo: z.number().int().positive().nullable().optional(),
+      }),
+    )
+    .optional(),
 });
 
 function slugify(s: string): string {
@@ -82,6 +113,29 @@ export async function POST(req: NextRequest) {
     const category = await db.category.findUnique({ where: { slug: b.categorySlug } });
     if (!category) throw new NotFoundError(`Category ${b.categorySlug}`);
 
+    // Variant rows: use the matrix when provided, else a single default variant.
+    const variantRows =
+      b.variants && b.variants.length > 0
+        ? b.variants.map((v, i) => ({
+            label: v.label,
+            sku: v.sku,
+            option1Value: v.option1Value ?? null,
+            option2Value: v.option2Value ?? null,
+            onHand: v.stock,
+            ...(v.priceOverrideKobo != null && {
+              priceKobo: BigInt(v.priceOverrideKobo),
+            }),
+            position: i,
+          }))
+        : [
+            {
+              label: "Default",
+              sku: `${b.brand.slice(0, 3).toUpperCase()}-${slug.toUpperCase()}`,
+              onHand: b.stock,
+              position: 0,
+            },
+          ];
+
     const product = await db.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -93,25 +147,23 @@ export async function POST(req: NextRequest) {
           categoryId: category.id,
           themeBg: b.themeBg ?? null,
           priceKobo: BigInt(b.priceKobo),
+          costPriceKobo: BigInt(b.costPriceKobo),
           ...(b.saleKobo != null && { saleKobo: BigInt(b.saleKobo) }),
           saleActive: b.saleActive,
           negotiate: b.negotiate,
+          ...(b.negotiateFloorKobo != null && {
+            negotiateFloorKobo: BigInt(b.negotiateFloorKobo),
+          }),
+          ...(b.negotiateMaxPct != null && { negotiateMaxPct: b.negotiateMaxPct }),
+          ...(b.option1Name && { option1Name: b.option1Name }),
+          ...(b.option2Name && { option2Name: b.option2Name }),
           preorder: b.preorder,
           ...(b.moq != null && { moq: b.moq }),
           ...(b.eta && { eta: b.eta }),
           tags: b.tags,
           published: b.published,
           featured: b.featured,
-          variants: {
-            create: [
-              {
-                label: "Default",
-                sku: `${b.brand.slice(0, 3).toUpperCase()}-${slug.toUpperCase()}`,
-                onHand: b.stock,
-                position: 0,
-              },
-            ],
-          },
+          variants: { create: variantRows },
           ...(b.bulkTiers.length > 0 && {
             bulkTiers: {
               create: b.bulkTiers.map((t) => ({
@@ -119,6 +171,17 @@ export async function POST(req: NextRequest) {
                 max: t.max,
                 type: t.type,
                 value: t.value,
+              })),
+            },
+          }),
+          ...(b.images.length > 0 && {
+            images: {
+              create: b.images.map((img, i) => ({
+                key: img.key,
+                alt: img.alt ?? null,
+                position: i,
+                // First image is primary unless an entry explicitly opts in.
+                isPrimary: img.primary ?? i === 0,
               })),
             },
           }),

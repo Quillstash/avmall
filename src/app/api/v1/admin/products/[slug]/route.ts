@@ -30,17 +30,45 @@ const patchSchema = z.object({
   longDesc: z.string().optional(),
   themeBg: z.string().nullable().optional(),
   priceKobo: z.number().int().positive().optional(),
+  /** Internal cost of goods (kobo). */
+  costPriceKobo: z.number().int().nonnegative().optional(),
   saleKobo: z.number().int().positive().nullable().optional(),
   saleActive: z.boolean().optional(),
   /** Default-variant stock. */
   stock: z.number().int().nonnegative().optional(),
   negotiate: z.boolean().optional(),
+  /** Per-product negotiation cap — flat floor (kobo). Null clears. */
+  negotiateFloorKobo: z.number().int().nonnegative().nullable().optional(),
+  /** Per-product negotiation cap — max % off retail (0–50). Null clears. */
+  negotiateMaxPct: z.number().int().min(0).max(50).nullable().optional(),
   preorder: z.boolean().optional(),
   moq: z.number().int().positive().nullable().optional(),
   eta: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
   published: z.boolean().optional(),
   featured: z.boolean().optional(),
+  /** Bulk tier replacement — wipe + rewrite. */
+  bulkTiers: z
+    .array(
+      z.object({
+        min: z.number().int().positive(),
+        max: z.number().int().positive().nullable().default(null),
+        type: z.enum(["percentage", "fixed"]),
+        value: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
+  /** Image set replacement — wipe + rewrite. Order = position. The first
+   *  entry is the primary unless one has `primary: true`. */
+  images: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        alt: z.string().optional(),
+        primary: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export async function PATCH(
@@ -103,11 +131,19 @@ export async function PATCH(
           ...(b.longDesc !== undefined && { longDesc: b.longDesc }),
           ...(b.themeBg !== undefined && { themeBg: b.themeBg }),
           ...(b.priceKobo !== undefined && { priceKobo: BigInt(b.priceKobo) }),
+          ...(b.costPriceKobo !== undefined && {
+            costPriceKobo: BigInt(b.costPriceKobo),
+          }),
           ...(b.saleKobo !== undefined && {
             saleKobo: b.saleKobo == null ? null : BigInt(b.saleKobo),
           }),
           ...(b.saleActive !== undefined && { saleActive: b.saleActive }),
           ...(b.negotiate !== undefined && { negotiate: b.negotiate }),
+          ...(b.negotiateFloorKobo !== undefined && {
+            negotiateFloorKobo:
+              b.negotiateFloorKobo == null ? null : BigInt(b.negotiateFloorKobo),
+          }),
+          ...(b.negotiateMaxPct !== undefined && { negotiateMaxPct: b.negotiateMaxPct }),
           ...(b.preorder !== undefined && { preorder: b.preorder }),
           ...(b.moq !== undefined && { moq: b.moq }),
           ...(b.eta !== undefined && { eta: b.eta }),
@@ -123,6 +159,40 @@ export async function PATCH(
           where: { id: product.variants[0].id },
           data: { onHand: b.stock },
         });
+      }
+
+      // Replace bulk tiers wholesale (simpler than diffing).
+      if (b.bulkTiers !== undefined) {
+        await tx.bulkTier.deleteMany({ where: { productId: product.id } });
+        if (b.bulkTiers.length > 0) {
+          await tx.bulkTier.createMany({
+            data: b.bulkTiers.map((t) => ({
+              productId: product.id,
+              min: t.min,
+              max: t.max,
+              type: t.type,
+              value: t.value,
+            })),
+          });
+        }
+      }
+
+      // Replace the image set wholesale. R2 objects for removed images are
+      // left in place — deletion would race a CDN edge that's still serving
+      // a cached version. A nightly worker can sweep orphans later.
+      if (b.images !== undefined) {
+        await tx.productImage.deleteMany({ where: { productId: product.id } });
+        if (b.images.length > 0) {
+          await tx.productImage.createMany({
+            data: b.images.map((img, i) => ({
+              productId: product.id,
+              key: img.key,
+              alt: img.alt ?? null,
+              position: i,
+              isPrimary: img.primary ?? i === 0,
+            })),
+          });
+        }
       }
 
       await writeAudit(

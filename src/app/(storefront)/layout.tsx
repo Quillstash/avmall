@@ -1,6 +1,5 @@
 import { TopNav } from "@/components/storefront/top-nav";
 import { StorefrontFooter } from "@/components/storefront/footer";
-import { AiChatWidget } from "@/components/storefront/ai-chat-widget";
 import { Toaster } from "@/components/ui/toaster";
 import { SITE } from "@/lib/site";
 
@@ -46,8 +45,15 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
       <TopNav />
       <main className="flex-1">{children}</main>
       <StorefrontFooter />
-      <AiChatWidget />
       <Toaster />
+      {/* D-Zero AI chat widget — LOCAL DEV ONLY. Do not commit to main. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "window.dz=window.dz||function(...a){(window.dz.q=window.dz.q||[]).push(a)};dz('init',{publicKey:'pk_live_9dfd77a666e1e67b8456e718'})",
+        }}
+      />
+      <script async src="http://localhost:3001/embed/v1.js" />
     </div>
   );
 }

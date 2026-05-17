@@ -13,12 +13,13 @@ import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
+import { emailOnPaymentReceived } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 
 const bodySchema = z.object({
   amountKobo: z.number().int().positive(),
-  method: z.enum(["nuqood", "bank_transfer", "pos", "cash", "store_credit"]),
+  method: z.enum(["nuqood", "bank_transfer", "pos", "cash"]),
   reference: z.string().optional(),
   note: z.string().optional(),
 });
@@ -99,6 +100,8 @@ export async function POST(
 
       return { payment, order: next };
     });
+
+    void emailOnPaymentReceived(result.order.id, amountKobo, method);
 
     return NextResponse.json(
       apiSuccess({

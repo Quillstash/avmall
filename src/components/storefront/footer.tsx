@@ -6,11 +6,11 @@ const COLUMNS: { heading: string; items: { label: string; href: string }[] }[] =
   {
     heading: "Shop",
     items: [
-      { label: "Beauty & Skincare", href: "/category/beauty" },
-      { label: "Home & Living", href: "/category/home" },
-      { label: "Fashion", href: "/category/fashion" },
-      { label: "Pantry", href: "/category/food" },
-      { label: "Tech", href: "/category/tech" },
+      { label: "Phones & Tablets", href: "/category/phones" },
+      { label: "Audio", href: "/category/audio" },
+      { label: "Power", href: "/category/power" },
+      { label: "Fans", href: "/category/fans" },
+      { label: "Home & Kitchen", href: "/category/home" },
     ],
   },
   {

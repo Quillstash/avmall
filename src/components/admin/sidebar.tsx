@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -14,7 +15,7 @@ import {
   Settings,
   Truck,
   Shield,
-  MoreHorizontal,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,14 +29,14 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingBag, badge: 12 },
+  { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/customers", label: "Customers", icon: Users },
-  { href: "/admin/returns", label: "Returns", icon: Archive, badge: 3 },
+  { href: "/admin/returns", label: "Returns", icon: Archive },
   { href: "/admin/discounts", label: "Discounts", icon: Flag },
   { href: "/admin/shipping", label: "Shipping", icon: Truck },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin/ai", label: "AI agent", icon: Sparkles, badge: 2 },
+  { href: "/admin/ai", label: "AI agent", icon: Sparkles },
 ];
 
 const SECONDARY: NavItem[] = [
@@ -75,22 +76,45 @@ export function AdminSidebar() {
       </nav>
 
       {/* User pill */}
-      <div className="px-3 py-3 border-t border-border flex items-center gap-2.5">
-        <div className="size-8 rounded-full bg-gradient-to-br from-brand-primary to-[hsl(262_60%_48%)] text-white flex items-center justify-center font-bold text-xs">
-          FA
+      <UserPill />
+    </aside>
+  );
+}
+
+function UserPill() {
+  const { data: session } = useSession();
+  const name = session?.user?.name ?? "Staff";
+  const role = (session?.user?.role as string | undefined) ?? "—";
+  const initials = name
+    .split(/\s+/)
+    .map((s) => s.charAt(0))
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "U";
+
+  return (
+    <div className="px-3 py-3 border-t border-border flex items-center gap-2.5">
+      <Link
+        href="/admin/profile"
+        className="flex items-center gap-2.5 flex-1 min-w-0 hover:bg-surface-2 rounded-md -mx-1 px-1 py-1"
+      >
+        <div className="size-8 rounded-full bg-gradient-to-br from-brand-primary to-[hsl(262_60%_48%)] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+          {initials}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold truncate">Funmi A.</div>
-          <div className="text-[10px] text-fg-muted">Manager</div>
+          <div className="text-xs font-bold truncate">{name}</div>
+          <div className="text-[10px] text-fg-muted capitalize">{role.replace("_", " ")}</div>
         </div>
-        <button
-          className="size-7 rounded-md hover:bg-surface-2 text-fg-muted inline-flex items-center justify-center"
-          aria-label="More"
-        >
-          <MoreHorizontal className="size-4" />
-        </button>
-      </div>
-    </aside>
+      </Link>
+      <button
+        onClick={() => signOut({ callbackUrl: "/admin-login" })}
+        className="size-7 rounded-md hover:bg-surface-2 text-fg-muted hover:text-danger inline-flex items-center justify-center"
+        aria-label="Sign out"
+        title="Sign out"
+      >
+        <LogOut className="size-4" />
+      </button>
+    </div>
   );
 }
 

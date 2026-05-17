@@ -43,6 +43,7 @@ model User {
   paymentsRecorded  OrderPayment[]  @relation("PaymentRecordedBy")
   notes             OrderNote[]
   auditLogs         AuditLog[]
+  invitationsSent   StaffInvitation[] @relation("StaffInvitedBy")
 
   @@map("users")
 }
@@ -58,7 +59,6 @@ model Customer {
   segments      String[]  @default([])
   blacklisted   Boolean   @default(false)
   blacklistReason String? @map("blacklist_reason")
-  storeCreditKobo BigInt  @default(0) @map("store_credit_kobo")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -123,8 +123,19 @@ model Product {
   priceKobo       BigInt    @map("price_kobo")
   saleKobo        BigInt?   @map("sale_kobo")
   saleActive      Boolean   @default(false) @map("sale_active")
+  /// Internal-audit cost of goods, in kobo. Never exposed on the storefront.
+  /// Profit displays use this to compute margin.
+  costPriceKobo   BigInt    @default(0) @map("cost_price_kobo")
   /// Allow customers to propose a price via the AI / WhatsApp.
   negotiate       Boolean   @default(false)
+  /// Optional per-product negotiation cap. Either a flat kobo floor OR a max
+  /// % off the retail price. Both null = fall back to AiSettings global rule.
+  negotiateFloorKobo BigInt? @map("negotiate_floor_kobo")
+  negotiateMaxPct   Int?    @map("negotiate_max_pct")
+  /// Variant option-group labels. Null when the product has only the default
+  /// variant. Up to two groups (e.g. "Size" × "Color").
+  option1Name     String?   @map("option1_name")
+  option2Name     String?   @map("option2_name")
   /// Pre-order only — won't reserve regular stock.
   preorder        Boolean   @default(false)
   moq             Int?
@@ -157,10 +168,14 @@ model Product {
 model ProductVariant {
   id          String   @id @default(uuid()) @db.Uuid
   productId   String   @map("product_id") @db.Uuid
-  label       String   // "50ml", "Tan", "Set of 4"
+  label       String   // Composed display, e.g. "Small / Red"
   sku         String   @unique
   /// Optional variant-specific override; null = inherit from product.
   priceKobo   BigInt?  @map("price_kobo")
+  /// Values for the parent product's option groups.
+  /// option1Value matches Product.option1Name; option2Value matches option2Name.
+  option1Value String? @map("option1_value")
+  option2Value String? @map("option2_value")
   /// On-hand inventory.
   onHand      Int      @default(0) @map("on_hand")
   /// Reserved by in-flight checkouts.
@@ -664,6 +679,47 @@ model AuditLog {
   @@index([actorUserId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── AI settings (singleton) ─────────────────────────────────────────────
+
+/// Singleton — one row only (key = "default"). Used by the AI agent's
+/// negotiation tool when a product doesn't override its own floor.
+model AiSettings {
+  key                   String   @id @default("default")
+  /// Global negotiation cap as a percentage of retail. e.g. 10 = AI may
+  /// settle as low as 90 % of price. Used when a product has no override.
+  globalNegotiateMaxPct Int      @default(10) @map("global_negotiate_max_pct")
+  /// Master toggle — when false, AI cannot accept *any* counter-offer.
+  negotiationEnabled    Boolean  @default(true) @map("negotiation_enabled")
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("ai_settings")
+}
+
+// ─── Staff invitations ───────────────────────────────────────────────────
+
+/// One row per outstanding invitation. Burnt-on-accept (acceptedAt set + the
+/// token is single-use). Expired rows can be reaped on a schedule but aren't
+/// dangerous to leave around — the route checks expiresAt + acceptedAt.
+model StaffInvitation {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String
+  name          String
+  role          StaffRole
+  /// Long opaque secret in the invite link. Hashed at rest would be safer
+  /// but the field's already protected by HTTPS + single-use semantics.
+  token         String    @unique
+  invitedById   String?   @map("invited_by_id") @db.Uuid
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz
+  acceptedAt    DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  invitedBy     User?     @relation("StaffInvitedBy", fields: [invitedById], references: [id])
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("staff_invitations")
 }
 
 // ─── Idempotency keys ────────────────────────────────────────────────────

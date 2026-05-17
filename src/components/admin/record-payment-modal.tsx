@@ -38,7 +38,6 @@ const METHODS = [
   "Bank transfer",
   "POS terminal",
   "Cash",
-  "Store credit",
   "Other",
 ] as const;
 

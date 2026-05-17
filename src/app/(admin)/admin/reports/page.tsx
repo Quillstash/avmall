@@ -1,72 +1,42 @@
+import Link from "next/link";
 import {
   TrendingUp,
   Package,
-  Users,
   Archive,
-  Coins,
-  MessageCircle,
-  Clock,
-  ShoppingBag,
-  Truck,
-  Sparkles,
   Download,
-  Mail,
+  ArrowRight,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 
+/**
+ * Reports list. Trimmed to the three reports that are actually achievable
+ * against the current DB (orders, products + cost data, returns). The other
+ * placeholder cards have been removed — better empty than wishful.
+ */
 const REPORTS = [
   {
     icon: TrendingUp,
     name: "Revenue & sales",
-    desc: "Daily, weekly, monthly revenue with channel breakdowns",
+    desc:
+      "Daily, weekly and monthly revenue with channel and payment-method breakdowns. Drill into individual orders.",
+    href: "/admin/reports/revenue",
     badge: "Most viewed",
   },
   {
-    icon: ShoppingBag,
-    name: "Order performance",
-    desc: "Conversion, AOV, fulfilment lead time, cancellation rate",
-  },
-  {
     icon: Package,
-    name: "Inventory & stock",
-    desc: "Stock-on-hand, low-stock alerts, reorder suggestions",
-  },
-  {
-    icon: Coins,
-    name: "Payments & reconciliation",
-    desc: "Nuqood vs transfer vs POS · partial payments outstanding",
+    name: "Inventory & profit",
+    desc:
+      "Stock-on-hand, low-stock alerts, sell-through, and inventory profit margin (uses the cost prices set on each product).",
+    href: "/admin/reports/inventory",
   },
   {
     icon: Archive,
     name: "Returns & refunds",
-    desc: "Return rate by SKU, reason buckets, SLA compliance",
-  },
-  {
-    icon: Users,
-    name: "Customer cohorts",
-    desc: "New vs repeat, RFM segments, churn signals",
-  },
-  {
-    icon: Truck,
-    name: "Shipping & courier",
-    desc: "Delivery success rate by zone & courier · cost per order",
-  },
-  {
-    icon: Sparkles,
-    name: "AI agent activity",
-    desc: "Sessions, conversions, handoff reasons, top intents",
-  },
-  {
-    icon: MessageCircle,
-    name: "WhatsApp channel",
-    desc: "Inbound vs outbound, response time, lead-to-order",
-  },
-  {
-    icon: Clock,
-    name: "Staff activity",
-    desc: "Orders per staff member, response time, audit trail summary",
+    desc:
+      "Return rate by SKU, reason buckets, restock vs write-off, and the 14-day SLA compliance summary.",
+    href: "/admin/reports/returns",
   },
 ];
 
@@ -75,15 +45,10 @@ export default function AdminReportsPage() {
     <>
       <AdminTopBar breadcrumbs={[{ label: "Reports" }]} />
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-[1400px] mx-auto">
+        <div className="p-6 max-w-[1100px] mx-auto">
           <PageHeader
             title="Reports"
-            subtitle="Heavy queries run as background jobs — you'll be emailed when complete"
-            actions={
-              <Button variant="secondary" size="sm">
-                <Mail className="size-3.5" /> Email subscriptions
-              </Button>
-            }
+            subtitle="A short list to start — we'll add more once these are live and used"
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -92,7 +57,7 @@ export default function AdminReportsPage() {
               return (
                 <div
                   key={r.name}
-                  className="rounded-lg border border-border bg-surface p-5 hover:border-border-strong transition-colors cursor-pointer"
+                  className="rounded-lg border border-border bg-surface p-5 flex flex-col"
                 >
                   <div className="flex items-start gap-3 mb-3">
                     <div className="size-10 rounded-md bg-info-bg text-brand-primary flex items-center justify-center flex-shrink-0">
@@ -107,12 +72,16 @@ export default function AdminReportsPage() {
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-fg-muted leading-relaxed mb-4">{r.desc}</p>
+                  <p className="text-xs text-fg-muted leading-relaxed mb-4 flex-1">
+                    {r.desc}
+                  </p>
                   <div className="flex gap-1.5">
-                    <Button size="sm" variant="secondary">
-                      Open
-                    </Button>
-                    <Button size="sm" variant="ghost">
+                    <Link href={r.href}>
+                      <Button size="sm" variant="secondary">
+                        Open <ArrowRight className="size-3.5" />
+                      </Button>
+                    </Link>
+                    <Button size="sm" variant="ghost" disabled>
                       <Download className="size-3.5" />
                     </Button>
                   </div>
@@ -122,9 +91,9 @@ export default function AdminReportsPage() {
           </div>
 
           <div className="mt-8 p-4 rounded-md bg-info-bg border border-brand-primary/15 text-xs leading-relaxed">
-            <span className="font-bold">Performance note:</span> CSV exports and inventory rollups
-            are queued as background jobs (BullMQ) so the dashboard stays fast. You&apos;ll get an
-            email + in-app notification when a report is ready.
+            <span className="font-bold">Coming with Phase 5:</span> CSV exports run as
+            background jobs so the dashboard stays fast — you&apos;ll get an email + in-app
+            notification when a report is ready.
           </div>
         </div>
       </div>

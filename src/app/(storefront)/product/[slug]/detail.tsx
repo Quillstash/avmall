@@ -18,16 +18,35 @@ import { cn } from "@/lib/utils";
 export function PDPDetail({ product }: { product: Product }) {
   const router = useRouter();
   const add = useCart((s) => s.add);
+  const cartLines = useCart((s) => s.lines);
 
   const defaultVariant =
     product.variants.find((v) => v.stock > 0) ?? product.variants[0]!;
   const [variantId, setVariantId] = React.useState(defaultVariant.id);
-  const [qty, setQty] = React.useState(product.preorder ? (product.moq ?? 1) : 1);
+  const minQty = product.preorder ? (product.moq ?? 1) : 1;
+  const [qty, setQty] = React.useState(minQty);
 
   const variant = product.variants.find((v) => v.id === variantId) ?? defaultVariant;
   const unitKobo =
     variant.price ?? (product.saleActive && product.sale != null ? product.sale : product.price);
+
+  // Stock guard: cap qty at remaining stock minus whatever the cart already
+  // holds for this exact (product, variant) line. Pre-orders are unconstrained
+  // by on-hand stock.
+  const existingInCart =
+    cartLines.find((l) => l.productId === product.id && l.variantId === variantId)?.qty ?? 0;
+  const availableStock = Math.max(0, variant.stock - existingInCart);
+  const maxAddable = product.preorder ? undefined : availableStock;
   const oos = variant.stock === 0 && !product.preorder;
+  const noRoomLeft = !product.preorder && !oos && availableStock === 0;
+
+  // Clamp qty when the user switches to a lower-stock variant (or the cart
+  // is mutated elsewhere). Never drop below minQty.
+  React.useEffect(() => {
+    if (maxAddable != null && qty > maxAddable) {
+      setQty(Math.max(minQty, maxAddable));
+    }
+  }, [maxAddable, qty, minQty]);
 
   let activeBulk = null as typeof product.bulk[number] | null;
   for (const tier of product.bulk) {
@@ -39,7 +58,8 @@ export function PDPDetail({ product }: { product: Product }) {
   const lineTotal = unitKobo * qty - bulkSavings;
 
   function handleAdd() {
-    if (oos) return;
+    if (oos || noRoomLeft) return;
+    if (maxAddable != null && qty > maxAddable) return;
     add(product, variantId, qty);
     toast.success(`${product.name} added to cart`);
     router.push("/cart");
@@ -91,10 +111,21 @@ export function PDPDetail({ product }: { product: Product }) {
           <QuantityStepper
             value={qty}
             onChange={setQty}
-            min={product.preorder ? (product.moq ?? 1) : 1}
+            min={minQty}
+            {...(maxAddable != null && { max: maxAddable })}
+            disabled={oos || noRoomLeft}
           />
           {oos ? (
             <div className="text-sm text-danger font-semibold">Out of stock</div>
+          ) : noRoomLeft ? (
+            <div className="text-sm text-warning font-semibold">
+              All stock already in your cart
+            </div>
+          ) : !product.preorder && availableStock <= 5 ? (
+            <div className="text-sm text-warning font-semibold flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-warning" />
+              Only {availableStock} {existingInCart > 0 ? "more " : ""}left
+            </div>
           ) : (
             <div className="text-sm text-brand-accent font-semibold flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-brand-accent" />
@@ -151,11 +182,17 @@ export function PDPDetail({ product }: { product: Product }) {
         </div>
         <Button
           onClick={handleAdd}
-          disabled={oos}
+          disabled={oos || noRoomLeft}
           size="lg"
           className="flex-1"
         >
-          {oos ? "Notify me when back" : product.preorder ? "Pre-order" : "Add to cart"}
+          {oos
+            ? "Notify me when back"
+            : noRoomLeft
+              ? "Already in your cart"
+              : product.preorder
+                ? "Pre-order"
+                : "Add to cart"}
           <ShoppingBag className="size-4" />
         </Button>
         <Button size="lg" variant="secondary" aria-label="Save to wishlist">

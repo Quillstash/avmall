@@ -13,6 +13,7 @@ import { requireStaffSession } from "@/lib/auth";
 import { requirePermission, hasPermission } from "@/lib/permissions";
 import { consumeReservations } from "@/lib/stock";
 import { writeAudit } from "@/lib/audit";
+import { emailOnOrderShipped } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 
@@ -80,6 +81,10 @@ export async function POST(
       );
 
       return next;
+    });
+
+    void emailOnOrderShipped(updated.id, {
+      ...(parsed.data.trackingNumber && { trackingNumber: parsed.data.trackingNumber }),
     });
 
     return NextResponse.json(apiSuccess({ status: updated.status }));

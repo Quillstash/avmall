@@ -12,6 +12,7 @@ import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import { releaseReservations } from "@/lib/stock";
 import { writeAudit } from "@/lib/audit";
+import { emailOnOrderCancelled } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 
@@ -72,6 +73,8 @@ export async function POST(
 
       return next;
     });
+
+    void emailOnOrderCancelled(updated.id, parsed.data.reason);
 
     return NextResponse.json(apiSuccess({ status: updated.status }));
   } catch (err) {

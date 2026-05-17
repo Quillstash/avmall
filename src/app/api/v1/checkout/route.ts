@@ -43,6 +43,10 @@ import { nextOrderNumber } from "@/lib/order-number";
 import { writeAudit } from "@/lib/audit";
 import { getCustomerSession } from "@/lib/customer-session";
 import { normaliseNigerianPhone } from "@/lib/phone";
+import { createDynamicAccount, nuqoodConfigured } from "@/lib/nuqood";
+import { emailOnOrderCreated } from "@/lib/order-emails";
+import { env } from "@/lib/env";
+import { SITE } from "@/lib/site";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import {
   AppError,
@@ -329,6 +333,70 @@ export async function POST(req: NextRequest) {
         maxWait: 10_000,
       });
 
+      // Nuqood payment link — created AFTER the txn closes so we don't hold
+      // the connection open across a third-party network call. The OrderPayment
+      // row is written here as `pending`; the /webhooks/nuqood handler flips it
+      // to `completed` when Nuqood confirms.
+      let paymentUrl: string | null = null;
+      let bankTransferDetails: {
+        accountNumber: string;
+        accountName: string;
+        bank: string;
+      } | null = null;
+      let nuqoodLive = false;
+      let paymentReference: string | null = null;
+
+      if (body.paymentMethod === "nuqood" && nuqoodConfigured) {
+        const callbackUrl = `${SITE.url}/api/v1/webhooks/nuqood${
+          env.NUQOOD_WEBHOOK_SECRET
+            ? `?token=${encodeURIComponent(env.NUQOOD_WEBHOOK_SECRET)}`
+            : ""
+        }`;
+        const customerEmail =
+          parsed.data.contact.email ??
+          customer.email ??
+          `order-${order.number}@${SITE.url.replace(/^https?:\/\//, "")}`;
+
+        try {
+          const account = await createDynamicAccount({
+            email: customerEmail,
+            amountKobo: Number(order.totalKobo),
+            callbackUrl,
+          });
+          paymentReference = account.ref;
+          paymentUrl = account.checkoutUrl;
+          bankTransferDetails = {
+            accountNumber: account.number,
+            accountName: account.name,
+            bank: account.bank,
+          };
+          nuqoodLive = true;
+
+          await db.orderPayment.create({
+            data: {
+              orderId: order.id,
+              method: "nuqood",
+              amountKobo: order.totalKobo,
+              reference: account.ref,
+              status: "pending",
+            },
+          });
+        } catch (err) {
+          // Nuqood failure shouldn't tank the order — staff can still record
+          // payment manually. We log + leave paymentUrl null so the UI can
+          // gracefully fall back.
+          console.error("[checkout] Nuqood request failed:", err);
+        }
+      } else if (body.paymentMethod === "nuqood") {
+        // Nuqood path requested but creds missing — fall back to a stub URL
+        // so design-mode dev still works.
+        paymentUrl = `/orders/${order.number}`;
+      }
+
+      // Fire the order-confirmation email. Fire-and-forget — failure shouldn't
+      // tank the order. Helper is self-defensive (skips when no customer email).
+      void emailOnOrderCreated(order.id);
+
       return {
         response: {
           order: {
@@ -339,11 +407,12 @@ export async function POST(req: NextRequest) {
             totalKobo: Number(order.totalKobo),
             paidKobo: Number(order.paidKobo),
           },
-          // Phase 5 — Nuqood will return a real payment URL. For now a stub.
-          payment:
-            body.paymentMethod === "nuqood"
-              ? { paymentUrl: `/orders/${order.number}` }
-              : { paymentUrl: null },
+          payment: {
+            paymentUrl,
+            ...(paymentReference && { reference: paymentReference }),
+            ...(bankTransferDetails && { bankTransfer: bankTransferDetails }),
+            nuqoodLive,
+          },
         },
         statusCode: 201,
       };

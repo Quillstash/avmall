@@ -25,16 +25,42 @@ import type {
   ProductVariant as DbVariant,
   BulkTier as DbBulkTier,
   Category as DbCategoryRow,
+  ProductImage as DbProductImage,
 } from "@prisma/client";
 
 type DbProductWith = DbProduct & {
   variants: DbVariant[];
   bulkTiers: DbBulkTier[];
   category: DbCategoryRow;
+  images?: DbProductImage[];
 };
+
+/** Compose the public URL for an R2 key. Returns null when R2 isn't
+ *  configured, so the legacy CloudFront fallback can step in. */
+function publicUrlForKey(key: string): string | null {
+  const base = process.env.R2_PUBLIC_URL?.trim();
+  if (!base) return null;
+  return `${base.replace(/\/+$/, "")}/${key}`;
+}
 
 /** Convert a Prisma product (with relations) into the view-shape used by pages. */
 function productFromDb(p: DbProductWith): Product {
+  // Image resolution priority:
+  //   1. ProductImage rows on R2 (primary first, then by position)
+  //   2. Legacy CloudFront URL from the seeded mock catalogue
+  //   3. Deterministic picsum placeholder for fresh test products
+  const sortedImages = [...(p.images ?? [])].sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    return a.position - b.position;
+  });
+  const primaryR2Url = sortedImages
+    .map((img) => publicUrlForKey(img.key))
+    .find((u): u is string => !!u);
+  const galleryR2Urls = sortedImages
+    .slice(1)
+    .map((img) => publicUrlForKey(img.key))
+    .filter((u): u is string => !!u);
+
   return {
     id: p.id,
     slug: p.slug,
@@ -43,9 +69,11 @@ function productFromDb(p: DbProductWith): Product {
     short: p.shortDesc,
     mark: p.brand[0]?.toUpperCase() ?? "A",
     category: "home", // overwritten by withCategorySlug() below
-    imageUrl: defaultImageFor(p.slug),
+    imageUrl: primaryR2Url ?? defaultImageFor(p.slug),
+    ...(galleryR2Urls.length > 0 && { gallery: galleryR2Urls }),
     bg: p.themeBg ?? "linear-gradient(135deg, #ece4d4 0%, #c4a87a 100%)",
     price: Number(p.priceKobo),
+    cost: Number(p.costPriceKobo),
     ...(p.saleKobo != null && { sale: Number(p.saleKobo) }),
     saleActive: p.saleActive,
     stock: p.variants.reduce((a, v) => a + v.onHand, 0),
@@ -62,8 +90,16 @@ function productFromDb(p: DbProductWith): Product {
       label: v.label,
       stock: v.onHand,
       price: v.priceKobo == null ? null : Number(v.priceKobo),
+      ...(v.option1Value && { option1Value: v.option1Value }),
+      ...(v.option2Value && { option2Value: v.option2Value }),
     })),
+    ...(p.option1Name && { option1Name: p.option1Name }),
+    ...(p.option2Name && { option2Name: p.option2Name }),
+    published: p.published,
+    featured: p.featured,
     negotiate: p.negotiate,
+    ...(p.negotiateFloorKobo != null && { negotiateFloor: Number(p.negotiateFloorKobo) }),
+    ...(p.negotiateMaxPct != null && { negotiateMaxPct: p.negotiateMaxPct }),
     preorder: p.preorder,
     ...(p.moq != null && { moq: p.moq }),
     ...(p.eta && { eta: p.eta }),
@@ -98,8 +134,11 @@ function gallerySlugLookup(slug: string): string[] | undefined {
 function finalize(p: DbProductWith): Product {
   const view = productFromDb(p);
   view.category = p.category.slug as ProductCategoryId;
-  const gallery = gallerySlugLookup(view.slug);
-  if (gallery) view.gallery = gallery;
+  // Only fall back to the mock gallery when there's no R2 gallery already.
+  if (!view.gallery) {
+    const gallery = gallerySlugLookup(view.slug);
+    if (gallery) view.gallery = gallery;
+  }
   return view;
 }
 
@@ -161,10 +200,22 @@ export async function listProducts(opts?: {
   featuredFirst?: boolean;
   /** Admin view — return unpublished and archived products too. */
   includeUnpublished?: boolean;
+  /** Free-text search across name/brand/slug (case-insensitive substring). */
+  search?: string;
 }): Promise<Product[]> {
+  const q = opts?.search?.trim().toLowerCase();
+
   if (!hasDatabase) {
     let list = [...MOCK_PRODUCTS];
     if (opts?.category) list = list.filter((p) => p.category === opts.category);
+    if (q && q.length >= 2) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.brand.toLowerCase().includes(q) ||
+          p.slug.toLowerCase().includes(q),
+      );
+    }
     if (opts?.limit != null) list = list.slice(0, opts.limit);
     return list;
   }
@@ -172,6 +223,13 @@ export async function listProducts(opts?: {
   const where = {
     ...(!opts?.includeUnpublished && { archivedAt: null, published: true }),
     ...(opts?.category && { category: { slug: opts.category } }),
+    ...(q && q.length >= 2 && {
+      OR: [
+        { name: { contains: q, mode: "insensitive" as const } },
+        { brand: { contains: q, mode: "insensitive" as const } },
+        { slug: { contains: q, mode: "insensitive" as const } },
+      ],
+    }),
   };
   // Single query — joins variants, bulkTiers, AND category in one round trip.
   const products = await withRetry(() =>
@@ -181,6 +239,7 @@ export async function listProducts(opts?: {
         variants: { orderBy: { position: "asc" } },
         bulkTiers: true,
         category: true,
+        images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }] },
       },
       orderBy: opts?.featuredFirst
         ? [{ featured: "desc" as const }, { createdAt: "desc" as const }]
@@ -203,6 +262,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
         variants: { orderBy: { position: "asc" } },
         bulkTiers: true,
         category: true,
+        images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }] },
       },
     }),
   );
@@ -216,6 +276,177 @@ export async function getRelatedProducts(
 ): Promise<Product[]> {
   const all = await listProducts({ category: product.category, limit: limit + 1 });
   return all.filter((p) => p.id !== product.id).slice(0, limit);
+}
+
+/**
+ * Search products by name, brand, or slug. Case-insensitive substring match.
+ * Returns lightweight rows suitable for a search dropdown — not the full
+ * Product view with variants. The storefront-only call so always filters to
+ * `published & not archived`.
+ */
+export interface ProductSearchHit {
+  id: string;
+  slug: string;
+  name: string;
+  brand: string;
+  imageUrl: string;
+  priceKobo: number;
+  saleKobo: number | null;
+  saleActive: boolean;
+  category: string;
+  stock: number;
+}
+
+export async function searchProducts(
+  query: string,
+  limit = 8,
+): Promise<ProductSearchHit[]> {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+
+  if (!hasDatabase) {
+    return MOCK_PRODUCTS.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.brand.toLowerCase().includes(q) ||
+        p.slug.toLowerCase().includes(q),
+    )
+      .slice(0, limit)
+      .map((p) => ({
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        brand: p.brand,
+        imageUrl: p.imageUrl,
+        priceKobo: p.price,
+        saleKobo: p.sale ?? null,
+        saleActive: p.saleActive ?? false,
+        category: p.category,
+        stock: p.variants.reduce((a, v) => a + v.stock, 0),
+      }));
+  }
+
+  const rows = await withRetry(() =>
+    db.product.findMany({
+      where: {
+        archivedAt: null,
+        published: true,
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { brand: { contains: q, mode: "insensitive" } },
+          { slug: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      include: {
+        variants: { select: { onHand: true } },
+        category: { select: { slug: true } },
+        images: {
+          orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
+          take: 1,
+          select: { key: true },
+        },
+      },
+      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+      take: limit,
+    }),
+  );
+
+  return rows.map((p) => {
+    const r2Url = p.images[0] ? publicUrlForKey(p.images[0].key) : null;
+    return {
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      brand: p.brand,
+      imageUrl: r2Url ?? defaultImageFor(p.slug),
+      priceKobo: Number(p.priceKobo),
+      saleKobo: p.saleKobo == null ? null : Number(p.saleKobo),
+      saleActive: p.saleActive,
+      category: p.category.slug,
+      stock: p.variants.reduce((a, v) => a + v.onHand, 0),
+    };
+  });
+}
+
+/**
+ * Audit-panel summary for a single product. Pulls real creator + last editor
+ * from AuditLog, and a 30-day units-sold count from OrderLine. Falls back to
+ * empty data in mock mode.
+ */
+export interface ProductAuditSummary {
+  createdAt: Date;
+  createdBy: string | null;
+  updatedAt: Date;
+  updatedBy: string | null;
+  sales30d: number;
+}
+
+export async function getProductAuditSummary(
+  productId: string,
+): Promise<ProductAuditSummary> {
+  const now = new Date();
+  const empty: ProductAuditSummary = {
+    createdAt: now,
+    createdBy: null,
+    updatedAt: now,
+    updatedBy: null,
+    sales30d: 0,
+  };
+
+  if (!hasDatabase) return empty;
+
+  // Bail out cleanly for mock product IDs that don't pass the UUID guard at
+  // the DB layer (legacy "p4308826" style IDs leak through from mock data).
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
+    return empty;
+  }
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [productRow, createLog, updateLog, salesAgg] = await Promise.all([
+    db.product.findUnique({
+      where: { id: productId },
+      select: { createdAt: true, updatedAt: true },
+    }),
+    db.auditLog.findFirst({
+      where: {
+        entityType: "product",
+        entityId: productId,
+        action: "product.create",
+      },
+      include: { actor: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.auditLog.findFirst({
+      where: {
+        entityType: "product",
+        entityId: productId,
+        action: { in: ["product.update", "product.stock_adjust"] },
+      },
+      include: { actor: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.orderLine.aggregate({
+      _sum: { quantity: true },
+      where: {
+        productId,
+        order: {
+          createdAt: { gte: thirtyDaysAgo },
+          status: { notIn: ["cancelled"] },
+        },
+      },
+    }),
+  ]);
+
+  if (!productRow) return empty;
+
+  return {
+    createdAt: productRow.createdAt,
+    createdBy: createLog?.actor?.name ?? null,
+    updatedAt: productRow.updatedAt,
+    updatedBy: updateLog?.actor?.name ?? null,
+    sales30d: salesAgg._sum.quantity ?? 0,
+  };
 }
 
 /** Used at build time by `generateStaticParams` on `/product/[slug]`. */

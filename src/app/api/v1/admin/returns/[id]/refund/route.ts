@@ -2,8 +2,7 @@
  * POST /api/v1/admin/returns/:id/refund
  *
  * Issues the refund recorded on a Return. Updates the originating Order's
- * paid_kobo (-= refund) and payment_status. When the refund method is
- * `credit`, the customer's store credit is bumped instead of issuing money.
+ * paid_kobo (-= refund) and payment_status.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -12,11 +11,12 @@ import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
+import { emailOnRefundProcessed } from "@/lib/return-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 
 const bodySchema = z.object({
-  method: z.enum(["original", "credit", "transfer"]).default("original"),
+  method: z.enum(["original", "transfer"]).default("original"),
   /** Optional override — usually we use Return.refundKobo */
   amountKobo: z.number().int().nonnegative().optional(),
 });
@@ -63,16 +63,6 @@ export async function POST(
         },
       });
 
-      // Store-credit option: bump customer wallet.
-      if (parsed.data.method === "credit") {
-        // 5% bonus per CLAUDE.md §15 (returns can offer this).
-        const bonus = (refundKobo * 5n) / 100n;
-        await tx.customer.update({
-          where: { id: ret.customer.id },
-          data: { storeCreditKobo: { increment: refundKobo + bonus } },
-        });
-      }
-
       await tx.return.update({
         where: { id: ret.id },
         data: {
@@ -97,6 +87,10 @@ export async function POST(
         tx,
       );
     });
+
+    const methodLabel =
+      parsed.data.method === "original" ? "Original payment method" : "Bank transfer";
+    void emailOnRefundProcessed(params.id, methodLabel);
 
     return NextResponse.json(apiSuccess({ status: "refunded" }));
   } catch (err) {

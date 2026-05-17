@@ -3,8 +3,10 @@ import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DISCOUNTS, type DiscountKind } from "@/lib/admin-mock-data";
-import { cn } from "@/lib/utils";
+import { listDiscounts } from "@/lib/data/discounts";
+import { type DiscountKind } from "@/lib/admin-mock-data";
+
+export const dynamic = "force-dynamic";
 
 const KIND_ICON: Record<DiscountKind, typeof Flag> = {
   coupon: Tag,
@@ -18,7 +20,8 @@ const KIND_LABEL: Record<DiscountKind, string> = {
   bulk: "Bulk tier",
 };
 
-export default function AdminDiscountsPage() {
+export default async function AdminDiscountsPage() {
+  const DISCOUNTS = await listDiscounts();
   return (
     <>
       <AdminTopBar breadcrumbs={[{ label: "Discounts" }]} />

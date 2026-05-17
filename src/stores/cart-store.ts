@@ -23,6 +23,10 @@ export interface CartLineSnapshot {
   bg: string;
   variantLabel: string;
   unitKobo: number;
+  /** Stock at the moment the line was added/refreshed. Authoritative check
+   *  still happens at checkout reservation; this is the UI cap. Optional for
+   *  legacy v2 lines that pre-date this field. */
+  stock?: number;
   bulk: { min: number; max: number | null; type: "percentage" | "fixed"; value: number }[];
 }
 
@@ -63,6 +67,7 @@ function snapshotFor(product: Product, variant: ProductVariant): CartLineSnapsho
     bg: product.bg,
     variantLabel: variant.label,
     unitKobo,
+    stock: variant.stock,
     bulk: product.bulk.map((t) => ({
       min: t.min,
       max: t.max,

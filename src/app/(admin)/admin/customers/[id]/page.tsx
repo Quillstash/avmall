@@ -6,8 +6,6 @@ import {
   Mail,
   ShieldAlert,
   MoreHorizontal,
-  Plus,
-  Coins,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
@@ -59,7 +57,9 @@ export default async function AdminCustomerDetailPage({ params }: PageProps) {
       />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-[1400px] mx-auto pb-20">
-          {customer.blacklisted && <BlacklistBanner />}
+          {customer.blacklisted && (
+            <BlacklistBanner reason={customer.blacklistReason} />
+          )}
 
           <PageHeader
             title={customer.name}
@@ -134,23 +134,6 @@ export default async function AdminCustomerDetailPage({ params }: PageProps) {
                 </div>
               </Card>
 
-              <Card title="Store credit">
-                <div className="flex items-baseline gap-1.5 mb-2.5">
-                  <Coins className="size-4 text-brand-accent" />
-                  <span className="text-2xl font-bold tabular">₦0</span>
-                </div>
-                <Button variant="secondary" size="sm" width="full">
-                  <Plus className="size-3.5" /> Issue credit
-                </Button>
-              </Card>
-
-              <Card title="Addresses" action={<button className="text-xs font-semibold text-brand-primary hover:underline">Manage</button>}>
-                <div className="text-xs leading-relaxed">
-                  <div className="font-bold mb-0.5">Home (default)</div>
-                  <div className="text-fg-muted">14 Bourdillon Road, Apt 3B</div>
-                  <div className="text-fg-muted">Ikoyi, Lagos</div>
-                </div>
-              </Card>
             </div>
 
             {/* Main */}
@@ -200,29 +183,6 @@ export default async function AdminCustomerDetailPage({ params }: PageProps) {
                 </table>
               </Card>
 
-              <Card title="Activity">
-                <ul className="text-xs space-y-2.5">
-                  <li className="flex gap-2">
-                    <span className="text-fg-muted tabular">2:14 PM</span>
-                    <span>
-                      Placed order <span className="font-mono font-bold">#AVM-2841</span> via
-                      WhatsApp
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-fg-muted tabular">2:08 PM</span>
-                    <span>Chatted with Ada (AI) · 18 messages</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-fg-muted tabular">8 Jan</span>
-                    <span>Order <span className="font-mono font-bold">#AVM-2811</span> delivered</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-fg-muted tabular">2 Jan</span>
-                    <span>Added &ldquo;Wholesale&rdquo; segment by Funmi A.</span>
-                  </li>
-                </ul>
-              </Card>
             </div>
           </div>
         </div>
@@ -276,20 +236,21 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BlacklistBanner() {
+function BlacklistBanner({ reason }: { reason: string | null }) {
   return (
     <div className="mb-4 p-4 rounded-lg bg-danger-bg border border-danger/30 flex items-start gap-3">
       <ShieldAlert className="size-5 text-danger flex-shrink-0 mt-0.5" />
       <div className="flex-1">
         <div className="font-bold text-sm text-danger mb-1">Blacklisted customer</div>
         <p className="text-xs text-fg-muted leading-relaxed">
-          This customer has been blocked. New orders are locked from further action. Reason:{" "}
-          <span className="italic">Repeated chargebacks · added by Funmi A. on 24 Nov 2025.</span>
+          This customer has been blocked. New orders are locked from further action.
+          {reason && (
+            <>
+              {" "}Reason: <span className="italic">{reason}</span>
+            </>
+          )}
         </p>
         <div className="flex gap-2 mt-2.5">
-          <Button variant="ghost" size="sm" className="text-danger">
-            View blocklist reason
-          </Button>
           <Button variant="ghost" size="sm">
             Unblock (Manager+)
           </Button>

@@ -13,26 +13,50 @@
  * — 5 starter discounts including WELCOME10 and JANUARY10
  */
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { PRODUCTS, CATEGORIES } from "../src/lib/mock-data";
 
 const db = new PrismaClient();
 
+/**
+ * Run the entire seed inside a retry wrapper. Neon serverless takes ~5-10s
+ * to wake from cold; Prisma's default connect timeout (~5s) is too short,
+ * so the first attempt often fails with P1001 even when the endpoint is
+ * fine. Retry up to 5× with linear back-off so `pnpm db:seed` doesn't need
+ * babysitting.
+ */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const isConn =
+        err instanceof Prisma.PrismaClientInitializationError ||
+        (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P1001") ||
+        (err instanceof Error && /Can't reach database server|ECONNREFUSED|ETIMEDOUT/.test(err.message));
+      if (!isConn || i === attempts - 1) throw err;
+      const waitMs = 2000 * (i + 1);
+      console.log(`  …connection failed, retrying in ${waitMs}ms (attempt ${i + 2}/${attempts})`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+  throw lastErr;
+}
+
 async function main() {
   console.log("→ Seeding categories");
-  const categories = await Promise.all(
-    [
-      { slug: "beauty", name: "Beauty & Skincare", position: 1 },
-      { slug: "home", name: "Home & Living", position: 2 },
-      { slug: "fashion", name: "Fashion", position: 3 },
-      { slug: "tech", name: "Tech", position: 4 },
-      { slug: "food", name: "Pantry", position: 5 },
-    ].map((c) =>
-      db.category.upsert({
-        where: { slug: c.slug },
-        update: c,
-        create: c,
-      }),
+  const categories = await withRetry(() =>
+    Promise.all(
+      CATEGORIES.map((c, i) =>
+        db.category.upsert({
+          where: { slug: c.id },
+          update: { name: c.name, position: i + 1 },
+          create: { slug: c.id, name: c.name, position: i + 1 },
+        }),
+      ),
     ),
   );
   const catBySlug = Object.fromEntries(categories.map((c) => [c.slug, c]));
@@ -96,211 +120,95 @@ async function main() {
     });
   }
 
-  console.log("→ Seeding products");
-  const products = [
-    {
-      slug: "aramide-rose-clay-mask",
-      name: "Rose & Clay Hydrating Mask",
-      brand: "Aramide",
-      shortDesc: "Detoxifies and softens with Kaolin and damask rose",
-      category: "beauty",
-      themeBg: "linear-gradient(135deg, #f7d4c4 0%, #e6a489 100%)",
-      priceKobo: 1_450_000n,
-      saleKobo: 1_200_000n,
-      saleActive: true,
-      negotiate: true,
-      tags: ["handmade", "small-batch", "lagos"],
-      variants: [
-        { label: "50ml", sku: "ARM-MASK-50", onHand: 47, priceKobo: null },
-        { label: "100ml", sku: "ARM-MASK-100", onHand: 12, priceKobo: 2_400_000n },
-        { label: "200ml", sku: "ARM-MASK-200", onHand: 0, priceKobo: 4_400_000n },
-      ],
-      bulk: [
-        { min: 5, max: 9, type: "percentage" as const, value: 5 },
-        { min: 10, max: 49, type: "percentage" as const, value: 10 },
-        { min: 50, max: null, type: "percentage" as const, value: 15 },
-      ],
-    },
-    {
-      slug: "omolewa-shea-balm",
-      name: "Whipped Shea Body Balm",
-      brand: "Omolewa",
-      shortDesc: "Unrefined Nigerian shea, ginger root, and frankincense",
-      category: "beauty",
-      themeBg: "linear-gradient(135deg, #d9e3d4 0%, #95b694 100%)",
-      priceKobo: 980_000n,
-      negotiate: true,
-      tags: ["organic", "small-batch"],
-      variants: [
-        { label: "120g", sku: "OML-SBB-120", onHand: 102, priceKobo: null },
-        { label: "250g", sku: "OML-SBB-250", onHand: 38, priceKobo: 1_800_000n },
-      ],
-      bulk: [{ min: 6, max: null, type: "percentage" as const, value: 8 }],
-    },
-    {
-      slug: "idanre-ceramic-vase",
-      name: "Idanre Ridge Ceramic Vase",
-      brand: "Tafa Studio",
-      shortDesc: "Hand-thrown stoneware, fired in Abeokuta",
-      category: "home",
-      themeBg: "linear-gradient(135deg, #ece4d4 0%, #c4a87a 100%)",
-      priceKobo: 4_200_000n,
-      tags: ["handmade"],
-      variants: [
-        { label: "Small (22cm)", sku: "TFA-VASE-S", onHand: 6, priceKobo: null },
-        { label: "Large (34cm)", sku: "TFA-VASE-L", onHand: 0, priceKobo: 6_800_000n },
-      ],
-      bulk: [],
-    },
-    {
-      slug: "ade-leather-tote",
-      name: "Ade Everyday Tote",
-      brand: "Ade & Co.",
-      shortDesc: "Vegetable-tanned leather, hand-stitched in Lagos",
-      category: "fashion",
-      themeBg: "linear-gradient(135deg, #dcc6b4 0%, #6b4730 100%)",
-      priceKobo: 8_800_000n,
-      negotiate: true,
-      preorder: true,
-      moq: 10,
-      eta: "3–4 weeks",
-      tags: ["leather", "lagos"],
-      variants: [
-        { label: "Tan", sku: "ADE-TOTE-TAN", onHand: 0, priceKobo: null },
-        { label: "Noir", sku: "ADE-TOTE-NOIR", onHand: 4, priceKobo: null },
-      ],
-      bulk: [],
-    },
-    {
-      slug: "kola-coffee-blend",
-      name: "Owerri Single-Origin Coffee",
-      brand: "Kola Roasters",
-      shortDesc: "Medium roast, notes of cocoa and hibiscus",
-      category: "food",
-      themeBg: "linear-gradient(135deg, #d9c7b1 0%, #5a3520 100%)",
-      priceKobo: 720_000n,
-      tags: ["coffee", "single-origin"],
-      variants: [
-        { label: "250g whole bean", sku: "KLR-OW-250", onHand: 240, priceKobo: null },
-        { label: "500g whole bean", sku: "KLR-OW-500", onHand: 88, priceKobo: 1_380_000n },
-        { label: "1kg whole bean", sku: "KLR-OW-1K", onHand: 24, priceKobo: 2_600_000n },
-      ],
-      bulk: [
-        { min: 3, max: 9, type: "percentage" as const, value: 8 },
-        { min: 10, max: null, type: "percentage" as const, value: 15 },
-      ],
-    },
-    {
-      slug: "pneuma-incense",
-      name: "Harmattan Incense Set",
-      brand: "Pneuma",
-      shortDesc: "Hand-rolled in Ibadan — moringa, oud, and cedar",
-      category: "home",
-      themeBg: "linear-gradient(135deg, #e4d4ec 0%, #4a2d52 100%)",
-      priceKobo: 580_000n,
-      saleKobo: 480_000n,
-      saleActive: true,
-      negotiate: true,
-      tags: ["handmade"],
-      variants: [{ label: "24 sticks", sku: "PNM-HRM-24", onHand: 18, priceKobo: null }],
-      bulk: [{ min: 5, max: null, type: "percentage" as const, value: 10 }],
-    },
-    {
-      slug: "iba-silk-scarf",
-      name: "Ibadan Silk Scarf",
-      brand: "Iba Atelier",
-      shortDesc: "Adire-inspired pattern on charmeuse silk",
-      category: "fashion",
-      themeBg: "linear-gradient(135deg, #c5d1f0 0%, #4f6dc4 100%)",
-      priceKobo: 3_500_000n,
-      tags: ["silk", "adire"],
-      variants: [
-        { label: "Indigo", sku: "IBA-SCRF-INDIGO", onHand: 22, priceKobo: null },
-        { label: "Rust", sku: "IBA-SCRF-RUST", onHand: 9, priceKobo: null },
-      ],
-      bulk: [],
-    },
-    {
-      slug: "sade-glass-tumbler",
-      name: "Sade Recycled Glass Tumblers",
-      brand: "Bauchi Glass",
-      shortDesc: "Set of four, hand-blown from recycled bottle glass",
-      category: "home",
-      themeBg: "linear-gradient(135deg, #d8e6e6 0%, #7ba3a3 100%)",
-      priceKobo: 2_200_000n,
-      tags: ["recycled", "glass"],
-      variants: [
-        { label: "Set of 4", sku: "BAU-GLS-4", onHand: 34, priceKobo: null },
-        { label: "Set of 8", sku: "BAU-GLS-8", onHand: 11, priceKobo: 4_100_000n },
-      ],
-      bulk: [{ min: 3, max: null, type: "percentage" as const, value: 7 }],
-    },
-  ];
+  console.log(`→ Seeding ${PRODUCTS.length} products from the mock catalogue`);
+  // Wipe old rows whose slugs are no longer in the catalogue (idempotency).
+  const keepSlugs = PRODUCTS.map((p) => p.slug);
+  await db.product.updateMany({
+    where: { slug: { notIn: keepSlugs } },
+    data: { archivedAt: new Date(), published: false },
+  });
 
-  for (const p of products) {
+  for (const p of PRODUCTS) {
     const cat = catBySlug[p.category];
-    if (!cat) throw new Error(`unknown category ${p.category}`);
+    if (!cat) throw new Error(`unknown category ${p.category} for ${p.slug}`);
 
     const created = await db.product.upsert({
       where: { slug: p.slug },
       update: {
         name: p.name,
         brand: p.brand,
-        shortDesc: p.shortDesc,
+        shortDesc: p.short,
         categoryId: cat.id,
-        themeBg: p.themeBg,
-        priceKobo: p.priceKobo,
-        saleKobo: p.saleKobo ?? null,
+        themeBg: p.bg,
+        priceKobo: BigInt(p.price),
+        costPriceKobo: BigInt(p.cost),
+        saleKobo: p.sale != null ? BigInt(p.sale) : null,
         saleActive: p.saleActive ?? false,
         negotiate: p.negotiate ?? false,
+        negotiateFloorKobo: p.negotiateFloor != null ? BigInt(p.negotiateFloor) : null,
+        negotiateMaxPct: p.negotiateMaxPct ?? null,
+        option1Name: p.option1Name ?? null,
+        option2Name: p.option2Name ?? null,
         preorder: p.preorder ?? false,
         moq: p.moq ?? null,
         eta: p.eta ?? null,
-        tags: p.tags,
+        tags: [],
         published: true,
+        archivedAt: null,
       },
       create: {
         slug: p.slug,
         name: p.name,
         brand: p.brand,
-        shortDesc: p.shortDesc,
+        shortDesc: p.short,
         categoryId: cat.id,
-        themeBg: p.themeBg,
-        priceKobo: p.priceKobo,
-        saleKobo: p.saleKobo ?? null,
+        themeBg: p.bg,
+        priceKobo: BigInt(p.price),
+        costPriceKobo: BigInt(p.cost),
+        saleKobo: p.sale != null ? BigInt(p.sale) : null,
         saleActive: p.saleActive ?? false,
         negotiate: p.negotiate ?? false,
+        negotiateFloorKobo: p.negotiateFloor != null ? BigInt(p.negotiateFloor) : null,
+        negotiateMaxPct: p.negotiateMaxPct ?? null,
+        option1Name: p.option1Name ?? null,
+        option2Name: p.option2Name ?? null,
         preorder: p.preorder ?? false,
         moq: p.moq ?? null,
         eta: p.eta ?? null,
-        tags: p.tags,
+        tags: [],
         published: true,
       },
     });
 
-    // Variants
+    // Variants — each mock product carries a single default variant. SKU is
+    // derived from the variant id so re-seeding is idempotent.
     for (const [i, v] of p.variants.entries()) {
+      const sku = v.id.toUpperCase();
       await db.productVariant.upsert({
-        where: { sku: v.sku },
+        where: { sku },
         update: {
           label: v.label,
-          onHand: v.onHand,
-          priceKobo: v.priceKobo,
+          onHand: v.stock,
+          priceKobo: v.price != null ? BigInt(v.price) : null,
+          option1Value: v.option1Value ?? null,
+          option2Value: v.option2Value ?? null,
           productId: created.id,
           position: i,
         },
         create: {
           productId: created.id,
           label: v.label,
-          sku: v.sku,
-          onHand: v.onHand,
-          priceKobo: v.priceKobo,
+          sku,
+          onHand: v.stock,
+          priceKobo: v.price != null ? BigInt(v.price) : null,
+          option1Value: v.option1Value ?? null,
+          option2Value: v.option2Value ?? null,
           position: i,
         },
       });
     }
 
-    // Bulk tiers — wipe + replace for simplicity
+    // Bulk tiers — wipe + replace for simplicity.
     await db.bulkTier.deleteMany({ where: { productId: created.id } });
     for (const tier of p.bulk) {
       await db.bulkTier.create({
@@ -366,6 +274,17 @@ async function main() {
       create: d,
     });
   }
+
+  console.log("→ Seeding AI settings (singleton)");
+  await db.aiSettings.upsert({
+    where: { key: "default" },
+    update: {},
+    create: {
+      key: "default",
+      globalNegotiateMaxPct: 10,
+      negotiationEnabled: true,
+    },
+  });
 
   console.log("✓ Seed complete");
 }

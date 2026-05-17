@@ -35,16 +35,6 @@ import { toast } from "@/components/ui/toaster";
 import { waLink } from "@/lib/contact-links";
 import { type OrderListRow, type OrderSource } from "@/lib/admin-mock-data";
 
-const SAVED_VIEWS: SavedView[] = [
-  { id: "today", label: "Today's orders", count: 47 },
-  { id: "awaiting", label: "Awaiting confirm", count: 5 },
-  { id: "partial", label: "Partially paid", count: 14 },
-  { id: "outstanding", label: "Outstanding balance", count: 22 },
-  { id: "returns", label: "Returns pending", count: 3 },
-  { id: "whatsapp", label: "WhatsApp source", count: 38 },
-  { id: "blacklist", label: "Blacklisted", count: 2 },
-];
-
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "confirmed", label: "Confirmed" },
@@ -63,7 +53,7 @@ const SOURCE_OPTIONS = [
   { value: "whatsapp", label: "WhatsApp" },
   { value: "phone", label: "Phone" },
   { value: "walkin", label: "Walk-in" },
-  { value: "ai", label: "Ada (AI)" },
+  { value: "ai", label: "AI agent" },
 ];
 
 interface Props {
@@ -87,6 +77,35 @@ export function OrdersListClient({ orders, totals }: Props) {
     { id: "payment", label: "Payment", values: paymentValues, options: PAYMENT_OPTIONS, multi: true },
     { id: "source", label: "Source", values: sourceValues, options: SOURCE_OPTIONS, multi: true },
   ];
+
+  // Saved-view counts — computed from the actual orders we received. We only
+  // include views that can be derived without a separate query.
+  const savedViews: SavedView[] = React.useMemo(
+    () => [
+      { id: "today", label: "All", count: orders.length },
+      {
+        id: "awaiting",
+        label: "Awaiting confirm",
+        count: orders.filter((o) => o.status === "pending").length,
+      },
+      {
+        id: "partial",
+        label: "Partially paid",
+        count: orders.filter((o) => o.payment === "partial").length,
+      },
+      {
+        id: "outstanding",
+        label: "Outstanding balance",
+        count: orders.filter((o) => o.outstandingKobo > 0).length,
+      },
+      {
+        id: "whatsapp",
+        label: "WhatsApp source",
+        count: orders.filter((o) => o.source === "whatsapp").length,
+      },
+    ],
+    [orders],
+  );
 
   const filtered = React.useMemo(() => {
     return orders.filter((o) => {
@@ -247,7 +266,7 @@ export function OrdersListClient({ orders, totals }: Props) {
           />
 
           <SavedViewBar
-            views={SAVED_VIEWS}
+            views={savedViews}
             activeId={view}
             onChange={setView}
             className="mb-4"
@@ -338,7 +357,7 @@ function SourceChip({ source }: { source: OrderSource }) {
     whatsapp: "WhatsApp",
     phone: "Phone",
     walkin: "Walk-in",
-    ai: "Ada (AI)",
+    ai: "AI agent",
   };
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-2 text-xs font-medium">

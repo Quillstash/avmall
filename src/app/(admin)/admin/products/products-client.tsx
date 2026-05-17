@@ -18,6 +18,7 @@ import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
+import { formatMoney } from "@/lib/money";
 import { StockStatusPill, type StockStatus } from "@/components/ui/status-pill";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar, type FilterConfig } from "@/components/ui/filter-bar";
@@ -53,6 +54,15 @@ export function ProductsListClient({ products }: Props) {
   const lowStock = products.filter((p) => p.stock > 0 && p.stock < 20 && !p.preorder).length;
   const outOfStock = products.filter((p) => p.stock === 0 && !p.preorder).length;
   const preorders = products.filter((p) => p.preorder).length;
+
+  // Inventory value aggregates — summed only over in-stock products since the
+  // user asked for "total ... of all goods in stock".
+  const inStock = products.filter((p) => p.stock > 0);
+  const totalCostKobo = inStock.reduce((a, p) => a + p.cost * p.stock, 0);
+  const totalRetailKobo = inStock.reduce((a, p) => a + p.price * p.stock, 0);
+  const projectedProfitKobo = totalRetailKobo - totalCostKobo;
+  const projectedMarginPct =
+    totalCostKobo > 0 ? (projectedProfitKobo / totalCostKobo) * 100 : null;
 
   const filters: FilterConfig[] = [
     {
@@ -275,11 +285,33 @@ export function ProductsListClient({ products }: Props) {
             }
           />
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
             <StockCard label="Total products" value={String(products.length)} sub="across 5 categories" />
             <StockCard label="Low stock" value={String(lowStock)} sub="below threshold" tone="warning" />
             <StockCard label="Out of stock" value={String(outOfStock)} sub="needs reorder" tone="danger" />
             <StockCard label="Pre-order" value={String(preorders)} sub="awaiting batches" tone="info" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 mb-5">
+            <StockCard
+              label="Inventory cost"
+              value={formatMoney(totalCostKobo)}
+              sub={`${inStock.length} in-stock SKUs`}
+            />
+            <StockCard
+              label="Inventory retail value"
+              value={formatMoney(totalRetailKobo)}
+              sub="sum of price × stock"
+            />
+            <StockCard
+              label="Projected profit"
+              value={formatMoney(projectedProfitKobo)}
+              sub={
+                projectedMarginPct == null
+                  ? "no cost data"
+                  : `${projectedMarginPct >= 0 ? "+" : ""}${projectedMarginPct.toFixed(1)}% margin`
+              }
+              tone="info"
+            />
           </div>
 
           <FilterBar

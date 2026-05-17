@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Edit2,
   Printer,
@@ -32,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Timeline, type TimelineEvent } from "@/components/ui/timeline";
+import { ReceiptPrintView } from "@/components/admin/receipt-print-view";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -55,6 +57,8 @@ interface PageProps {
 }
 
 export function OrderDetailClient({ params, order }: PageProps) {
+  const { data: session } = useSession();
+  const currentStaffName = session?.user?.name ?? "Staff";
   // Items + monetary totals come from the server-fetched OrderDetail.
   const orderItems = order.lines.map((l) => ({
     id: l.id,
@@ -124,7 +128,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
             amountKobo: data.amountKobo,
             txRef: data.reference || "—",
             status: "completed",
-            by: "Funmi A.",
+            by: currentStaffName,
             time: "just now",
           },
         ]);
@@ -235,7 +239,18 @@ export function OrderDetailClient({ params, order }: PageProps) {
     .toUpperCase();
 
   const timeline: TimelineEvent[] = [
-    { title: "Order placed", subtitle: "Tue 14 Jan · 2:14 PM", meta: "Funmi A.", done: true },
+    {
+      title: "Order placed",
+      subtitle: new Date(order.createdAt).toLocaleString("en-NG", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "Africa/Lagos",
+      }),
+      done: true,
+    },
     ...payments
       .filter((p) => p.status === "completed")
       .map<TimelineEvent>((p) => ({
@@ -272,6 +287,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
 
   return (
     <>
+      <div className="print:hidden contents">
       <AdminTopBar
         breadcrumbs={[
           { label: "Orders", href: "/admin/orders" },
@@ -649,21 +665,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 </div>
               </Card>
 
-              <Card
-                title="Internal notes"
-                action={<span className="text-xs text-fg-subtle">autosaved</span>}
-              >
-                <div className="flex flex-col gap-4">
-                  <NoteEntry
-                    author="Funmi A."
-                    time="2 min ago"
-                    text="Customer requested split between Nuqood (₦20k) and bank transfer for the rest. Awaiting transfer confirmation from accounting."
-                  />
-                  <NoteEntry
-                    author="Tunde I."
-                    time="14 min ago"
-                    text="Confirmed all items in stock. Boxes labeled, ready for courier pickup once paid in full."
-                  />
+              <Card title="Internal notes">
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs text-fg-muted">
+                    Add a note for the team. Notes are visible to staff only.
+                  </p>
                   <Textarea placeholder="Add a note for the team…" rows={3} />
                 </div>
               </Card>
@@ -736,42 +742,19 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     {order.shipping.phone}
                   </div>
                 </div>
-                <div className="mt-4 p-3 rounded-md bg-surface-2 flex items-center gap-2.5">
-                  <Truck className="size-4 flex-shrink-0" />
-                  <div className="text-xs leading-relaxed">
-                    <div className="font-semibold">Lagos · 24h</div>
-                    <div className="text-fg-muted">GIG Logistics · ₦3,500</div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card title="Recent orders">
-                {[
-                  { id: "AVM-2811", date: "8 Jan", total: 18900000, status: "delivered" as const },
-                  { id: "AVM-2790", date: "2 Jan", total: 8400000, status: "delivered" as const },
-                  { id: "AVM-2754", date: "24 Dec", total: 14200000, status: "refunded" as const },
-                ].map((o, i) => (
-                  <Link
-                    key={o.id}
-                    href={`/admin/orders/${o.id}`}
-                    className={
-                      "flex items-center justify-between py-3 hover:bg-surface-2 -mx-2 px-2 rounded transition-colors " +
-                      (i > 0 ? "border-t border-border" : "")
-                    }
-                  >
-                    <div>
-                      <div className="font-mono text-sm font-bold tabular">#{o.id}</div>
-                      <div className="text-xs text-fg-muted mt-0.5">{o.date}</div>
-                    </div>
-                    <div className="text-right">
-                      <Money kobo={o.total} className="text-sm font-bold" />
-                      <div className="mt-1">
-                        <OrderStatusPill status={o.status} bare />
+                {order.totals.shippingKobo > 0 && (
+                  <div className="mt-4 p-3 rounded-md bg-surface-2 flex items-center gap-2.5">
+                    <Truck className="size-4 flex-shrink-0" />
+                    <div className="text-xs leading-relaxed">
+                      <div className="font-semibold">{order.shipping.state}</div>
+                      <div className="text-fg-muted">
+                        Shipping · <Money kobo={Number(order.totals.shippingKobo)} />
                       </div>
                     </div>
-                  </Link>
-                ))}
+                  </div>
+                )}
               </Card>
+
             </div>
           </div>
         </div>
@@ -783,6 +766,40 @@ export function OrderDetailClient({ params, order }: PageProps) {
         outstandingKobo={Math.max(0, outstanding)}
         onSubmit={recordPayment}
       />
+      </div>
+
+      {/* Print-only receipt — hidden on screen, becomes the sole visible
+          element when the user hits Print. */}
+      <div className="hidden print:block">
+        <ReceiptPrintView
+          orderNumber={order.number}
+          placedAt={placedAt}
+          customer={{
+            name: order.customer?.name ?? order.shipping.name,
+            phone: order.customer?.phone ?? order.shipping.phone,
+          }}
+          items={orderItems.map((it) => ({
+            name: it.name,
+            variant: it.variant,
+            sku: it.sku,
+            qty: it.qty,
+            unitKobo: it.unitKobo,
+            discountKobo: it.discountKobo,
+          }))}
+          totals={{
+            subtotalKobo: Number(order.totals.subtotalKobo),
+            discountKobo:
+              Number(order.totals.bulkDiscountKobo) +
+              Number(order.totals.couponDiscountKobo) +
+              Number(order.totals.manualDiscountKobo),
+            shippingKobo: Number(order.totals.shippingKobo),
+            totalKobo: Number(order.totals.totalKobo),
+            paidKobo: Number(order.totals.paidKobo),
+            outstandingKobo: Math.max(0, outstanding),
+          }}
+          staffName={currentStaffName}
+        />
+      </div>
 
       <ConfirmDialog
         open={cancelOpen}

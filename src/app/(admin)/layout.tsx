@@ -7,11 +7,17 @@ export const dynamic = "force-dynamic";
 
 export default function AdminRouteGroupLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="h-screen flex bg-bg overflow-hidden">
-      <AdminSidebar />
-      <div className="flex-1 flex flex-col min-w-0">{children}</div>
-      <CommandPalette />
-      <Toaster />
+    <div className="h-screen flex bg-bg overflow-hidden print:h-auto print:overflow-visible print:block">
+      <div className="print:hidden contents">
+        <AdminSidebar />
+      </div>
+      <div className="flex-1 flex flex-col min-w-0 print:block print:flex-none">
+        {children}
+      </div>
+      <div className="print:hidden contents">
+        <CommandPalette />
+        <Toaster />
+      </div>
     </div>
   );
 }

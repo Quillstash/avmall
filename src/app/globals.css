@@ -102,6 +102,16 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Strip the browser-native clear button on <input type="search">.
+     Our search components render their own ✕ icon. */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration,
+  input[type="search"]::-webkit-search-results-button,
+  input[type="search"]::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   /* Respect reduced motion */
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -109,6 +119,22 @@
     *::after {
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Print rules — receipts and similar print-only views opt in with
+     `hidden print:block`. Everything else inside an admin shell uses
+     `print:hidden` on its wrapper to disappear during printing. */
+  @media print {
+    html,
+    body {
+      background: white !important;
+      color: black !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    @page {
+      margin: 8mm;
     }
   }
 }

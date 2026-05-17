@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Search, Plus, Minus, X, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Search, Plus, Minus, Trash2, Loader2 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,7 +13,8 @@ import { Select } from "@/components/ui/select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/ui/money";
-import { Money as MoneyComp } from "@/components/ui/money";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { toast } from "@/components/ui/toaster";
 import { PRODUCTS, NIGERIAN_STATES, LAGOS_LGAS } from "@/lib/mock-data";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -23,9 +26,130 @@ interface DraftLine {
 }
 
 export default function AdminCreateOrderPage() {
+  const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [lines, setLines] = React.useState<DraftLine[]>([]);
   const [discountKobo, setDiscountKobo] = React.useState(0);
+  const [recipientName, setRecipientName] = React.useState("Walk-in customer");
+  const [phone, setPhone] = React.useState("");
+  const [state, setState] = React.useState("Lagos");
+  const [lga, setLga] = React.useState("Ikoyi");
+  const [line1, setLine1] = React.useState("Walk-in (in-store)");
+  const [notes, setNotes] = React.useState("");
+  const [placing, setPlacing] = React.useState(false);
+
+  // Split-payment rows captured at the counter. Each row gets recorded as a
+  // separate OrderPayment after the order is created. Empty list = unpaid.
+  type PaymentMethod = "cash" | "pos" | "bank_transfer" | "nuqood";
+  interface PaymentRow {
+    method: PaymentMethod;
+    amountKobo: number | null;
+    reference: string;
+  }
+  const [paymentRows, setPaymentRows] = React.useState<PaymentRow[]>([]);
+
+  function addPaymentRow() {
+    // Default the new row's amount to whatever's still outstanding.
+    const sumSoFar = paymentRows.reduce((a, p) => a + (p.amountKobo ?? 0), 0);
+    const remaining = Math.max(0, total - sumSoFar);
+    setPaymentRows((prev) => [
+      ...prev,
+      { method: "cash", amountKobo: remaining > 0 ? remaining : null, reference: "" },
+    ]);
+  }
+  function patchPaymentRow(idx: number, patch: Partial<PaymentRow>) {
+    setPaymentRows((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx]!, ...patch };
+      return next;
+    });
+  }
+  function removePaymentRow(idx: number) {
+    setPaymentRows((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function placeOrder() {
+    if (resolved.length === 0) return;
+    if (!recipientName.trim()) {
+      toast.error("Recipient name is required.");
+      return;
+    }
+    const paidNow = paymentRows.reduce((a, p) => a + (p.amountKobo ?? 0), 0);
+    if (paidNow > total) {
+      toast.error(
+        `Payments total ${formatMoney(paidNow - total)} more than the order. Reduce a row before saving.`,
+      );
+      return;
+    }
+    setPlacing(true);
+    try {
+      const res = await fetch("/api/v1/admin/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: resolved.map((l) => ({
+            productSlug: l.product.slug,
+            quantity: l.qty,
+          })),
+          contact: {
+            name: recipientName.trim(),
+            ...(phone.trim() && { phone: phone.trim() }),
+          },
+          shipping: {
+            ...(line1.trim() && { line1: line1.trim() }),
+            city: lga,
+            state,
+          },
+          manualDiscountKobo: discountKobo,
+          source: "walkin",
+          ...(notes.trim() && { customerNote: notes.trim() }),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const msg = json?.error?.message ?? "Could not place order";
+        toast.error(msg);
+        return;
+      }
+      const number = json?.data?.order?.number;
+
+      // Record each payment row in sequence. Any failure here leaves the
+      // order in place — staff can finish up from the order detail page.
+      const rowsToRecord = paymentRows.filter((p) => (p.amountKobo ?? 0) > 0);
+      if (rowsToRecord.length > 0 && number) {
+        for (const row of rowsToRecord) {
+          const payRes = await fetch(
+            `/api/v1/admin/orders/${encodeURIComponent(number)}/payments`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                amountKobo: row.amountKobo,
+                method: row.method,
+                ...(row.reference.trim() && { reference: row.reference.trim() }),
+              }),
+            },
+          );
+          if (!payRes.ok) {
+            const payJson = await payRes.json();
+            toast.error(
+              `Order ${number} created but a payment couldn't be recorded: ${payJson?.error?.message ?? "Unknown error"}. Finish on the order page.`,
+            );
+            router.push(`/admin/orders/${number}`);
+            return;
+          }
+        }
+      }
+
+      toast.success(`Order ${number} created`);
+      router.push(`/admin/orders/${number}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      toast.error(msg);
+    } finally {
+      setPlacing(false);
+    }
+  }
 
   const matches = PRODUCTS.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -81,8 +205,13 @@ export default function AdminCreateOrderPage() {
                 <Button variant="ghost" size="sm">
                   Save as draft
                 </Button>
-                <Button size="sm" disabled={resolved.length === 0}>
-                  Place order
+                <Button
+                  size="sm"
+                  disabled={resolved.length === 0 || placing}
+                  onClick={placeOrder}
+                >
+                  {placing && <Loader2 className="size-4 animate-spin" />}
+                  {placing ? "Placing…" : "Place order"}
                 </Button>
               </>
             }
@@ -114,10 +243,15 @@ export default function AdminCreateOrderPage() {
                             onClick={() => addProduct(p.id)}
                             className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2 text-left"
                           >
-                            <div
-                              className="size-9 rounded-md flex-shrink-0"
-                              style={{ background: p.bg }}
-                            />
+                            <div className="relative size-9 rounded-md flex-shrink-0 overflow-hidden bg-surface-2">
+                              <Image
+                                src={p.imageUrl}
+                                alt={p.name}
+                                fill
+                                sizes="36px"
+                                className="object-cover"
+                              />
+                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold truncate">{p.name}</div>
                               <div className="text-[11px] text-fg-muted">
@@ -145,10 +279,15 @@ export default function AdminCreateOrderPage() {
                         key={`${l.productId}-${l.variantId}`}
                         className="flex items-center gap-3 py-3 border-t border-border first:border-t-0"
                       >
-                        <div
-                          className="size-12 rounded-md flex-shrink-0"
-                          style={{ background: l.product.bg }}
-                        />
+                        <div className="relative size-12 rounded-md flex-shrink-0 overflow-hidden bg-surface-2">
+                          <Image
+                            src={l.product.imageUrl}
+                            alt={l.product.name}
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                          />
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold truncate">{l.product.name}</div>
                           <div className="text-[11px] text-fg-muted">
@@ -205,18 +344,31 @@ export default function AdminCreateOrderPage() {
               <Card title="Customer">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Field id="name" label="Recipient name">
-                    <Input id="name" defaultValue="Walk-in customer" />
+                    <Input
+                      id="name"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                    />
                   </Field>
-                  <Field id="phone" label="Phone number">
-                    <PhoneInput id="phone" placeholder="803 421 7790" />
+                  <Field id="phone" label="Phone number (optional)">
+                    <PhoneInput
+                      id="phone"
+                      placeholder="Skip for walk-in"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </Field>
                 </div>
               </Card>
 
-              <Card title="Delivery address">
+              <Card title="Delivery address (optional for walk-ins)">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Field id="state" label="State">
-                    <Select id="state" defaultValue="Lagos">
+                    <Select
+                      id="state"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                    >
                       {NIGERIAN_STATES.map((s) => (
                         <option key={s} value={s}>
                           {s}
@@ -225,7 +377,11 @@ export default function AdminCreateOrderPage() {
                     </Select>
                   </Field>
                   <Field id="lga" label="LGA">
-                    <Select id="lga" defaultValue="Ikoyi">
+                    <Select
+                      id="lga"
+                      value={lga}
+                      onChange={(e) => setLga(e.target.value)}
+                    >
                       {LAGOS_LGAS.map((l) => (
                         <option key={l} value={l}>
                           {l}
@@ -234,13 +390,142 @@ export default function AdminCreateOrderPage() {
                     </Select>
                   </Field>
                   <Field id="address" label="Street address" className="md:col-span-2">
-                    <Textarea id="address" rows={2} placeholder="House number, street…" />
+                    <Textarea
+                      id="address"
+                      rows={2}
+                      placeholder="House number, street…"
+                      value={line1}
+                      onChange={(e) => setLine1(e.target.value)}
+                    />
                   </Field>
                 </div>
               </Card>
 
+              {(() => {
+                const paidNow = paymentRows.reduce(
+                  (a, p) => a + (p.amountKobo ?? 0),
+                  0,
+                );
+                const overpaid = paidNow > total;
+                const remaining = total - paidNow;
+                return (
+                  <Card title="Payment">
+                    {paymentRows.length === 0 ? (
+                      <div className="text-center py-3 border border-dashed border-border rounded-md text-sm text-fg-muted">
+                        Order will be saved as <span className="font-semibold">unpaid</span>.
+                        Add one or more payments now, or record them later.
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        {paymentRows.map((row, i) => (
+                          <div
+                            key={i}
+                            className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-end p-2.5 rounded-md bg-surface-2 border border-border"
+                          >
+                            <Field id={`pm-${i}`} label={`Method ${i + 1}`}>
+                              <Select
+                                id={`pm-${i}`}
+                                value={row.method}
+                                onChange={(e) =>
+                                  patchPaymentRow(i, {
+                                    method: e.target.value as PaymentMethod,
+                                  })
+                                }
+                              >
+                                <option value="cash">Cash</option>
+                                <option value="pos">POS (card on-site)</option>
+                                <option value="bank_transfer">Bank transfer</option>
+                                <option value="nuqood">Nuqood</option>
+                              </Select>
+                            </Field>
+                            <Field id={`pa-${i}`} label="Amount">
+                              <CurrencyInput
+                                id={`pa-${i}`}
+                                {...(row.amountKobo != null
+                                  ? { valueKobo: row.amountKobo }
+                                  : {})}
+                                onValueChange={(v) =>
+                                  patchPaymentRow(i, { amountKobo: v })
+                                }
+                              />
+                            </Field>
+                            <button
+                              type="button"
+                              onClick={() => removePaymentRow(i)}
+                              className="p-2 text-fg-muted hover:text-danger rounded-md hover:bg-surface"
+                              aria-label="Remove payment"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                            {(row.method === "bank_transfer" ||
+                              row.method === "nuqood") && (
+                              <Field
+                                id={`pr-${i}`}
+                                label="Reference"
+                                className="md:col-span-3"
+                                hint="Optional — txn ID or sender name"
+                              >
+                                <Input
+                                  id={`pr-${i}`}
+                                  value={row.reference}
+                                  onChange={(e) =>
+                                    patchPaymentRow(i, { reference: e.target.value })
+                                  }
+                                />
+                              </Field>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between mt-3 gap-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={addPaymentRow}
+                      >
+                        <Plus className="size-3.5" /> Add payment
+                      </Button>
+                      {paymentRows.length > 0 && (
+                        <div className="text-xs">
+                          <span className="text-fg-muted">Paid now: </span>
+                          <span className="font-bold tabular">
+                            {formatMoney(paidNow)}
+                          </span>
+                          <span className="text-fg-muted"> / {formatMoney(total)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {overpaid && (
+                      <div className="mt-3 text-xs text-danger bg-danger-bg p-2.5 rounded-md">
+                        Payments total {formatMoney(paidNow - total)} more than the order.
+                        Reduce a row before saving.
+                      </div>
+                    )}
+                    {!overpaid && remaining > 0 && paymentRows.length > 0 && (
+                      <div className="mt-3 text-xs text-warning bg-warning-bg p-2.5 rounded-md">
+                        Partial payment — {formatMoney(remaining)} will be outstanding.
+                      </div>
+                    )}
+                    {!overpaid && remaining === 0 && paymentRows.length > 0 && (
+                      <div className="mt-3 text-xs text-brand-accent bg-success-bg p-2.5 rounded-md">
+                        Paid in full. The order will move to confirmed automatically.
+                      </div>
+                    )}
+                  </Card>
+                );
+              })()}
+
               <Card title="Notes (internal)">
-                <Textarea placeholder="Anything the team should know…" rows={2} />
+                <Textarea
+                  placeholder="Anything the team should know…"
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
               </Card>
             </div>
 
@@ -270,10 +555,15 @@ export default function AdminCreateOrderPage() {
                 <SummaryRow label="Total" value={formatMoney(total)} strong />
 
                 <div className="flex flex-col gap-2 mt-4">
-                  <Button width="full" disabled={resolved.length === 0}>
-                    Place order
+                  <Button
+                    width="full"
+                    disabled={resolved.length === 0 || placing}
+                    onClick={placeOrder}
+                  >
+                    {placing && <Loader2 className="size-4 animate-spin" />}
+                    {placing ? "Placing…" : "Place order"}
                   </Button>
-                  <Button width="full" variant="ghost" size="sm">
+                  <Button width="full" variant="ghost" size="sm" disabled>
                     Place + send payment link
                   </Button>
                 </div>

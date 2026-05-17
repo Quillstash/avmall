@@ -31,9 +31,19 @@ const envSchema = z.object({
   R2_BUCKET_NAME: z.string().optional(),
   R2_PUBLIC_URL: z.string().url().optional(),
 
-  // Payments — Nuqood (Phase 5)
+  // Payments — Nuqood
+  /// "APIKEY-..." string — sent as the `api-key` header.
   NUQOOD_API_KEY: z.string().optional(),
-  NUQOOD_WEBHOOK_SECRET: z.string().optional(),
+  /// "SECKEY-..." string — sent as the `secret-key` header.
+  NUQOOD_SECRET_KEY: z.string().optional(),
+  /// Business code Nuqood issues per merchant — required on every request body.
+  NUQOOD_BUSINESS_CODE: z.string().optional(),
+  /// Override the API base. Defaults to https://nuqood.ng — set this if Nuqood
+  /// gives us a sandbox host.
+  NUQOOD_API_BASE: z.string().url().optional(),
+  /// Nuqood doesn't sign webhooks. We embed this opaque token in the callback
+  /// URL (`?token=…`) and reject any inbound webhook missing/mismatching it.
+  NUQOOD_WEBHOOK_SECRET: z.string().min(16).optional(),
 
   // WhatsApp (Phase 5)
   META_WA_TOKEN: z.string().optional(),
@@ -43,6 +53,9 @@ const envSchema = z.object({
   // AI (Phase 5)
   OPENAI_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
+  /// Bearer token D-Zero (or any AI orchestrator) presents when calling
+  /// /api/v1/ai/tools/*. Treat as a secret. Rotate from admin settings.
+  AI_AGENT_TOKEN: z.string().min(16).optional(),
 
   // Notifications (Phase 5)
   RESEND_API_KEY: z.string().optional(),
@@ -78,12 +91,16 @@ export const env = envSchema.parse({
   R2_BUCKET_NAME: blank(process.env.R2_BUCKET_NAME),
   R2_PUBLIC_URL: blank(process.env.R2_PUBLIC_URL),
   NUQOOD_API_KEY: blank(process.env.NUQOOD_API_KEY),
+  NUQOOD_SECRET_KEY: blank(process.env.NUQOOD_SECRET_KEY),
+  NUQOOD_BUSINESS_CODE: blank(process.env.NUQOOD_BUSINESS_CODE),
+  NUQOOD_API_BASE: blank(process.env.NUQOOD_API_BASE),
   NUQOOD_WEBHOOK_SECRET: blank(process.env.NUQOOD_WEBHOOK_SECRET),
   META_WA_TOKEN: blank(process.env.META_WA_TOKEN),
   META_WA_PHONE_NUMBER_ID: blank(process.env.META_WA_PHONE_NUMBER_ID),
   META_WA_VERIFY_TOKEN: blank(process.env.META_WA_VERIFY_TOKEN),
   OPENAI_API_KEY: blank(process.env.OPENAI_API_KEY),
   DEEPSEEK_API_KEY: blank(process.env.DEEPSEEK_API_KEY),
+  AI_AGENT_TOKEN: blank(process.env.AI_AGENT_TOKEN),
   RESEND_API_KEY: blank(process.env.RESEND_API_KEY),
   TERMII_API_KEY: blank(process.env.TERMII_API_KEY),
   AFRICAS_TALKING_API_KEY: blank(process.env.AFRICAS_TALKING_API_KEY),

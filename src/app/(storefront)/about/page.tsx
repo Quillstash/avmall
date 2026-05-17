@@ -12,13 +12,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/about" },
 };
 
-const STATS = [
-  { v: "47", l: "verified makers" },
-  { v: "332", l: "products in stock" },
-  { v: "24h", l: "average Lagos delivery" },
-  { v: "94%", l: "first-time-right rate" },
-] as const;
-
 const PILLARS = [
   {
     title: "Makers first",
@@ -49,16 +42,6 @@ export default function AboutPage() {
       />
 
       <div className="mx-auto max-w-5xl px-4 lg:px-6 py-10 lg:py-16">
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12 lg:mb-16">
-          {STATS.map((s) => (
-            <div key={s.l} className="rounded-lg bg-surface-2 p-5">
-              <div className="font-display text-3xl lg:text-4xl font-bold tracking-tight">{s.v}</div>
-              <div className="text-xs text-fg-muted mt-1">{s.l}</div>
-            </div>
-          ))}
-        </div>
-
         {/* Story */}
         <h2 className="font-display text-2xl lg:text-3xl font-semibold tracking-tight mb-4">
           The short version

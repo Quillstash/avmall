@@ -19,6 +19,14 @@ import { CodeInput } from "@/components/ui/code-input";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toaster";
 import { CATEGORIES, type BulkTier, type ProductCategoryId } from "@/lib/mock-data";
+import { Money } from "@/components/ui/money";
+import { ProfitDisplay } from "@/components/admin/profit-display";
+import {
+  VariantMatrix,
+  emptyMatrix,
+  type VariantMatrixValue,
+} from "@/components/admin/variant-matrix";
+import { applyPercentageDiscount } from "@/lib/money";
 
 function slugify(s: string): string {
   return s
@@ -43,6 +51,7 @@ export default function AdminNewProductPage() {
   const [slugTouched, setSlugTouched] = React.useState(false);
   const [priceKobo, setPriceKobo] = React.useState<number | null>(null);
   const [saleKobo, setSaleKobo] = React.useState<number | null>(null);
+  const [costKobo, setCostKobo] = React.useState<number | null>(null);
   const [stock, setStock] = React.useState(0);
   const [moq, setMoq] = React.useState(1);
   const [tags, setTags] = React.useState<string[]>([]);
@@ -52,6 +61,28 @@ export default function AdminNewProductPage() {
   const [bulk, setBulk] = React.useState<BulkTier[]>([]);
   const [images, setImages] = React.useState<UploadedImage[]>([]);
   const [saving, setSaving] = React.useState(false);
+
+  // Negotiation: per-product overrides. "global" leaves both null and lets the
+  // AiSettings default apply.
+  const [negotiate, setNegotiate] = React.useState(false);
+  const [negotiationMode, setNegotiationMode] = React.useState<"global" | "pct" | "floor">("global");
+  const [negotiateMaxPct, setNegotiateMaxPct] = React.useState<number>(10);
+  const [negotiateFloorKobo, setNegotiateFloorKobo] = React.useState<number | null>(null);
+
+  // Variant matrix. Empty by default → single default variant on save.
+  const [matrix, setMatrix] = React.useState<VariantMatrixValue>(() => emptyMatrix());
+  const hasMatrix = matrix.variants.length > 0;
+
+  // Effective floor price the AI is allowed to settle at, given the current
+  // negotiation mode. Null when we can't compute it (global mode, no price set).
+  const negotiationFloorKobo: number | null =
+    !negotiate || priceKobo == null
+      ? null
+      : negotiationMode === "pct"
+        ? priceKobo - applyPercentageDiscount(priceKobo, negotiateMaxPct)
+        : negotiationMode === "floor"
+          ? negotiateFloorKobo
+          : null;
 
   // Track touched state per field so errors only show after interaction
   // (or after a publish attempt — see `attemptedPublish`).
@@ -116,9 +147,17 @@ export default function AdminNewProductPage() {
           shortDesc: short,
           longDesc,
           priceKobo: priceKobo ?? 0,
+          costPriceKobo: costKobo ?? 0,
           ...(saleKobo != null && { saleKobo, saleActive: true }),
-          stock,
+          // Stock applies to the single default variant when no matrix is set.
+          stock: hasMatrix ? 0 : stock,
           ...(slug && { slug }),
+          negotiate,
+          ...(negotiate &&
+            negotiationMode === "pct" && { negotiateMaxPct }),
+          ...(negotiate &&
+            negotiationMode === "floor" &&
+            negotiateFloorKobo != null && { negotiateFloorKobo }),
           preorder,
           ...(preorder && { moq }),
           tags,
@@ -130,6 +169,30 @@ export default function AdminNewProductPage() {
             type: t.type,
             value: t.value,
           })),
+          // R2 image keys — only entries that finished uploading get the
+          // `key` field. Local-only entries (pending / errored) are dropped.
+          images: images
+            .filter((img) => !!img.key)
+            .map((img) => ({
+              key: img.key!,
+              ...(img.alt && { alt: img.alt }),
+              ...(img.primary && { primary: true }),
+            })),
+          // Variant matrix — only send when there's at least one combo.
+          ...(hasMatrix && {
+            option1Name: matrix.option1Name,
+            option2Name: matrix.option2Name,
+            variants: matrix.variants.map((v) => ({
+              label: v.label,
+              sku: v.sku,
+              ...(v.option1Value && { option1Value: v.option1Value }),
+              ...(v.option2Value && { option2Value: v.option2Value }),
+              stock: v.stock,
+              ...(v.priceOverrideKobo != null && {
+                priceOverrideKobo: v.priceOverrideKobo,
+              }),
+            })),
+          }),
         }),
       });
 
@@ -218,7 +281,7 @@ export default function AdminNewProductPage() {
                       value={brand}
                       onChange={(e) => setBrand(e.target.value)}
                       onBlur={() => markTouched("brand")}
-                      placeholder="Omolewa"
+                      placeholder="e.g. Oraimo, Itel, Kenwood"
                       invalid={!!showErr("brand")}
                     />
                   </Field>
@@ -282,6 +345,8 @@ export default function AdminNewProductPage() {
                       setImages(next);
                       markTouched("images");
                     }}
+                    scope="product"
+                    scopeId={slug || slugify(name) || "new"}
                     max={8}
                   />
                 </Field>
@@ -317,36 +382,149 @@ export default function AdminNewProductPage() {
                     optional
                     hint="Internal — for margin reports"
                   >
-                    <CurrencyInput id="cost" placeholder="0" />
+                    <CurrencyInput
+                      id="cost"
+                      {...(costKobo != null ? { valueKobo: costKobo } : {})}
+                      onValueChange={(v) => setCostKobo(v)}
+                    />
                   </Field>
                 </div>
+
+                {/* Profit at retail / sale — internal only */}
+                {priceKobo != null && costKobo != null && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <ProfitDisplay
+                      priceKobo={priceKobo}
+                      costKobo={costKobo}
+                      label="Profit at retail"
+                    />
+                    {saleKobo != null && (
+                      <ProfitDisplay
+                        priceKobo={saleKobo}
+                        costKobo={costKobo}
+                        label="Profit at sale price"
+                      />
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-5">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted mb-2">
                     Bulk pricing tiers
                   </div>
-                  <BulkTierEditor tiers={bulk} onChange={setBulk} />
+                  <BulkTierEditor
+                    tiers={bulk}
+                    onChange={setBulk}
+                    {...(priceKobo != null && costKobo != null && {
+                      priceKobo: saleKobo ?? priceKobo,
+                      costKobo,
+                    })}
+                  />
                 </div>
               </Card>
 
-              <Card title="Inventory">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Field id="stock" label="Stock on hand" optional>
-                    <NumberInput value={stock} onChange={setStock} min={0} />
-                  </Field>
-                  <Field
-                    id="reorder"
-                    label="Low stock threshold"
-                    optional
-                    hint="Triggers a low-stock badge"
-                  >
-                    <NumberInput value={20} onChange={() => undefined} min={0} />
-                  </Field>
-                </div>
-                <p className="text-xs text-fg-muted mt-3 leading-relaxed">
-                  Add variants (sizes, colours) after the product is saved. Each variant gets its
+              {/* Negotiation — per-product cap that overrides the global default */}
+              <Card title="Negotiation">
+                <SwitchRow
+                  label="Open to negotiation"
+                  description="Customers can propose a price via the AI / WhatsApp"
+                  checked={negotiate}
+                  onChange={setNegotiate}
+                />
+                {negotiate && (
+                  <div className="mt-4 flex flex-col gap-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
+                      Negotiation cap
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          { id: "global", label: "Use global default" },
+                          { id: "pct", label: "% off retail" },
+                          { id: "floor", label: "Flat ₦ floor" },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setNegotiationMode(opt.id)}
+                          className={
+                            negotiationMode === opt.id
+                              ? "px-3 py-2 text-xs font-semibold rounded-md bg-brand-primary text-brand-primary-fg"
+                              : "px-3 py-2 text-xs font-semibold rounded-md bg-surface-2 text-fg hover:bg-bg"
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {negotiationMode === "pct" && (
+                      <Field id="negPct" label="Max % off retail">
+                        <NumberInput
+                          value={negotiateMaxPct}
+                          onChange={(n) => setNegotiateMaxPct(Math.max(0, Math.min(50, n)))}
+                          min={0}
+                          max={50}
+                          suffix="%"
+                        />
+                      </Field>
+                    )}
+                    {negotiationMode === "floor" && (
+                      <Field id="negFloor" label="Minimum acceptable price">
+                        <CurrencyInput
+                          id="negFloor"
+                          {...(negotiateFloorKobo != null
+                            ? { valueKobo: negotiateFloorKobo }
+                            : {})}
+                          onValueChange={(v) => setNegotiateFloorKobo(v)}
+                        />
+                      </Field>
+                    )}
+                    {negotiationFloorKobo != null && costKobo != null && (
+                      <div className="rounded-md border border-warning/30 bg-warning-bg/30 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted mb-1.5">
+                          If the AI settles at this floor
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] text-fg-muted">Floor price</div>
+                            <Money kobo={negotiationFloorKobo} className="text-sm font-bold" />
+                          </div>
+                          <ProfitDisplay
+                            priceKobo={negotiationFloorKobo}
+                            costKobo={costKobo}
+                            size="compact"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-fg-muted">
+                      The AI never reveals this value. {negotiationMode === "global" && "Leave on global to fall back to the AI Control Panel default."}
+                    </p>
+                  </div>
+                )}
+              </Card>
+
+              <Card title="Inventory & variants">
+                <p className="text-xs text-fg-muted mb-3 leading-relaxed">
+                  Leave variant groups empty for a single-stock product. Otherwise,
+                  every combination of Size × Color becomes its own variant with its
                   own stock count and SKU.
                 </p>
+                <VariantMatrix
+                  value={matrix}
+                  onChange={setMatrix}
+                  productPriceKobo={priceKobo ?? 0}
+                  productCostKobo={costKobo ?? 0}
+                  skuPrefix={(brand.slice(0, 3) + "-" + (slug || slugify(name))).toUpperCase()}
+                />
+                {!hasMatrix && (
+                  <div className="mt-4 max-w-sm">
+                    <Field id="stock" label="Stock on hand (default variant)" optional>
+                      <NumberInput value={stock} onChange={setStock} min={0} />
+                    </Field>
+                  </div>
+                )}
               </Card>
             </div>
 

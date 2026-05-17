@@ -109,6 +109,7 @@ export default function CartPage() {
                     value={line.qty}
                     onChange={(q) => setQty(line.productId, line.variantId, q)}
                     size="sm"
+                    {...(line.snapshot.stock != null && { max: line.snapshot.stock })}
                   />
                   <div className="text-right">
                     <Money kobo={line.lineTotalKobo} className="text-sm font-bold" />
@@ -129,6 +130,7 @@ export default function CartPage() {
                   value={line.qty}
                   onChange={(q) => setQty(line.productId, line.variantId, q)}
                   size="sm"
+                  {...(line.snapshot.stock != null && { max: line.snapshot.stock })}
                 />
               </div>
 

@@ -6,14 +6,33 @@ import { Button } from "@/components/ui/button";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { ProfitDisplay } from "@/components/admin/profit-display";
 import type { BulkTier } from "@/lib/mock-data";
+import { applyPercentageDiscount } from "@/lib/money";
 
 interface BulkTierEditorProps {
   tiers: BulkTier[];
   onChange: (tiers: BulkTier[]) => void;
+  /** When provided, each tier row shows the effective unit profit at that tier. */
+  priceKobo?: number;
+  costKobo?: number;
 }
 
-export function BulkTierEditor({ tiers, onChange }: BulkTierEditorProps) {
+/** Effective per-unit price after applying a single tier rule. */
+function effectiveUnitKobo(tier: BulkTier, priceKobo: number): number {
+  if (tier.type === "percentage") {
+    return priceKobo - applyPercentageDiscount(priceKobo, tier.value);
+  }
+  return Math.max(0, priceKobo - tier.value);
+}
+
+export function BulkTierEditor({
+  tiers,
+  onChange,
+  priceKobo,
+  costKobo,
+}: BulkTierEditorProps) {
+  const showProfit = priceKobo != null && costKobo != null;
   function update(i: number, patch: Partial<BulkTier>) {
     const next = tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t));
     onChange(next);
@@ -54,6 +73,7 @@ export function BulkTierEditor({ tiers, onChange }: BulkTierEditorProps) {
             <th className="text-left px-3 py-2">Max qty</th>
             <th className="text-left px-3 py-2">Type</th>
             <th className="text-left px-3 py-2">Value</th>
+            {showProfit && <th className="text-left px-3 py-2">Profit / unit</th>}
             <th className="w-10" />
           </tr>
         </thead>
@@ -105,6 +125,15 @@ export function BulkTierEditor({ tiers, onChange }: BulkTierEditorProps) {
                   />
                 )}
               </td>
+              {showProfit && (
+                <td className="p-2">
+                  <ProfitDisplay
+                    priceKobo={effectiveUnitKobo(tier, priceKobo!)}
+                    costKobo={costKobo!}
+                    size="compact"
+                  />
+                </td>
+              )}
               <td className="p-2 text-right">
                 <button
                   type="button"

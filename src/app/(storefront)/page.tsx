@@ -26,32 +26,32 @@ const TRUST_ITEMS = [
 
 const CATEGORY_VISUALS = [
   {
-    id: "beauty",
-    name: "Beauty & Skincare",
-    count: 84,
+    id: "phones",
+    name: "Phones & Tablets",
+    count: 22,
     image:
-      "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=1200&q=80&auto=format&fit=crop",
+      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/b3ea24c913fe86987703aae05401eb1fb0ea9201.jpeg",
   },
   {
-    id: "home",
-    name: "Home & Living",
-    count: 142,
+    id: "audio",
+    name: "Audio",
+    count: 26,
     image:
-      "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=1200&q=80&auto=format&fit=crop",
+      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/b648d085c3de78cd526b13a44047d59723b88d18.jpeg",
   },
   {
-    id: "fashion",
-    name: "Fashion",
-    count: 67,
+    id: "power",
+    name: "Power",
+    count: 25,
     image:
-      "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=1200&q=80&auto=format&fit=crop",
+      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/27756b025a9c2d6488d67a8ac2991262b7099557.jpeg",
   },
   {
-    id: "food",
-    name: "Pantry",
-    count: 51,
+    id: "fans",
+    name: "Fans",
+    count: 24,
     image:
-      "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=1200&q=80&auto=format&fit=crop",
+      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/73d90ad2510d39de57a57f3797abdcc5dc2e3c82.jpeg",
   },
 ];
 
@@ -64,32 +64,31 @@ export default async function HomePage() {
     <div>
       {/* Hero */}
       <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-6 lg:pt-10">
-        <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-0 rounded-xl overflow-hidden border border-border bg-surface min-h-[420px] lg:min-h-[480px]">
-          <div className="p-8 sm:p-12 lg:p-14 flex flex-col justify-center">
+        <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-0 rounded-xl overflow-hidden border border-border bg-surface min-h-[360px] lg:min-h-[420px]">
+          <div className="p-8 sm:p-10 lg:p-12 flex flex-col justify-center">
             <div className="text-xs font-bold uppercase tracking-widest text-brand-primary mb-4">
-              New season · January 2026
+              On the shelf today
             </div>
-            <h1 className="font-display text-4xl sm:text-5xl lg:text-[60px] font-semibold leading-[1.05] tracking-tight mb-5">
-              Made by Nigerian
-              <br className="hidden sm:inline" /> hands. Built for
-              <br className="hidden sm:inline" /> everyday rituals.
+            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-semibold leading-[1.1] tracking-tight mb-4">
+              Phones, power, audio,
+              <br className="hidden sm:inline" /> shipped today.
             </h1>
-            <p className="text-base lg:text-lg leading-relaxed text-fg-muted max-w-md mb-8">
-              From Aramide&apos;s clay masks to Tafa Studio&apos;s stoneware — discover 332 small-batch
-              goods from 47 makers across the country, with same-day delivery in Lagos.
+            <p className="text-base leading-relaxed text-fg-muted max-w-md mb-7">
+              Same-day Lagos dispatch. 14-day returns. Pay how you want — Nuqood, transfer,
+              POS or cash.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/category/beauty">
-                <Button size="lg">Shop new arrivals</Button>
+              <Link href="/category/phones">
+                <Button size="lg">Shop the catalogue</Button>
               </Link>
               <Button size="lg" variant="secondary" className="bg-transparent">
                 <MessageCircle className="size-4" /> Chat with us
               </Button>
             </div>
-            <div className="mt-9 flex flex-wrap gap-7 text-sm text-fg-muted">
+            <div className="mt-7 flex flex-wrap gap-7 text-sm text-fg-muted">
               {[
-                "47 verified makers",
-                "Pay via Nuqood, transfer, POS",
+                "120+ products in stock",
+                "Same-day Lagos",
                 "14-day returns",
               ].map((s) => (
                 <span key={s} className="inline-flex items-center gap-1.5">
@@ -100,13 +99,13 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="relative bg-gradient-to-br from-[#d97757] via-[#b54a30] to-[#6b2a18] flex items-end p-8 lg:p-10 text-white min-h-[280px] lg:min-h-0">
+          <div className="relative bg-gradient-to-br from-[#1f6f4a] via-[#155236] to-[#0a3322] flex items-end p-8 lg:p-10 text-white min-h-[280px] lg:min-h-0">
             <Image
-              src="https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=1400&q=80&auto=format&fit=crop"
-              alt="Featured product"
+              src="https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/27756b025a9c2d6488d67a8ac2991262b7099557.jpeg"
+              alt="Featured Oraimo power bank"
               fill
               sizes="(min-width: 1024px) 50vw, 100vw"
-              className="object-cover opacity-50 mix-blend-multiply"
+              className="object-cover opacity-40 mix-blend-multiply"
               priority
             />
             <div className="absolute top-6 right-6 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[11px] font-bold uppercase tracking-widest">
@@ -114,15 +113,15 @@ export default async function HomePage() {
             </div>
             <div className="relative max-w-sm">
               <div className="text-[11px] font-bold uppercase tracking-widest opacity-85 mb-2">
-                Aramide
+                Oraimo
               </div>
               <div className="font-display text-2xl lg:text-3xl font-semibold leading-tight mb-2.5">
-                Rose &amp; Clay Hydrating Mask
+                50,000mAh laptop-grade power bank
               </div>
               <div className="text-sm opacity-90 mb-5 leading-relaxed">
-                Detoxifies and softens. 17% off this week.
+                Multi-day backup for phones, lamps, and small fans. In stock today.
               </div>
-              <Link href="/product/aramide-rose-clay-mask">
+              <Link href="/product/oraimo-50000mah-powerbank">
                 <Button className="bg-white text-fg hover:bg-white/90">
                   Shop the drop <ChevronRight className="size-4" />
                 </Button>
@@ -183,7 +182,7 @@ export default async function HomePage() {
         <SectionHead
           eyebrow="Just dropped"
           title="New arrivals"
-          rightLink={{ label: "View all 84", href: "/category/beauty" }}
+          rightLink={{ label: "Browse phones", href: "/category/phones" }}
         />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
           {newArrivals.map((p, i) => (
@@ -192,65 +191,24 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Editorial split */}
+      {/* Wholesale band — slim full-width */}
       <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
-        <div className="grid lg:grid-cols-2 gap-5 lg:gap-6">
-          {/* Maker story */}
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#1f6f4a] to-[#0d4a2c] text-white p-10 lg:p-14 min-h-[360px] flex flex-col justify-between">
-            <Image
-              src="https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=1200&q=80&auto=format&fit=crop"
-              alt="Maker story"
-              fill
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              className="object-cover opacity-30 mix-blend-multiply"
-            />
-            <div className="relative">
-              <div className="text-[11px] font-bold uppercase tracking-widest opacity-85">
-                Maker story
-              </div>
-              <div className="font-display text-3xl lg:text-4xl font-semibold leading-tight mt-3.5 max-w-sm">
-                Omolewa, on shea butter and slow rituals
-              </div>
-              <p className="text-sm lg:text-base leading-relaxed opacity-90 mt-4 max-w-lg">
-                &ldquo;My grandmother whipped shea on the back porch. The recipe hasn&apos;t changed —
-                only the people we share it with.&rdquo;
-              </p>
+        <div className="rounded-xl bg-surface border border-border p-6 lg:p-8 flex flex-col lg:flex-row lg:items-center gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-brand-primary mb-2">
+              Buying for your shop?
             </div>
-            <button className="relative self-start mt-6 px-5 py-3 rounded-md border-2 border-white/60 text-white text-sm font-semibold hover:bg-white/10 inline-flex items-center gap-2">
-              Read the story <ChevronRight className="size-4" />
-            </button>
-          </div>
-
-          {/* Wholesale CTA */}
-          <div className="rounded-xl bg-surface border border-border p-10 lg:p-14 min-h-[360px] flex flex-col justify-between">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-widest text-brand-primary">
-                Buying for your shop?
-              </div>
-              <div className="font-display text-3xl lg:text-4xl font-semibold leading-tight mt-3.5 max-w-sm">
-                Wholesale that respects your margins.
-              </div>
-              <p className="text-sm lg:text-base leading-relaxed text-fg-muted mt-4 max-w-lg">
-                Tiered bulk pricing, negotiate on WhatsApp, split payments, dedicated account
-                manager. Trusted by 240+ retailers across Nigeria.
-              </p>
-              <div className="grid grid-cols-3 gap-3 mt-6">
-                {[
-                  { v: "15%", l: "off at 50+ units" },
-                  { v: "24h", l: "Lagos delivery" },
-                  { v: "₦2M", l: "avg first order" },
-                ].map((s) => (
-                  <div key={s.l} className="p-3 rounded-md bg-surface-2">
-                    <div className="font-display text-2xl font-bold tracking-tight">{s.v}</div>
-                    <div className="text-[11px] text-fg-muted mt-0.5">{s.l}</div>
-                  </div>
-                ))}
-              </div>
+            <div className="font-display text-xl lg:text-2xl font-semibold leading-tight tracking-tight">
+              Wholesale pricing, negotiated on WhatsApp.
             </div>
-            <Button size="lg" className="self-start mt-6">
-              <MessageCircle className="size-4" /> Open a wholesale chat
-            </Button>
+            <p className="text-sm text-fg-muted mt-2 max-w-xl">
+              Tiered bulk discounts, split payments, dedicated account manager — chat with
+              us to get a quote for your shop.
+            </p>
           </div>
+          <Button size="lg" className="shrink-0">
+            <MessageCircle className="size-4" /> Open a wholesale chat
+          </Button>
         </div>
       </section>
 

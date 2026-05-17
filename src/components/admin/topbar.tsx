@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Search, Menu } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
+import { AdminTopBarSearch } from "@/components/admin/topbar-search";
 
 interface TopBarProps {
   breadcrumbs?: { label: string; href?: string }[];
@@ -35,20 +36,13 @@ export function AdminTopBar({ breadcrumbs = [], onOpenMobileNav }: TopBarProps) 
 
       <div className="flex-1" />
 
-      <div className="hidden md:flex items-center gap-2 px-3 h-9 w-72 bg-surface-2 border border-border rounded-md text-fg-muted text-sm">
-        <Search className="size-4" />
-        <span className="flex-1">Search orders, products, customers…</span>
-        <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-surface border border-border rounded">
-          ⌘K
-        </kbd>
-      </div>
+      <AdminTopBarSearch />
 
       <button
         className="relative flex items-center justify-center size-9 rounded-md hover:bg-surface-2"
         aria-label="Notifications"
       >
         <Bell className="size-5" />
-        <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-danger border-2 border-surface" />
       </button>
     </header>
   );

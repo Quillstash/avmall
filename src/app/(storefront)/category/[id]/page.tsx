@@ -68,7 +68,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
             {category.name}
           </h1>
           <p className="text-sm text-fg-muted mt-2">
-            {products.length} products from {Math.min(products.length, 22)} verified makers
+            {products.length} {products.length === 1 ? "product" : "products"}
           </p>
         </div>
       </div>

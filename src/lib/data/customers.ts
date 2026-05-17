@@ -20,7 +20,6 @@ export interface AdminCustomerDetail {
   segments: string[];
   blacklisted: boolean;
   blacklistReason: string | null;
-  storeCreditKobo: number;
   lifetimeKobo: number;
   ordersCount: number;
   lastOrderAt: Date | null;
@@ -58,8 +57,14 @@ export async function listCustomers(): Promise<CustomerListRow[]> {
   });
 }
 
+// Loose UUID match — enough to keep non-UUID slugs from hitting Prisma.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getCustomer(id: string): Promise<AdminCustomerDetail | null> {
-  if (!hasDatabase) {
+  // Mock fallback: no DB OR the id isn't a UUID (the customers list page still
+  // renders the mock catalogue, so we may receive ids like "c1" here until the
+  // seed creates real customer rows).
+  if (!hasDatabase || !UUID_REGEX.test(id)) {
     const m = MOCK_CUSTOMERS.find((c) => c.id === id);
     if (!m) return null;
     return {
@@ -70,7 +75,6 @@ export async function getCustomer(id: string): Promise<AdminCustomerDetail | nul
       segments: m.segments,
       blacklisted: !!m.blacklisted,
       blacklistReason: m.blacklisted ? "Repeated chargebacks" : null,
-      storeCreditKobo: 0,
       lifetimeKobo: m.lifetimeKobo,
       ordersCount: m.orders,
       lastOrderAt: null,
@@ -96,7 +100,6 @@ export async function getCustomer(id: string): Promise<AdminCustomerDetail | nul
     segments: c.segments,
     blacklisted: c.blacklisted,
     blacklistReason: c.blacklistReason,
-    storeCreditKobo: Number(c.storeCreditKobo),
     lifetimeKobo: lifetime,
     ordersCount: c.orders.length,
     lastOrderAt: c.orders[0]?.createdAt ?? null,

@@ -16,21 +16,35 @@ import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
 import { LineChart, DonutChart } from "@/components/ui/charts";
-import { ORDERS_LIST } from "@/lib/admin-mock-data";
+import { getDashboard, type DashboardData } from "@/lib/data/dashboard";
+import { formatMoney } from "@/lib/money";
+import type { OrderListRow } from "@/lib/data/orders";
 import { cn } from "@/lib/utils";
 
-export default function AdminDashboardPage() {
+// Hit on every request so the KPIs reflect the live state.
+export const dynamic = "force-dynamic";
+
+export default async function AdminDashboardPage() {
+  const data = await getDashboard();
   return (
     <>
       <AdminTopBar breadcrumbs={[{ label: "Dashboard" }]} />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-[1400px] mx-auto">
           <PageHeader
-            title="Good afternoon, Funmi."
+            title="Dashboard"
             subtitle={
               <>
-                Tuesday, 14 January 2026 ·{" "}
-                <span className="font-semibold text-warning">12 orders need attention</span>
+                {data.todayLabel}
+                {data.queue.awaitingConfirm + data.queue.partiallyPaid > 0 && (
+                  <>
+                    {" · "}
+                    <span className="font-semibold text-warning">
+                      {data.queue.awaitingConfirm + data.queue.partiallyPaid}{" "}
+                      orders need attention
+                    </span>
+                  </>
+                )}
               </>
             }
             actions={
@@ -38,28 +52,65 @@ export default function AdminDashboardPage() {
                 <Button variant="secondary" size="sm">
                   <Download className="size-3.5" /> Export
                 </Button>
-                <Button size="sm">
-                  <Plus className="size-3.5" /> New order
-                </Button>
+                <Link href="/admin/orders/new">
+                  <Button size="sm">
+                    <Plus className="size-3.5" /> New order
+                  </Button>
+                </Link>
               </>
             }
           />
 
           {/* KPI strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
-            <KpiCard label="Today's revenue" value="₦2,418,500" delta="+12.4%" trend="up" sub="vs yesterday" />
-            <KpiCard label="Today's orders" value="47" delta="+8" trend="up" sub="5 awaiting confirm" />
-            <KpiCard label="Avg order value" value="₦51,460" delta="−2.1%" trend="down" sub="vs last 7d avg" />
-            <KpiCard label="Outstanding" value="₦612,400" delta="14 orders" sub="partially paid" />
+            <KpiCard
+              label="Today's revenue"
+              value={formatMoney(data.kpi.revenueKobo)}
+              delta={formatDeltaPct(data.kpi.revenueDeltaPct)}
+              trend={trendOf(data.kpi.revenueDeltaPct)}
+              sub="vs yesterday"
+            />
+            <KpiCard
+              label="Today's orders"
+              value={String(data.kpi.orderCount)}
+              delta={
+                data.kpi.orderDelta == null
+                  ? null
+                  : `${data.kpi.orderDelta >= 0 ? "+" : ""}${data.kpi.orderDelta}`
+              }
+              trend={
+                data.kpi.orderDelta == null
+                  ? null
+                  : data.kpi.orderDelta > 0
+                    ? "up"
+                    : data.kpi.orderDelta < 0
+                      ? "down"
+                      : null
+              }
+              sub={`${data.kpi.awaitingConfirm} awaiting confirm`}
+            />
+            <KpiCard
+              label="Avg order value"
+              value={formatMoney(data.kpi.aovKobo)}
+              sub={data.kpi.orderCount === 0 ? "no orders today" : "today's average"}
+            />
+            <KpiCard
+              label="Outstanding"
+              value={formatMoney(data.kpi.outstandingKobo)}
+              delta={`${data.kpi.partiallyPaidCount} ${
+                data.kpi.partiallyPaidCount === 1 ? "order" : "orders"
+              }`}
+              sub="partially paid"
+            />
           </div>
 
           {/* Chart + donut */}
           <div className="grid lg:grid-cols-[1.7fr_1fr] gap-3.5 mb-5">
-            <Card title="Revenue · last 30 days" actions={<TimeToggle />}>
-              <RevenueChart />
+            <Card title="Revenue · last 30 days">
+              <RevenueChart series={data.revenueSeries} />
             </Card>
             <Card title="Orders by status">
-              <Donut />
+              <Donut data={data.ordersByStatus} />
             </Card>
           </div>
 
@@ -67,46 +118,66 @@ export default function AdminDashboardPage() {
           <div className="grid lg:grid-cols-[1fr_1.7fr] gap-3.5">
             <Card title="Action needed">
               <div className="flex flex-col gap-0.5 -mx-1">
-                <ActionRow
-                  icon={AlertTriangle}
-                  tone="warning"
-                  title="Awaiting confirmation"
-                  sub="Oldest 3h ago"
-                  count={5}
-                  href="/admin/orders"
-                />
-                <ActionRow
-                  icon={Coins}
-                  tone="warning"
-                  title="Partially paid"
-                  sub="₦612k outstanding"
-                  count={14}
-                  href="/admin/orders"
-                />
-                <ActionRow
-                  icon={Archive}
-                  tone="danger"
-                  title="Returns pending"
-                  sub="1 over 48h SLA"
-                  count={3}
-                  href="/admin/returns"
-                />
-                <ActionRow
-                  icon={PackageIcon}
-                  tone="warning"
-                  title="Low stock items"
-                  sub="Re-order suggested"
-                  count={8}
-                  href="/admin/products"
-                />
-                <ActionRow
-                  icon={Sparkles}
-                  tone="info"
-                  title="AI handoffs"
-                  sub="Customer requested human"
-                  count={2}
-                  href="/admin/ai"
-                />
+                {data.queue.awaitingConfirm > 0 && (
+                  <ActionRow
+                    icon={AlertTriangle}
+                    tone="warning"
+                    title="Awaiting confirmation"
+                    sub="Pending review"
+                    count={data.queue.awaitingConfirm}
+                    href="/admin/orders"
+                  />
+                )}
+                {data.queue.partiallyPaid > 0 && (
+                  <ActionRow
+                    icon={Coins}
+                    tone="warning"
+                    title="Partially paid"
+                    sub={`${formatMoney(data.queue.partiallyPaidOutstandingKobo)} outstanding`}
+                    count={data.queue.partiallyPaid}
+                    href="/admin/orders"
+                  />
+                )}
+                {data.queue.returnsPending > 0 && (
+                  <ActionRow
+                    icon={Archive}
+                    tone="danger"
+                    title="Returns pending"
+                    sub="Approve / process"
+                    count={data.queue.returnsPending}
+                    href="/admin/returns"
+                  />
+                )}
+                {data.queue.lowStock > 0 && (
+                  <ActionRow
+                    icon={PackageIcon}
+                    tone="warning"
+                    title="Low stock items"
+                    sub="≤ 5 units on hand"
+                    count={data.queue.lowStock}
+                    href="/admin/products"
+                  />
+                )}
+                {data.queue.aiHandoffs > 0 && (
+                  <ActionRow
+                    icon={Sparkles}
+                    tone="info"
+                    title="AI handoffs"
+                    sub="Customer requested human"
+                    count={data.queue.aiHandoffs}
+                    href="/admin/ai"
+                  />
+                )}
+                {data.queue.awaitingConfirm +
+                  data.queue.partiallyPaid +
+                  data.queue.returnsPending +
+                  data.queue.lowStock +
+                  data.queue.aiHandoffs ===
+                  0 && (
+                  <div className="text-center py-6 text-sm text-fg-muted">
+                    Nothing to handle right now. ✨
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -122,13 +193,26 @@ export default function AdminDashboardPage() {
               }
               padded={false}
             >
-              <RecentOrders />
+              <RecentOrders rows={data.recentOrders} />
             </Card>
           </div>
         </div>
       </div>
     </>
   );
+}
+
+/** Format a percentage delta for the KPI cards. Returns null for "no signal". */
+function formatDeltaPct(p: number | null): string | null {
+  if (p == null) return null;
+  if (Math.abs(p) < 0.05) return "0%";
+  const sign = p > 0 ? "+" : "";
+  return `${sign}${p.toFixed(1)}%`;
+}
+
+function trendOf(p: number | null): "up" | "down" | null {
+  if (p == null || Math.abs(p) < 0.05) return null;
+  return p > 0 ? "up" : "down";
 }
 
 function KpiCard({
@@ -140,8 +224,8 @@ function KpiCard({
 }: {
   label: string;
   value: string;
-  delta?: string;
-  trend?: "up" | "down";
+  delta?: string | null;
+  trend?: "up" | "down" | null;
   sub: string;
 }) {
   const color =
@@ -191,58 +275,68 @@ function Card({
   );
 }
 
-function TimeToggle() {
-  return (
-    <div className="inline-flex p-0.5 bg-surface-2 rounded-md text-xs font-semibold">
-      {["Day", "Week", "Month"].map((t, i) => (
-        <button
-          key={t}
-          className={cn(
-            "px-2.5 py-1 rounded-sm transition-colors",
-            i === 0 ? "bg-surface shadow-sm text-fg" : "text-fg-muted",
-          )}
-        >
-          {t}
-        </button>
-      ))}
-    </div>
+function RevenueChart({ series }: { series: DashboardData["revenueSeries"] }) {
+  // The series is in kobo; convert to whole-Naira values for the chart so the
+  // axis numbers stay readable.
+  const data = series.map((s) => s.revenueKobo / 100);
+  const total = series.reduce((a, s) => a + s.revenueKobo, 0);
+
+  // Sparse labels so we don't crowd the axis — first day, every 7th, last day.
+  const labels = series.map((s, i) =>
+    i === 0 || i === series.length - 1 || i % 7 === 0
+      ? new Date(s.date).toLocaleDateString("en-NG", {
+          day: "numeric",
+          month: "short",
+          timeZone: "Africa/Lagos",
+        })
+      : "",
   );
-}
 
-const REVENUE_DATA = [
-  42, 38, 45, 52, 48, 61, 55, 49, 58, 72, 68, 76, 82, 71, 79, 88, 84, 92, 86, 95, 103, 98, 107,
-  112, 118, 124, 118, 127, 134, 142,
-];
-const REVENUE_LABELS = ["Dec 16", "Dec 23", "Dec 30", "Jan 6", "Jan 13"];
-
-function RevenueChart() {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-3">
-        <span className="text-[28px] font-bold tracking-tight tabular">₦68.4M</span>
-        <span className="text-xs text-brand-accent font-bold inline-flex items-center gap-0.5">
-          <ArrowUp className="size-3" strokeWidth={3} /> 18.2%
+        <span className="text-[28px] font-bold tracking-tight tabular">
+          {formatMoney(total)}
         </span>
-        <span className="text-xs text-fg-muted">vs previous 30 days</span>
+        <span className="text-xs text-fg-muted">last 30 days</span>
       </div>
-      <LineChart data={REVENUE_DATA} labels={REVENUE_LABELS} height={200} />
+      {data.every((d) => d === 0) ? (
+        <div className="h-[200px] flex items-center justify-center text-sm text-fg-muted">
+          No orders yet — the chart will fill in as orders come in.
+        </div>
+      ) : (
+        <LineChart data={data} labels={labels} height={200} />
+      )}
     </div>
   );
 }
 
-const DONUT_DATA = [
-  { label: "Processing", value: 38, color: "hsl(262 83% 58%)" },
-  { label: "Confirmed", value: 24, color: "hsl(var(--brand-primary))" },
-  { label: "Shipped", value: 18, color: "hsl(190 90% 48%)" },
-  { label: "Delivered", value: 14, color: "hsl(var(--brand-accent))" },
-  { label: "Pending", value: 6, color: "hsl(var(--warning))" },
-];
+const STATUS_COLORS: Record<string, string> = {
+  pending: "hsl(var(--warning))",
+  confirmed: "hsl(var(--brand-primary))",
+  processing: "hsl(262 83% 58%)",
+  shipped: "hsl(190 90% 48%)",
+  delivered: "hsl(var(--brand-accent))",
+  cancelled: "hsl(var(--fg-muted))",
+};
 
-function Donut() {
-  const total = DONUT_DATA.reduce((a, d) => a + d.value, 0);
+function Donut({ data }: { data: DashboardData["ordersByStatus"] }) {
+  if (data.length === 0 || data.every((d) => d.count === 0)) {
+    return (
+      <div className="h-[180px] flex items-center justify-center text-sm text-fg-muted">
+        No orders yet.
+      </div>
+    );
+  }
+  const total = data.reduce((a, d) => a + d.count, 0);
+  const chartData = data.map((d) => ({
+    label: d.status.charAt(0).toUpperCase() + d.status.slice(1),
+    value: d.count,
+    color: STATUS_COLORS[d.status] ?? "hsl(var(--fg-muted))",
+  }));
   return (
     <DonutChart
-      data={DONUT_DATA}
+      data={chartData}
       centerLabel={
         <>
           <div className="text-2xl font-bold tabular">{total}</div>
@@ -291,8 +385,14 @@ function ActionRow({
   );
 }
 
-function RecentOrders() {
-  const rows = ORDERS_LIST.slice(0, 6);
+function RecentOrders({ rows }: { rows: OrderListRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <div className="px-4 py-10 text-center text-sm text-fg-muted">
+        No orders yet — recent orders will appear here as they come in.
+      </div>
+    );
+  }
   return (
     <table className="w-full text-sm">
       <thead className="bg-surface-2">

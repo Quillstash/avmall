@@ -7,19 +7,21 @@ import { useCart } from "@/stores/cart-store";
 import { CATEGORIES } from "@/lib/mock-data";
 import { SITE } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import { NavSearch } from "@/components/storefront/nav-search";
 
 const NAV_LINKS = [
-  { href: "/category/beauty", label: "Beauty & Skincare" },
-  { href: "/category/home", label: "Home & Living" },
-  { href: "/category/fashion", label: "Fashion" },
-  { href: "/category/food", label: "Pantry" },
-  { href: "/category/tech", label: "Tech" },
+  { href: "/category/phones", label: "Phones & Tablets" },
+  { href: "/category/audio", label: "Audio" },
+  { href: "/category/power", label: "Power" },
+  { href: "/category/fans", label: "Fans" },
+  { href: "/category/home", label: "Home & Kitchen" },
 ];
 
 export function TopNav() {
   const lines = useCart((s) => s.lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
 
   return (
     <>
@@ -76,12 +78,10 @@ export function TopNav() {
           <div className="flex-1" />
 
           {/* Search */}
-          <div className="hidden md:flex items-center gap-2 px-4 h-10 w-72 lg:w-80 bg-surface-2 rounded-full text-sm text-fg-muted">
-            <Search className="size-4" />
-            <span>Search products, brands…</span>
-          </div>
+          <NavSearch />
 
           <button
+            onClick={() => setMobileSearchOpen(true)}
             className="md:hidden flex items-center justify-center size-10 rounded-md hover:bg-surface-2"
             aria-label="Search"
           >
@@ -118,6 +118,11 @@ export function TopNav() {
 
       {/* Mobile drawer */}
       <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} />
+
+      {/* Mobile search overlay */}
+      {mobileSearchOpen && (
+        <NavSearch variant="overlay" onClose={() => setMobileSearchOpen(false)} />
+      )}
     </>
   );
 }
