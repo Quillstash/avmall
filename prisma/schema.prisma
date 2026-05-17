@@ -44,6 +44,7 @@ model User {
   notes             OrderNote[]
   auditLogs         AuditLog[]
   invitationsSent   StaffInvitation[] @relation("StaffInvitedBy")
+  passwordResets    PasswordReset[]
 
   @@map("users")
 }
@@ -720,6 +721,38 @@ model StaffInvitation {
   @@index([email])
   @@index([expiresAt])
   @@map("staff_invitations")
+}
+
+// ─── Newsletter ───────────────────────────────────────────────────────────
+
+/// Storefront newsletter signups. Source = where on the site they signed up
+/// from (e.g. "homepage-footer"). Unique on email so re-submits are no-ops.
+model NewsletterSubscriber {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique
+  source         String?
+  unsubscribedAt DateTime? @map("unsubscribed_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("newsletter_subscribers")
+}
+
+// ─── Staff password reset ────────────────────────────────────────────────
+
+/// Single-use password-reset tokens for the /forgot-password flow.
+model PasswordReset {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  token      String    @unique
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  usedAt     DateTime? @map("used_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
 }
 
 // ─── Idempotency keys ────────────────────────────────────────────────────

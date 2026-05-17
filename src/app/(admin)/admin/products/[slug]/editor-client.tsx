@@ -450,9 +450,15 @@ export function ProductEditorClient({ product, audit }: EditorClientProps) {
                     );
                   })}
                 </div>
+                <AddVariantInline
+                  productSlug={product.slug}
+                  option1Name={product.option1Name ?? null}
+                  option2Name={product.option2Name ?? null}
+                />
                 <p className="mt-3 text-[11px] text-fg-muted">
-                  Add new variants from the create-product page — variant matrix edits on
-                  existing products land in a future revision.
+                  Existing variants can&apos;t be deleted (the SKU is on past order
+                  lines). Use Stock adjust to bring stock to zero, or archive the
+                  whole product.
                 </p>
               </Card>
             </div>
@@ -593,4 +599,146 @@ function timeAgo(d: Date | string): string {
   const day = Math.floor(hour / 24);
   if (day < 30) return `${day}d ago`;
   return formatLagosDate(date);
+}
+
+/** Inline "Add new variant" form on the edit page. */
+function AddVariantInline({
+  productSlug,
+  option1Name,
+  option2Name,
+}: {
+  productSlug: string;
+  option1Name: string | null;
+  option2Name: string | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [label, setLabel] = React.useState("");
+  const [sku, setSku] = React.useState("");
+  const [option1Value, setOption1Value] = React.useState("");
+  const [option2Value, setOption2Value] = React.useState("");
+  const [stock, setStock] = React.useState(0);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  // Auto-derive label from option values when both are filled, so staff
+  // don't have to type "Small / Red" themselves.
+  React.useEffect(() => {
+    if (option1Name || option2Name) {
+      const parts = [option1Value, option2Value].filter(Boolean);
+      if (parts.length > 0) setLabel(parts.join(" / "));
+    }
+  }, [option1Value, option2Value, option1Name, option2Name]);
+
+  async function submit() {
+    if (!label.trim() || !sku.trim()) {
+      toast.error("Label and SKU are required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/products/${encodeURIComponent(productSlug)}/variants`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            label: label.trim(),
+            sku: sku.trim().toUpperCase(),
+            ...(option1Name && option1Value.trim() && { option1Value: option1Value.trim() }),
+            ...(option2Name && option2Value.trim() && { option2Value: option2Value.trim() }),
+            stock,
+          }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not create variant");
+        return;
+      }
+      toast.success(`Variant "${label}" added`);
+      setOpen(false);
+      setLabel("");
+      setSku("");
+      setOption1Value("");
+      setOption2Value("");
+      setStock(0);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-primary hover:underline"
+      >
+        + Add variant
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-border bg-surface-2 p-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        {option1Name && (
+          <Field id="v-o1" label={option1Name}>
+            <Input
+              id="v-o1"
+              value={option1Value}
+              onChange={(e) => setOption1Value(e.target.value)}
+              placeholder={`e.g. Small`}
+            />
+          </Field>
+        )}
+        {option2Name && (
+          <Field id="v-o2" label={option2Name}>
+            <Input
+              id="v-o2"
+              value={option2Value}
+              onChange={(e) => setOption2Value(e.target.value)}
+              placeholder="e.g. Red"
+            />
+          </Field>
+        )}
+        <Field id="v-label" label="Display label">
+          <Input
+            id="v-label"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Shown to customers"
+          />
+        </Field>
+        <Field id="v-sku" label="SKU">
+          <Input
+            id="v-sku"
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+            placeholder="Must be globally unique"
+          />
+        </Field>
+        <Field id="v-stock" label="Initial stock">
+          <NumberInput value={stock} onChange={setStock} min={0} />
+        </Field>
+      </div>
+      <div className="flex justify-end gap-2 mt-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => setOpen(false)}
+          disabled={submitting}
+        >
+          Cancel
+        </Button>
+        <Button type="button" size="sm" disabled={submitting} onClick={submit}>
+          Add variant
+        </Button>
+      </div>
+    </div>
+  );
 }

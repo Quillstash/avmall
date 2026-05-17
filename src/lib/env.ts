@@ -56,6 +56,9 @@ const envSchema = z.object({
   /// Bearer token D-Zero (or any AI orchestrator) presents when calling
   /// /api/v1/ai/tools/*. Treat as a secret. Rotate from admin settings.
   AI_AGENT_TOKEN: z.string().min(16).optional(),
+  /// Bearer token cron callers (Vercel Cron, GitHub Actions, etc.) present
+  /// in the Authorization header so our /api/cron/* routes aren't anonymous.
+  CRON_SECRET: z.string().min(16).optional(),
 
   // Notifications (Phase 5)
   RESEND_API_KEY: z.string().optional(),
@@ -101,6 +104,7 @@ export const env = envSchema.parse({
   OPENAI_API_KEY: blank(process.env.OPENAI_API_KEY),
   DEEPSEEK_API_KEY: blank(process.env.DEEPSEEK_API_KEY),
   AI_AGENT_TOKEN: blank(process.env.AI_AGENT_TOKEN),
+  CRON_SECRET: blank(process.env.CRON_SECRET),
   RESEND_API_KEY: blank(process.env.RESEND_API_KEY),
   TERMII_API_KEY: blank(process.env.TERMII_API_KEY),
   AFRICAS_TALKING_API_KEY: blank(process.env.AFRICAS_TALKING_API_KEY),

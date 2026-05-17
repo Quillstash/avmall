@@ -262,9 +262,11 @@ export function CustomersClient({ customers }: CustomersClientProps) {
             subtitle={`${customers.length} customer${customers.length === 1 ? "" : "s"} · ${blacklistedCount} blacklisted`}
             actions={
               <>
-                <Button variant="secondary" size="sm">
-                  <Download className="size-3.5" /> Export
-                </Button>
+                <a href="/api/v1/admin/customers/export" download>
+                  <Button variant="secondary" size="sm">
+                    <Download className="size-3.5" /> Export CSV
+                  </Button>
+                </a>
                 <Button size="sm">
                   <Plus className="size-3.5" /> Add customer
                 </Button>

@@ -18,6 +18,12 @@ export const dynamic = "force-dynamic";
 
 interface CategoryPageProps {
   params: { id: string };
+  searchParams: {
+    min?: string;
+    max?: string;
+    inStock?: string;
+    onSale?: string;
+  };
 }
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
@@ -35,13 +41,36 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   };
 }
 
-export default async function CategoryPage({ params }: CategoryPageProps) {
+export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
   const category = await getCategoryBySlug(params.id);
   if (!category) notFound();
 
+  // Parse filter inputs from search params (Naira → kobo).
+  const minNaira = Number(searchParams.min);
+  const maxNaira = Number(searchParams.max);
+  const minKobo = Number.isFinite(minNaira) && minNaira > 0 ? minNaira * 100 : null;
+  const maxKobo = Number.isFinite(maxNaira) && maxNaira > 0 ? maxNaira * 100 : null;
+  const inStockOnly = searchParams.inStock === "1";
+  const onSaleOnly = searchParams.onSale === "1";
+  const hasFilters = minKobo != null || maxKobo != null || inStockOnly || onSaleOnly;
+
   let products = await listProducts({ category: params.id });
-  // Pad to keep the grid lively when a fresh category is sparse.
-  if (products.length < 8) {
+
+  // Apply filters in-memory — the catalogue is small enough today that we
+  // don't need to push these into Prisma. Move into listProducts if the
+  // catalogue ever grows past ~5k SKUs.
+  if (hasFilters) {
+    products = products.filter((p) => {
+      const effective =
+        p.saleActive && p.sale != null ? p.sale : p.price;
+      if (minKobo != null && effective < minKobo) return false;
+      if (maxKobo != null && effective > maxKobo) return false;
+      if (inStockOnly && p.stock <= 0) return false;
+      if (onSaleOnly && !p.saleActive) return false;
+      return true;
+    });
+  } else if (products.length < 8) {
+    // Pad to keep the grid lively when a fresh unfiltered category is sparse.
     const pool = await listProducts({ limit: 8 });
     const ids = new Set(products.map((p) => p.id));
     for (const p of pool) {

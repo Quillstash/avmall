@@ -126,6 +126,39 @@ export function OrdersListClient({ orders, totals }: Props) {
   }, [orders, search, statusValues, paymentValues, sourceValues]);
 
   const selectedCount = Object.values(rowSelection).filter(Boolean).length;
+  const selectedNumbers = React.useMemo(
+    () =>
+      filtered
+        .filter((_, i) => (rowSelection as Record<string, boolean>)[i])
+        .filter((o) => o.status !== "cancelled" && o.status !== "shipped" && o.status !== "delivered")
+        .map((o) => o.number),
+    [filtered, rowSelection],
+  );
+
+  async function bulkCancel() {
+    if (selectedNumbers.length === 0) {
+      toast.error("Nothing to cancel — selection contains no cancellable orders.");
+      return;
+    }
+    if (!confirm(`Cancel ${selectedNumbers.length} order${selectedNumbers.length === 1 ? "" : "s"}? Stock reservations are released.`)) {
+      return;
+    }
+    const results = await Promise.allSettled(
+      selectedNumbers.map((n) =>
+        fetch(`/api/v1/admin/orders/${encodeURIComponent(n)}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "Bulk cancellation by staff" }),
+        }),
+      ),
+    );
+    const ok = results.filter(
+      (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<Response>).value.ok,
+    ).length;
+    toast.success(`Cancelled ${ok} / ${selectedNumbers.length}`);
+    setRowSelection({});
+    router.refresh();
+  }
 
   const columns: ColumnDef<OrderListRow>[] = [
     {
@@ -253,9 +286,11 @@ export function OrdersListClient({ orders, totals }: Props) {
             subtitle={`${totals.weekCount} orders this week · ${totals.weekRevenueLabel}`}
             actions={
               <>
-                <Button variant="secondary" size="sm">
-                  <Download className="size-3.5" /> Export
-                </Button>
+                <a href="/api/v1/admin/orders/export" download>
+                  <Button variant="secondary" size="sm">
+                    <Download className="size-3.5" /> Export CSV
+                  </Button>
+                </a>
                 <Link href="/admin/orders/new">
                   <Button size="sm">
                     <Plus className="size-3.5" /> New order
@@ -303,16 +338,10 @@ export function OrdersListClient({ orders, totals }: Props) {
                 onClear={() => table.resetRowSelection()}
                 actions={[
                   {
-                    id: "export",
-                    label: "Export selected",
-                    icon: <Download className="size-3.5" />,
-                    onClick: () => toast.success(`Exporting ${selectedCount} orders`),
-                  },
-                  {
-                    id: "email",
-                    label: "Email customers",
-                    icon: <Mail className="size-3.5" />,
-                    onClick: () => toast.success("Drafts queued"),
+                    id: "cancel",
+                    label: "Cancel orders",
+                    icon: <XCircle className="size-3.5" />,
+                    onClick: bulkCancel,
                   },
                 ]}
               />

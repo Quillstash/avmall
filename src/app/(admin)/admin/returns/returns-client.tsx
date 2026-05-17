@@ -262,9 +262,11 @@ export function ReturnsClient({ returns: RETURNS }: ReturnsClientProps) {
             subtitle={`${RETURNS.length} returns · ${pendingCount} pending · ${slaCount} over SLA`}
             actions={
               <>
-                <Button variant="secondary" size="sm">
-                  <Download className="size-3.5" /> Export
-                </Button>
+                <a href="/api/v1/admin/returns/export" download>
+                  <Button variant="secondary" size="sm">
+                    <Download className="size-3.5" /> Export CSV
+                  </Button>
+                </a>
                 <Link href="/admin/returns/new">
                   <Button size="sm">
                     <Plus className="size-3.5" /> New return

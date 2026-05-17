@@ -156,7 +156,7 @@ export default function AdminLoginPage() {
             Remember this device for 30 days
           </label>
           <Link
-            href="#"
+            href="/forgot-password"
             className="text-xs font-semibold text-brand-primary hover:underline"
           >
             Forgot?

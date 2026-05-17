@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/storefront/product-card";
+import { NewsletterSignup } from "@/components/storefront/newsletter-signup";
 import { listProducts } from "@/lib/data/products";
 
 // Live product data — revalidate every 5 min so first request after a cold
@@ -266,15 +267,8 @@ export default async function HomePage() {
             <p className="text-sm lg:text-base leading-relaxed opacity-80 mb-4">
               No spam. Unsubscribe anytime. We never share your details.
             </p>
-            <div className="flex gap-2">
-              <input
-                placeholder="you@email.com"
-                className="flex-1 h-12 px-4 rounded-md bg-white/10 text-white placeholder:text-white/50 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-white/40"
-              />
-              <button className="px-6 h-12 rounded-md bg-bg text-fg font-bold text-sm hover:bg-white/95 inline-flex items-center gap-2">
-                Subscribe <ArrowRight className="size-4" />
-              </button>
-            </div>
+            <NewsletterSignup />
+
           </div>
         </div>
       </section>

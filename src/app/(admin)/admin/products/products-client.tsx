@@ -103,6 +103,31 @@ export function ProductsListClient({ products }: Props) {
   }, [search, categoryValues, statusValues]);
 
   const selectedCount = Object.values(rowSelection).filter(Boolean).length;
+  const selectedSlugs = React.useMemo(
+    () =>
+      filtered
+        .filter((_, i) => (rowSelection as Record<string, boolean>)[i])
+        .map((p) => p.slug),
+    [filtered, rowSelection],
+  );
+
+  async function bulkArchive() {
+    if (selectedSlugs.length === 0) return;
+    if (!confirm(`Archive ${selectedSlugs.length} products? They'll be hidden from the storefront.`)) {
+      return;
+    }
+    const results = await Promise.allSettled(
+      selectedSlugs.map((slug) =>
+        fetch(`/api/v1/admin/products/${encodeURIComponent(slug)}/archive`, {
+          method: "POST",
+        }),
+      ),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    toast.success(`Archived ${ok} / ${selectedSlugs.length}`);
+    setRowSelection({});
+    router.refresh();
+  }
 
   const columns: ColumnDef<Product>[] = [
     {
@@ -346,13 +371,7 @@ export function ProductsListClient({ products }: Props) {
                     id: "archive",
                     label: "Archive",
                     icon: <Archive className="size-3.5" />,
-                    onClick: () => toast.success(`Archived ${selectedCount}`),
-                  },
-                  {
-                    id: "export",
-                    label: "Export",
-                    icon: <Download className="size-3.5" />,
-                    onClick: () => toast.success(`Exporting ${selectedCount} products`),
+                    onClick: bulkArchive,
                   },
                 ]}
               />

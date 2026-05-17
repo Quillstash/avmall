@@ -94,6 +94,62 @@ export interface EmailContent {
   text: string;
 }
 
+// ─── Customer OTP ─────────────────────────────────────────────────────────
+
+export function customerOtpEmail(args: { code: string }): EmailContent {
+  const subject = `Your ${SITE.name} sign-in code is ${args.code}`;
+  const heading = "Your sign-in code";
+  const body = `
+    <p style="margin: 0 0 12px;">Enter this code on the sign-in page:</p>
+    <p style="margin: 0 0 12px; font-size: 32px; font-weight: 700; letter-spacing: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f4f6fa; padding: 18px 0; text-align: center; border-radius: 10px;">${escapeHtml(args.code)}</p>
+    <p style="margin: 0 0 12px; color: #6b7280; font-size: 13px;">The code expires in 5 minutes. If you didn't ask to sign in, ignore this email.</p>
+  `;
+  const html = layout({
+    preheader: `Your sign-in code is ${args.code}`,
+    heading,
+    body,
+    footerNote: "Never share this code with anyone — not even Avmall staff.",
+  });
+  const text = `Your ${SITE.name} sign-in code is: ${args.code}
+
+The code expires in 5 minutes. If you didn't ask to sign in, ignore this email.`;
+  return { subject, html, text };
+}
+
+// ─── Staff password reset ─────────────────────────────────────────────────
+
+export function staffPasswordResetEmail(args: {
+  recipientName: string;
+  resetUrl: string;
+  expiresAt: Date;
+}): EmailContent {
+  const expiry = args.expiresAt.toLocaleString("en-NG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Lagos",
+  });
+  const subject = `Reset your ${SITE.name} password`;
+  const heading = `Reset your password, ${escapeHtml(args.recipientName)}.`;
+  const body = `
+    <p style="margin: 0 0 14px;">Someone asked to reset the password for this account. Click below to choose a new one.</p>
+    <p style="margin: 0 0 14px; color: #6b7280; font-size: 13px;">The link expires <strong>${escapeHtml(expiry)}</strong>. If you didn't request this, you can ignore this email — your password will stay the same.</p>
+  `;
+  const html = layout({
+    preheader: `Reset your ${SITE.name} password`,
+    heading,
+    body,
+    ctaUrl: args.resetUrl,
+    ctaLabel: "Reset password",
+    footerNote: "Single-use link — only the most recent reset email works.",
+  });
+  const text = `Reset your password, ${args.recipientName}.
+
+Reset link: ${args.resetUrl}
+
+The link expires ${expiry}. If you didn't request this, you can ignore this email — your password will stay the same.`;
+  return { subject, html, text };
+}
+
 // ─── Staff invitation ─────────────────────────────────────────────────────
 
 export function staffInvitationEmail(args: {

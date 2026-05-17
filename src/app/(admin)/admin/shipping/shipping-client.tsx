@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, MoreHorizontal, AlertTriangle, MapPin, Loader2 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
@@ -33,6 +34,7 @@ export function ShippingClient({
   initialZones,
   initialFallback,
 }: ShippingClientProps) {
+  const router = useRouter();
   const [zones, setZones] = React.useState<ShippingZoneView[]>(initialZones);
   const [fallbackEnabled, setFallbackEnabled] = React.useState(
     initialFallback?.enabled ?? true,
@@ -208,8 +210,7 @@ export function ShippingClient({
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() =>
-                                  toast.info?.("Inline editing coming soon — for now create a new zone with the updates.") ??
-                                  toast.success("Inline editing coming soon")
+                                  router.push(`/admin/shipping/${z.id}`)
                                 }
                               >
                                 Edit

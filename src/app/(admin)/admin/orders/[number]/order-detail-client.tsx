@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  Edit2,
+  Loader2,
   Printer,
   Mail,
   MessageCircle,
@@ -89,9 +89,37 @@ export function OrderDetailClient({ params, order }: PageProps) {
     time: p.createdAt.toLocaleString("en-NG", { timeZone: "Africa/Lagos" }),
   }));
   const [payments, setPayments] = React.useState<OrderPayment[]>(initialPayments);
+  const [generatingLink, setGeneratingLink] = React.useState(false);
   const paid = Number(order.totals.paidKobo);
   const outstanding = Number(order.totals.outstandingKobo);
   const isPartiallyPaid = paid > 0 && outstanding > 0;
+
+  async function generatePaymentLink() {
+    setGeneratingLink(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/orders/${encodeURIComponent(order.number)}/payment-link`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not generate payment link");
+        return;
+      }
+      const url = json.data?.paymentUrl as string | undefined;
+      if (url) {
+        await navigator.clipboard?.writeText(url).catch(() => undefined);
+        toast.success("Payment link generated + copied to clipboard");
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        toast.success("Payment link generated");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setGeneratingLink(false);
+    }
+  }
   const isOverpaid = outstanding < 0;
   const isBlacklisted = order.customer?.blacklisted ?? false;
 
@@ -319,9 +347,6 @@ export function OrderDetailClient({ params, order }: PageProps) {
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <Button variant="ghost" size="sm" onClick={() => toast.success("Edit mode")}>
-                <Edit2 className="size-3.5" /> Edit
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -468,11 +493,15 @@ export function OrderDetailClient({ params, order }: PageProps) {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => toast.success("Edit qty")}>
-                                Edit qty
+                              {/* Line edits post-creation are non-trivial
+                                  (stock + refund implications). For now,
+                                  cancel + recreate is the recommended path —
+                                  see /admin/orders/new. */}
+                              <DropdownMenuItem disabled>
+                                Edit qty (cancel + recreate)
                               </DropdownMenuItem>
-                              <DropdownMenuItem destructive onClick={() => toast.success("Removed")}>
-                                Remove
+                              <DropdownMenuItem disabled>
+                                Remove (cancel + recreate)
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -538,8 +567,17 @@ export function OrderDetailClient({ params, order }: PageProps) {
                       {formatMoney(outstanding)}
                     </div>
                     <div className="flex flex-col gap-2.5">
-                      <Button width="full" onClick={() => toast.success("Payment link generated")}>
-                        <LinkIcon className="size-3.5" /> Generate payment link
+                      <Button
+                        width="full"
+                        disabled={generatingLink}
+                        onClick={generatePaymentLink}
+                      >
+                        {generatingLink ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <LinkIcon className="size-3.5" />
+                        )}
+                        {generatingLink ? "Generating…" : "Generate payment link"}
                       </Button>
                       <Button
                         width="full"

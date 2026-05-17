@@ -105,6 +105,21 @@ export function StaffClient({ initialStaff }: StaffClientProps) {
     toast.success(next ? "2FA enabled" : "2FA disabled");
   }
 
+  async function sendPasswordReset(email: string) {
+    try {
+      await fetch("/api/v1/staff/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      // Endpoint always returns 200 to avoid enumeration. We tell the staff
+      // user the same thing.
+      toast.success(`Reset link sent to ${email}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    }
+  }
+
   function toggleActive(id: string, next: boolean) {
     setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, active: next } : s)));
     toast.success(next ? "User reactivated" : "User disabled");
@@ -180,11 +195,8 @@ export function StaffClient({ initialStaff }: StaffClientProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => toast.success("Reset password email sent")}>
-                Reset password
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Profile opened")}>
-                Edit profile
+              <DropdownMenuItem onClick={() => sendPasswordReset(row.original.email)}>
+                Send password reset email
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
