@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { SocialIcon, type SocialPlatform } from "@/components/ui/social-icon";
 import { SITE } from "@/lib/site";
 
@@ -55,9 +56,13 @@ export function StorefrontFooter() {
       <div className="mx-auto max-w-7xl px-5 py-10 grid grid-cols-2 md:grid-cols-5 gap-8">
         <div className="col-span-2">
           <Link href="/" className="flex items-center gap-1.5 font-bold text-lg mb-3">
-            <span className="inline-flex items-center justify-center size-6 rounded-md bg-brand-primary text-brand-primary-fg text-xs font-bold">
-              av
-            </span>
+            <Image
+              src="/brand/monogram.png"
+              alt="Avmall"
+              width={24}
+              height={24}
+              className="size-6 rounded-md"
+            />
             <span>mall</span>
           </Link>
           <p className="text-xs text-fg-muted leading-relaxed max-w-xs">

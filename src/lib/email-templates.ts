@@ -48,7 +48,7 @@ function layout(opts: {
             <tr>
               <td style="padding-bottom: 24px;">
                 <div style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px;">
-                  <span style="display: inline-block; width: 28px; height: 28px; line-height: 28px; text-align: center; border-radius: 6px; background: #2c5cdc; color: #ffffff; font-weight: 800; font-size: 12px;">av</span>
+                  <img src="${SITE.url}/brand/monogram.png" alt="Avmall" width="28" height="28" style="display: inline-block; width: 28px; height: 28px; border-radius: 6px; vertical-align: middle;" />
                   <span>mall</span>
                 </div>
               </td>

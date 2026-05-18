@@ -45,20 +45,13 @@ export const metadata: Metadata = {
     siteName: SITE.legalName,
     title: `${SITE.legalName} · ${SITE.name}`,
     description: SITE.description,
-    images: [
-      {
-        url: "/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: SITE.legalName,
-      },
-    ],
+    // OG image auto-wired from src/app/opengraph-image.png (Next.js file convention)
   },
   twitter: {
     card: "summary_large_image",
     title: `${SITE.legalName} · ${SITE.name}`,
     description: SITE.description,
-    images: ["/og-image.jpg"],
+    // Image auto-wired from src/app/opengraph-image.png
   },
   robots: {
     index: true,
@@ -71,13 +64,7 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-    apple: "/apple-touch-icon.png",
-  },
+  // Icons auto-wired from src/app/icon.png + src/app/apple-icon.png (file conventions)
   manifest: "/manifest.webmanifest",
   category: "shopping",
 };
