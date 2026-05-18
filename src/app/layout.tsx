@@ -25,7 +25,7 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: {
-    default: `${SITE.legalName} · ${SITE.name}`,
+    default: `${SITE.name} — ${SITE.tagline}`,
     template: `%s · ${SITE.name}`,
   },
   description: SITE.description,
@@ -43,13 +43,13 @@ export const metadata: Metadata = {
     locale: SITE.locale,
     url: SITE.url,
     siteName: SITE.legalName,
-    title: `${SITE.legalName} · ${SITE.name}`,
+    title: `${SITE.name} — ${SITE.tagline}`,
     description: SITE.description,
     // OG image auto-wired from src/app/opengraph-image.png (Next.js file convention)
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE.legalName} · ${SITE.name}`,
+    title: `${SITE.name} — ${SITE.tagline}`,
     description: SITE.description,
     // Image auto-wired from src/app/opengraph-image.png
   },

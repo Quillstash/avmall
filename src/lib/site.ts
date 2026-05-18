@@ -9,6 +9,10 @@ export const SITE = {
   shortName: "Avmall",
   domain: "avmall.com.ng",
   url: "https://avmall.com.ng",
+  // SEO-friendly title — aim for 50–60 chars so it doesn't get truncated in
+  // search results or social cards. Used as the default <title> and as the
+  // OG/Twitter title on the home + every page without its own title.
+  tagline: "Phones, audio, power & home goods · Same-day Lagos",
   description:
     "Goods made by Nigerian hands, delivered nationwide. Same-day Lagos delivery, secure checkout via Nuqood, 14-day returns.",
   themeColor: "#0a0a0a",
