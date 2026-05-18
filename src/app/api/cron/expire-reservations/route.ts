@@ -1,12 +1,16 @@
 /**
  * GET /api/cron/expire-reservations
  *
- * Sweeps expired stock reservations (releases the held inventory). Schedule
- * this every 1–2 minutes from your cron of choice:
+ * Sweeps expired stock reservations (releases the held inventory). Backup
+ * mechanism — the primary sweep now happens lazily at the top of every
+ * reserveStock() call (see src/lib/stock.ts). This endpoint exists so an
+ * external scheduler can still hammer it for belt-and-braces:
  *
- *   Vercel Cron:    add { path: "/api/cron/expire-reservations" } to vercel.json
- *   GitHub Actions: curl with Authorization: Bearer $CRON_SECRET
- *   External cron:  https://app.cron-job.org/ etc.
+ *   GitHub Actions:    curl with Authorization: Bearer $CRON_SECRET
+ *   External cron:     https://cron-job.org/ (free, sub-minute cadence)
+ *   Vercel Pro Cron:   add { path: "/api/cron/expire-reservations" } to vercel.json
+ *
+ * Not scheduled on Vercel Hobby (limited to daily). Lazy sweep covers it.
  *
  * Auth: Bearer CRON_SECRET (set in env). When CRON_SECRET isn't configured the
  * route returns 503 — refuse to run rather than be anonymously triggerable.

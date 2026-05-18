@@ -3,7 +3,10 @@
  * — Adding to cart does NOT reduce on_hand.
  * — Checkout reserves stock for 15 minutes with SELECT FOR UPDATE inside a
  *   transaction so two simultaneous buyers can't both win the last unit.
- * — A cron job releases reservations that expire without becoming orders.
+ * — Expired reservations get swept lazily at the start of every reserveStock()
+ *   call, so a missed cron tick can't leak stock indefinitely. The cron at
+ *   /api/cron/expire-reservations is now optional — it's still wired so an
+ *   external scheduler (cron-job.org, GitHub Actions) can run it if desired.
  */
 
 import { Prisma } from "@prisma/client";
@@ -45,6 +48,11 @@ export async function reserveStock(
 ): Promise<ReservationResult[]> {
   const results: ReservationResult[] = [];
   const expiresAt = new Date(Date.now() + ttlMs);
+
+  // Sweep expired reservations first — frees up `reserved` counters before we
+  // check availability, so a stale hold doesn't make a still-in-stock item
+  // look unavailable. Cheap: indexed scan on (status, expires_at).
+  await expireOldReservations(tx);
 
   for (const item of items) {
     // SELECT FOR UPDATE on the variant row — competing transactions wait here.

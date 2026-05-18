@@ -3,22 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MessageCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PhoneInput } from "@/components/ui/phone-input";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { OTPInput } from "@/components/ui/otp-input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert } from "@/components/ui/alert";
 
 type Step = "identify" | "verify";
 
+// Phone OTP is disabled until SMS is provisioned — the page is email-only.
+// To re-enable: switch `method` back to a state field, restore the Tabs
+// import + UI, and uncomment the phone branch in /api/auth/customer/start.
+const method = "email" as const;
+
 export default function CustomerLoginPage() {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>("identify");
-  const [method, setMethod] = React.useState<"phone" | "email">("phone");
-  const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [otp, setOtp] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -32,7 +32,7 @@ export default function CustomerLoginPage() {
     return () => clearTimeout(t);
   }, [resendIn]);
 
-  const identifier = method === "phone" ? phone : email;
+  const identifier = email;
 
   async function startVerification() {
     setError(null);
@@ -90,9 +90,7 @@ export default function CustomerLoginPage() {
         </h1>
         <p className="text-sm text-fg-muted mb-7">
           We sent a 6-digit code to{" "}
-          <span className="font-semibold text-fg">
-            {method === "phone" ? `+234 ${phone}` : email}
-          </span>
+          <span className="font-semibold text-fg">{email}</span>
           .{" "}
           <button
             onClick={() => setStep("identify")}
@@ -142,46 +140,25 @@ export default function CustomerLoginPage() {
 
       {error && <Alert tone="danger" title={error} className="mb-4" />}
 
-      <Tabs value={method} onValueChange={(v) => setMethod(v as "phone" | "email")} className="mb-5">
-        <TabsList className="w-full">
-          <TabsTrigger value="phone" className="flex-1">
-            <MessageCircle className="size-3.5" /> Phone
-          </TabsTrigger>
-          <TabsTrigger value="email" className="flex-1">
-            <Mail className="size-3.5" /> Email
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="phone" className="mt-5">
-          <Field id="phone" label="Phone number" hint="We'll send a code via SMS or WhatsApp">
-            <PhoneInput
-              id="phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              autoFocus
-            />
-          </Field>
-        </TabsContent>
-
-        <TabsContent value="email" className="mt-5">
-          <Field id="email" label="Email">
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Field>
-        </TabsContent>
-      </Tabs>
+      <div className="mb-5">
+        <Field id="email" label="Email">
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+          />
+        </Field>
+      </div>
 
       <Button
         size="lg"
         width="full"
         onClick={startVerification}
         loading={loading}
-        disabled={method === "phone" ? !phone : !email}
+        disabled={!email}
       >
         Send code
       </Button>
