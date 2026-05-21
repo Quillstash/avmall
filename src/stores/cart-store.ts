@@ -50,6 +50,9 @@ export interface ResolvedCartLine extends CartLine {
 interface CartState {
   lines: CartLine[];
   add: (product: Product, variantId: string, qty?: number) => void;
+  /** Merge pre-built lines (used by the AI deeplink). Existing lines with the
+   *  same productId+variantId get their qty incremented; new ones are appended. */
+  addLines: (incoming: CartLine[]) => void;
   remove: (productId: string, variantId: string) => void;
   setQty: (productId: string, variantId: string, qty: number) => void;
   clear: () => void;
@@ -106,6 +109,27 @@ export const useCart = create<CartState>()(
               { productId: product.id, variantId, qty, snapshot: snap },
             ],
           };
+        }),
+      addLines: (incoming) =>
+        set((state) => {
+          const next = [...state.lines];
+          for (const line of incoming) {
+            const idx = next.findIndex(
+              (l) => l.productId === line.productId && l.variantId === line.variantId,
+            );
+            if (idx >= 0) {
+              const existing = next[idx]!;
+              next[idx] = {
+                ...existing,
+                qty: existing.qty + line.qty,
+                // Refresh snapshot — incoming is the latest server-verified data.
+                ...(line.snapshot && { snapshot: line.snapshot }),
+              };
+            } else {
+              next.push(line);
+            }
+          }
+          return { lines: next };
         }),
       remove: (productId, variantId) =>
         set((state) => ({

@@ -259,19 +259,16 @@ export default async function HomePage() {
       </section>
 
       {/* Newsletter slab */}
-      <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-20 lg:pt-28 pb-4">
-        <div className="rounded-xl p-10 lg:p-14 bg-fg text-bg grid lg:grid-cols-2 gap-10 items-center">
-          <div className="font-display text-3xl lg:text-4xl font-semibold leading-tight tracking-tight">
-            Drops, stories, and
-            <br />
-            early access — once a fortnight.
+      <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-28 pb-4">
+        <div className="rounded-xl p-6 sm:p-8 lg:p-14 bg-fg text-bg grid lg:grid-cols-2 gap-6 lg:gap-10 items-center">
+          <div className="font-display text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight tracking-tight">
+            Drops, stories, and early access — once a fortnight.
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm lg:text-base leading-relaxed opacity-80 mb-4">
               No spam. Unsubscribe anytime. We never share your details.
             </p>
             <NewsletterSignup />
-
           </div>
         </div>
       </section>

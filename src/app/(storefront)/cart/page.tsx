@@ -9,8 +9,41 @@ import { Money } from "@/components/ui/money";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CouponInput } from "@/components/ui/coupon-input";
-import { useCart, resolveCart, computeTotals } from "@/stores/cart-store";
+import { useCart, resolveCart, computeTotals, type CartLine } from "@/stores/cart-store";
 import { cn } from "@/lib/utils";
+
+/**
+ * Decode the AI deeplink payload (?cart=<base64url JSON>). Returns null on
+ * any parse / shape failure — we never want a malformed param to crash the
+ * cart page or inject garbage lines.
+ */
+function decodeCartParam(raw: string | null): CartLine[] | null {
+  if (!raw) return null;
+  try {
+    const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+    const json = atob(b64 + pad);
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return null;
+    const lines: CartLine[] = [];
+    for (const item of parsed) {
+      if (
+        typeof item?.productId === "string" &&
+        typeof item?.variantId === "string" &&
+        typeof item?.qty === "number" &&
+        item.qty > 0 &&
+        item.snapshot &&
+        typeof item.snapshot.slug === "string" &&
+        typeof item.snapshot.unitKobo === "number"
+      ) {
+        lines.push(item as CartLine);
+      }
+    }
+    return lines.length > 0 ? lines : null;
+  } catch {
+    return null;
+  }
+}
 
 const SHIPPING_KOBO = 0; // Free over ₦25k in Lagos for mocks
 
@@ -18,6 +51,19 @@ export default function CartPage() {
   const lines = useCart((s) => s.lines);
   const setQty = useCart((s) => s.setQty);
   const remove = useCart((s) => s.remove);
+  const addLines = useCart((s) => s.addLines);
+
+  // AI deeplink: ?cart=<base64url JSON of CartLine[]>. Merge into the existing
+  // cart on first paint, then strip the param so a refresh doesn't re-add.
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    const param = url.searchParams.get("cart");
+    if (!param) return;
+    const incoming = decodeCartParam(param);
+    if (incoming) addLines(incoming);
+    url.searchParams.delete("cart");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }, [addLines]);
 
   const resolved = React.useMemo(() => resolveCart(lines), [lines]);
 
