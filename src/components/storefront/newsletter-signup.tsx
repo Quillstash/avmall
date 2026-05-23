@@ -35,19 +35,19 @@ export function NewsletterSignup({ source = "homepage-footer" }: { source?: stri
   }
 
   return (
-    <form onSubmit={submit} className="flex gap-2">
+    <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2">
       <input
         type="email"
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="flex-1 h-12 px-4 rounded-md bg-white/10 text-white placeholder:text-white/50 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-white/40"
+        className="w-full sm:flex-1 min-w-0 h-12 px-4 rounded-md bg-white/10 text-white placeholder:text-white/50 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-white/40"
         required
       />
       <button
         type="submit"
         disabled={state === "submitting"}
-        className="px-6 h-12 rounded-md bg-bg text-fg font-bold text-sm hover:bg-white/95 inline-flex items-center gap-2 disabled:opacity-50"
+        className="w-full sm:w-auto shrink-0 px-6 h-12 rounded-md bg-bg text-fg font-bold text-sm hover:bg-white/95 inline-flex items-center justify-center gap-2 disabled:opacity-50"
       >
         {state === "submitting" ? (
           <Loader2 className="size-4 animate-spin" />
