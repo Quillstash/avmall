@@ -490,15 +490,14 @@ export interface StaffMember {
   role: StaffRole;
   active: boolean;
   lastSeen: string;
-  twoFactor: boolean;
 }
 
 export const STAFF: readonly StaffMember[] = [
-  { id: "s1", name: "Funmi A.", email: "funmi@avmall.ng", role: "manager", active: true, lastSeen: "just now", twoFactor: true },
-  { id: "s2", name: "Tunde I.", email: "tunde@avmall.ng", role: "sales", active: true, lastSeen: "12 min ago", twoFactor: true },
-  { id: "s3", name: "Adaeze K.", email: "adaeze@avmall.ng", role: "support", active: true, lastSeen: "1 hour ago", twoFactor: false },
-  { id: "s4", name: "Sodiq B.", email: "sodiq@avmall.ng", role: "inventory", active: true, lastSeen: "yesterday", twoFactor: true },
-  { id: "s5", name: "Hannah O.", email: "hannah@avmall.ng", role: "support", active: false, lastSeen: "3 weeks ago", twoFactor: false },
+  { id: "s1", name: "Funmi A.", email: "funmi@avmall.ng", role: "manager", active: true, lastSeen: "just now" },
+  { id: "s2", name: "Tunde I.", email: "tunde@avmall.ng", role: "sales", active: true, lastSeen: "12 min ago" },
+  { id: "s3", name: "Adaeze K.", email: "adaeze@avmall.ng", role: "support", active: true, lastSeen: "1 hour ago" },
+  { id: "s4", name: "Sodiq B.", email: "sodiq@avmall.ng", role: "inventory", active: true, lastSeen: "yesterday" },
+  { id: "s5", name: "Hannah O.", email: "hannah@avmall.ng", role: "support", active: false, lastSeen: "3 weeks ago" },
 ];
 
 export const ROLE_LABELS: Record<StaffRole, string> = {

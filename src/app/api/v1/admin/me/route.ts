@@ -39,7 +39,6 @@ export async function GET() {
           email: session.email,
           name: session.name,
           role: session.role,
-          totpEnabled: false,
           lastSeenAt: null,
         }),
       );
@@ -51,7 +50,6 @@ export async function GET() {
         email: true,
         name: true,
         role: true,
-        totpEnabled: true,
         lastSeenAt: true,
       },
     });
@@ -97,7 +95,7 @@ export async function PATCH(req: NextRequest) {
         ...(b.name !== undefined && { name: b.name }),
         ...(b.newPassword && { passwordHash: await bcrypt.hash(b.newPassword, 10) }),
       },
-      select: { id: true, email: true, name: true, role: true, totpEnabled: true },
+      select: { id: true, email: true, name: true, role: true },
     });
 
     await writeAudit({

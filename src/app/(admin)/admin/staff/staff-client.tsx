@@ -100,11 +100,6 @@ export function StaffClient({ initialStaff }: StaffClientProps) {
   const [staff, setStaff] = React.useState<StaffMember[]>(initialStaff);
   const [inviteOpen, setInviteOpen] = React.useState(false);
 
-  function toggle2FA(id: string, next: boolean) {
-    setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, twoFactor: next } : s)));
-    toast.success(next ? "2FA enabled" : "2FA disabled");
-  }
-
   async function sendPasswordReset(email: string) {
     try {
       await fetch("/api/v1/staff/forgot-password", {
@@ -150,17 +145,6 @@ export function StaffClient({ initialStaff }: StaffClientProps) {
       header: "Role",
       cell: ({ row }) => (
         <Badge tone={ROLE_TONE[row.original.role]}>{ROLE_LABELS[row.original.role]}</Badge>
-      ),
-    },
-    {
-      accessorKey: "twoFactor",
-      header: "2FA",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <Switch
-          checked={row.original.twoFactor}
-          onCheckedChange={(v) => toggle2FA(row.original.id, v)}
-        />
       ),
     },
     {

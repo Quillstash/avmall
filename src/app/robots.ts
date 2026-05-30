@@ -17,7 +17,6 @@ export default function robots(): MetadataRoute.Robots {
           "/checkout",
           "/orders/",
           "/login",
-          "/setup-2fa",
         ],
       },
     ],

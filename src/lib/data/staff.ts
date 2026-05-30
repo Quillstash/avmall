@@ -44,7 +44,6 @@ export async function listStaff(): Promise<StaffMember[]> {
         email: true,
         role: true,
         active: true,
-        totpEnabled: true,
         lastSeenAt: true,
       },
     }),
@@ -56,6 +55,5 @@ export async function listStaff(): Promise<StaffMember[]> {
     role: u.role as StaffMember["role"],
     active: u.active,
     lastSeen: timeAgo(u.lastSeenAt),
-    twoFactor: u.totpEnabled,
   }));
 }

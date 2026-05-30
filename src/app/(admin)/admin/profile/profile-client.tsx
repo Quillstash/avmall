@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Save, Loader2, LogOut, Shield, ShieldCheck, KeyRound } from "lucide-react";
+import { Save, Loader2, LogOut, KeyRound } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ export interface ProfileData {
   email: string;
   name: string;
   role: string;
-  totpEnabled: boolean;
   lastSeenAt: string | null;
   createdAt: string;
 }
@@ -141,20 +140,6 @@ export function ProfileClient({ profile }: { profile: ProfileData }) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                 <Fact label="Role" value={<Badge tone="info">{profile.role}</Badge>} />
                 <Fact
-                  label="Two-factor auth"
-                  value={
-                    profile.totpEnabled ? (
-                      <Badge tone="success">
-                        <ShieldCheck className="size-3" /> Enabled
-                      </Badge>
-                    ) : (
-                      <Badge tone="warning">
-                        <Shield className="size-3" /> Not set up
-                      </Badge>
-                    )
-                  }
-                />
-                <Fact
                   label="Last seen"
                   value={
                     profile.lastSeenAt
@@ -228,28 +213,6 @@ export function ProfileClient({ profile }: { profile: ProfileData }) {
               </div>
             </Card>
 
-            {/* Two-factor */}
-            <Card title="Two-factor authentication">
-              {profile.totpEnabled ? (
-                <p className="text-sm text-fg-muted">
-                  Two-factor is enabled. Contact a super-admin to reset your authenticator
-                  device.
-                </p>
-              ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-fg-muted">
-                    Add an authenticator app for an extra layer of security.
-                  </p>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => router.push("/setup-2fa")}
-                  >
-                    <Shield className="size-3.5" /> Set up 2FA
-                  </Button>
-                </div>
-              )}
-            </Card>
           </div>
         </div>
       </div>

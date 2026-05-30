@@ -77,7 +77,6 @@ export async function POST(
           role: invitation.role,
           passwordHash,
           active: true,
-          totpEnabled: false,
         },
         select: { id: true, email: true, role: true, name: true },
       });

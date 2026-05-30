@@ -1,7 +1,7 @@
 /**
  * Edge middleware — gates /admin behind a valid staff session.
  * Per CLAUDE.md §19, any /admin route is blocked at the edge unless the
- * session is a valid staff session with TOTP cleared.
+ * session is a valid staff session.
  *
  * In dev mode without NEXTAUTH_SECRET (= Neon not connected yet) we let
  * everything through so the admin UI is still browsable.
@@ -26,12 +26,6 @@ export async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = "/admin-login";
     url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-
-  if (token.pendingTotp) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/admin-login";
     return NextResponse.redirect(url);
   }
 

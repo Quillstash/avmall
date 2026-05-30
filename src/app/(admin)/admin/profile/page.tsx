@@ -18,7 +18,6 @@ export default async function AdminProfilePage() {
         email: true,
         name: true,
         role: true,
-        totpEnabled: true,
         lastSeenAt: true,
         createdAt: true,
       },
@@ -29,7 +28,6 @@ export default async function AdminProfilePage() {
       email: user.email,
       name: user.name,
       role: user.role,
-      totpEnabled: user.totpEnabled,
       lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
       createdAt: user.createdAt.toISOString(),
     };
@@ -39,7 +37,6 @@ export default async function AdminProfilePage() {
       email: session.user.email ?? "",
       name: session.user.name ?? "Staff",
       role: session.user.role,
-      totpEnabled: false,
       lastSeenAt: null,
       createdAt: new Date().toISOString(),
     };
