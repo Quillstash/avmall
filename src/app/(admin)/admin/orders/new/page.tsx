@@ -15,13 +15,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/ui/money";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { toast } from "@/components/ui/toaster";
-import { PRODUCTS, NIGERIAN_STATES, LAGOS_LGAS } from "@/lib/mock-data";
+import { NIGERIAN_STATES, LAGOS_LGAS } from "@/lib/mock-data";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
+interface ProductHit {
+  id: string;
+  slug: string;
+  name: string;
+  brand: string;
+  imageUrl: string;
+  priceKobo: number;
+  saleKobo: number | null;
+  saleActive: boolean;
+  stock: number;
+}
+
 interface DraftLine {
-  productId: string;
-  variantId: string;
+  slug: string;
+  name: string;
+  brand: string;
+  imageUrl: string;
+  unitKobo: number;
+  stock: number;
   qty: number;
 }
 
@@ -88,7 +104,7 @@ export default function AdminCreateOrderPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: resolved.map((l) => ({
-            productSlug: l.product.slug,
+            productSlug: l.slug,
             quantity: l.qty,
           })),
           contact: {
@@ -151,38 +167,74 @@ export default function AdminCreateOrderPage() {
     }
   }
 
-  const matches = PRODUCTS.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.brand.toLowerCase().includes(search.toLowerCase()),
-  ).slice(0, 6);
+  const [matches, setMatches] = React.useState<ProductHit[]>([]);
+  const [searching, setSearching] = React.useState(false);
 
-  const resolved = lines.flatMap((l) => {
-    const p = PRODUCTS.find((p) => p.id === l.productId);
-    if (!p) return [];
-    const v = p.variants.find((v) => v.id === l.variantId);
-    if (!v) return [];
-    const unit = v.price ?? (p.saleActive && p.sale != null ? p.sale : p.price);
-    return [{ ...l, product: p, variant: v, unitKobo: unit, totalKobo: unit * l.qty }];
-  });
+  // Live product search against the DB. Debounced 250ms; aborts in-flight
+  // requests when the search box keeps changing. Empty/short queries clear.
+  React.useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) {
+      setMatches([]);
+      return;
+    }
+    const controller = new AbortController();
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/v1/admin/products/search?q=${encodeURIComponent(q)}&limit=6`,
+          { signal: controller.signal },
+        );
+        const json = await res.json();
+        if (res.ok) setMatches(json.data.products ?? []);
+      } catch {
+        // ignore; user keeps typing
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 250);
+    return () => {
+      controller.abort();
+      clearTimeout(t);
+    };
+  }, [search]);
+
+  const resolved = lines.map((l) => ({
+    ...l,
+    totalKobo: l.unitKobo * l.qty,
+  }));
 
   const subtotal = resolved.reduce((a, l) => a + l.totalKobo, 0);
   const shipping = 0;
   const total = subtotal - discountKobo + shipping;
 
-  function addProduct(productId: string) {
-    const p = PRODUCTS.find((p) => p.id === productId);
-    if (!p) return;
-    const v = p.variants.find((v) => v.stock > 0) ?? p.variants[0]!;
+  function addProduct(hit: ProductHit) {
+    const unitKobo =
+      hit.saleActive && hit.saleKobo != null ? hit.saleKobo : hit.priceKobo;
     setLines((prev) => {
-      const idx = prev.findIndex(
-        (l) => l.productId === productId && l.variantId === v.id,
-      );
+      const idx = prev.findIndex((l) => l.slug === hit.slug);
       if (idx >= 0) {
+        const existing = prev[idx]!;
         const next = [...prev];
-        next[idx] = { ...next[idx]!, qty: next[idx]!.qty + 1 };
+        next[idx] = {
+          ...existing,
+          qty: Math.min(existing.qty + 1, Math.max(1, hit.stock)),
+        };
         return next;
       }
-      return [...prev, { productId, variantId: v.id, qty: 1 }];
+      return [
+        ...prev,
+        {
+          slug: hit.slug,
+          name: hit.name,
+          brand: hit.brand,
+          imageUrl: hit.imageUrl,
+          unitKobo,
+          stock: hit.stock,
+          qty: 1,
+        },
+      ];
     });
     setSearch("");
   }
@@ -234,13 +286,17 @@ export default function AdminCreateOrderPage() {
                   </div>
                   {search && (
                     <div className="absolute z-10 left-0 right-0 mt-1 bg-surface border border-border-strong rounded-md shadow-lg max-h-72 overflow-y-auto">
-                      {matches.length === 0 ? (
+                      {searching ? (
+                        <div className="p-4 text-xs text-fg-muted inline-flex items-center gap-2">
+                          <Loader2 className="size-3.5 animate-spin" /> Searching…
+                        </div>
+                      ) : matches.length === 0 ? (
                         <div className="p-4 text-xs text-fg-muted">No matches</div>
                       ) : (
                         matches.map((p) => (
                           <button
                             key={p.id}
-                            onClick={() => addProduct(p.id)}
+                            onClick={() => addProduct(p)}
                             className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2 text-left"
                           >
                             <div className="relative size-9 rounded-md flex-shrink-0 overflow-hidden bg-surface-2">
@@ -256,7 +312,16 @@ export default function AdminCreateOrderPage() {
                               <div className="text-sm font-semibold truncate">{p.name}</div>
                               <div className="text-[11px] text-fg-muted">
                                 {p.brand} ·{" "}
-                                <Money kobo={p.saleActive && p.sale != null ? p.sale : p.price} />
+                                <Money
+                                  kobo={
+                                    p.saleActive && p.saleKobo != null
+                                      ? p.saleKobo
+                                      : p.priceKobo
+                                  }
+                                />
+                                {p.stock === 0 && (
+                                  <span className="ml-2 text-danger">Out of stock</span>
+                                )}
                               </div>
                             </div>
                             <Plus className="size-4 text-fg-muted" />
@@ -276,22 +341,25 @@ export default function AdminCreateOrderPage() {
                   <div className="mt-3 flex flex-col">
                     {resolved.map((l, i) => (
                       <div
-                        key={`${l.productId}-${l.variantId}`}
+                        key={l.slug}
                         className="flex items-center gap-3 py-3 border-t border-border first:border-t-0"
                       >
                         <div className="relative size-12 rounded-md flex-shrink-0 overflow-hidden bg-surface-2">
                           <Image
-                            src={l.product.imageUrl}
-                            alt={l.product.name}
+                            src={l.imageUrl}
+                            alt={l.name}
                             fill
                             sizes="48px"
                             className="object-cover"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold truncate">{l.product.name}</div>
+                          <div className="text-sm font-semibold truncate">{l.name}</div>
                           <div className="text-[11px] text-fg-muted">
-                            {l.variant.label} · <Money kobo={l.unitKobo} /> each
+                            {l.brand} · <Money kobo={l.unitKobo} /> each ·{" "}
+                            <span className={l.stock < l.qty ? "text-danger" : ""}>
+                              {l.stock} in stock
+                            </span>
                           </div>
                         </div>
                         <div className="inline-flex items-center border border-border-strong rounded-md">
