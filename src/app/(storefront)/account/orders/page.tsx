@@ -64,9 +64,11 @@ export default async function AccountOrdersPage() {
                   Buy again
                 </Button>
                 {o.status === "delivered" && (
-                  <Button variant="ghost" size="sm">
-                    Request return
-                  </Button>
+                  <Link href={`/account/orders/${o.number}/return`}>
+                    <Button variant="ghost" size="sm">
+                      Request return
+                    </Button>
+                  </Link>
                 )}
               </div>
             </div>

@@ -45,7 +45,18 @@ function decodeCartParam(raw: string | null): CartLine[] | null {
   }
 }
 
-const SHIPPING_KOBO = 0; // Free over ₦25k in Lagos for mocks
+interface ServerQuote {
+  quote: {
+    subtotalKobo: number;
+    bulkDiscountKobo: number;
+    couponDiscountKobo: number;
+    shippingKobo: number;
+    totalKobo: number;
+    itemCount: number;
+  };
+  couponApplied?: { code: string; type: string; value: number };
+  couponRejected?: string;
+}
 
 export default function CartPage() {
   const lines = useCart((s) => s.lines);
@@ -68,12 +79,66 @@ export default function CartPage() {
   const resolved = React.useMemo(() => resolveCart(lines), [lines]);
 
   const [coupon, setCoupon] = React.useState<string | null>(null);
-  const couponPct = coupon === "WELCOME10" ? 10 : 0;
+  const [serverQuote, setServerQuote] = React.useState<ServerQuote | null>(null);
+  const [couponError, setCouponError] = React.useState<string | null>(null);
 
-  const totals = computeTotals(resolved, {
-    couponPct,
-    shippingKobo: SHIPPING_KOBO,
-  });
+  // Optimistic local totals so the summary renders instantly. The server quote
+  // (debounced 300ms per CLAUDE.md §12) replaces these once it arrives.
+  const optimistic = computeTotals(resolved);
+
+  // Re-quote whenever the cart contents or the coupon change. Anything the
+  // server says is authoritative — we never trust the client's price math.
+  React.useEffect(() => {
+    if (resolved.length === 0) {
+      setServerQuote(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/v1/cart/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: resolved.map((l) => ({
+              productId: l.productId,
+              variantId: l.variantId,
+              quantity: l.qty,
+            })),
+            ...(coupon && { couponCode: coupon }),
+          }),
+          signal: controller.signal,
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          if (json?.error?.code === "COUPON_INVALID") {
+            setCouponError(json.error.message);
+            setCoupon(null);
+          }
+          return;
+        }
+        const data = json.data as ServerQuote;
+        setServerQuote(data);
+        if (data.couponRejected) {
+          setCouponError(`"${data.couponRejected}" isn't a valid code`);
+          setCoupon(null);
+        } else {
+          setCouponError(null);
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          // Network error — keep optimistic totals. Checkout will still
+          // re-validate server-side; the customer isn't blocked.
+        }
+      }
+    }, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [resolved, coupon]);
+
+  const totals = serverQuote?.quote ?? optimistic;
 
   if (resolved.length === 0) {
     return (
@@ -224,14 +289,16 @@ export default function CartPage() {
 
             <CouponInput
               value={coupon}
-              onApply={setCoupon}
-              onRemove={() => setCoupon(null)}
-              hint={
-                <>
-                  Try <code className="font-mono">WELCOME10</code> for 10% off
-                </>
-              }
+              onApply={(c) => {
+                setCouponError(null);
+                setCoupon(c);
+              }}
+              onRemove={() => {
+                setCouponError(null);
+                setCoupon(null);
+              }}
               className="mb-4"
+              {...(couponError && { error: couponError })}
             />
 
             <SummaryRow label="Subtotal" value={<Money kobo={totals.subtotalKobo} />} />
@@ -258,11 +325,7 @@ export default function CartPage() {
             <SummaryRow
               label="Shipping"
               value={
-                totals.shippingKobo === 0 ? (
-                  <span className="text-brand-accent font-bold">Free</span>
-                ) : (
-                  <Money kobo={totals.shippingKobo} />
-                )
+                <span className="text-fg-muted">Calculated at checkout</span>
               }
             />
             <div className="h-px bg-border my-3" />

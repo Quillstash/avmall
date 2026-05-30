@@ -12,7 +12,9 @@
  * Money is integer kobo. All Math.floor — never partial kobo. See §9.
  */
 
+import type { PrismaClient } from "@prisma/client";
 import { applyPercentageDiscount } from "./money";
+import { AppError, NotFoundError } from "./errors";
 
 export interface QuoteInputLine {
   productId: string;
@@ -148,5 +150,137 @@ export function computeQuote(input: QuoteInput): Quote {
     shippingKobo,
     totalKobo,
     itemCount,
+  };
+}
+
+/**
+ * DB-backed wrapper around `computeQuote`. Used by every consumer that takes
+ * an opaque cart from the client (storefront cart, customer checkout, admin
+ * manual order). Hydrates real prices, validates the coupon against the
+ * Discount table, picks the shipping zone by state.
+ *
+ * Throws NotFoundError for missing products, AppError("COUPON_INVALID") for
+ * expired / used-up coupons. Soft-fails (no error, no coupon applied) when
+ * the code simply doesn't exist — the storefront treats that as "invalid".
+ */
+export interface QuoteFromIdsInput {
+  items: { productId: string; variantId: string | null; quantity: number }[];
+  couponCode?: string | undefined;
+  /// Nigerian state. When provided we pick the matching zone; otherwise
+  /// shipping is zero and the caller must remind the customer it's TBD.
+  state?: string | undefined;
+}
+
+export interface QuoteFromIdsResult {
+  quote: Quote;
+  couponApplied?: { code: string; type: "percentage" | "fixed" | "free_shipping"; value: number };
+  couponRejected?: string;
+  shippingZone?: { name: string; etaDays: string };
+}
+
+export async function quoteFromProductIds(
+  db: PrismaClient,
+  input: QuoteFromIdsInput,
+): Promise<QuoteFromIdsResult> {
+  const productIds = Array.from(new Set(input.items.map((i) => i.productId)));
+  const products = await db.product.findMany({
+    where: { id: { in: productIds }, archivedAt: null, published: true },
+    include: { variants: true, bulkTiers: true },
+  });
+  const productById = new Map(products.map((p) => [p.id, p]));
+
+  const inputLines: QuoteInputLine[] = input.items.map((item) => {
+    const p = productById.get(item.productId);
+    if (!p) throw new NotFoundError(`Product ${item.productId}`);
+
+    const variant = item.variantId
+      ? p.variants.find((v) => v.id === item.variantId)
+      : null;
+    if (item.variantId && !variant) {
+      throw new NotFoundError(`Variant ${item.variantId}`);
+    }
+
+    const unitKobo = Number(
+      variant?.priceKobo ?? (p.saleActive && p.saleKobo != null ? p.saleKobo : p.priceKobo),
+    );
+
+    return {
+      productId: p.id,
+      variantId: variant?.id ?? null,
+      quantity: item.quantity,
+      unitKobo,
+      bulkTiers: p.bulkTiers.map((t) => ({
+        min: t.min,
+        max: t.max,
+        type: t.type,
+        value: t.value,
+      })),
+    };
+  });
+
+  // Coupon lookup. Distinguish "valid but expired/used-up" (422) from
+  // "unknown code" (soft-rejected) — the AI cart-quote tool does the same.
+  let couponApplied: QuoteFromIdsResult["couponApplied"];
+  let couponRejected: string | undefined;
+  if (input.couponCode) {
+    const code = input.couponCode.toUpperCase();
+    const c = await db.discount.findUnique({ where: { code } });
+    const now = new Date();
+    if (
+      c &&
+      c.active &&
+      (!c.validFrom || c.validFrom <= now) &&
+      (!c.validUntil || c.validUntil >= now) &&
+      (c.usageLimit == null || c.usage < c.usageLimit)
+    ) {
+      couponApplied = { code: c.code!, type: c.valueType, value: c.value };
+    } else if (c) {
+      throw new AppError("COUPON_INVALID", "Coupon expired or has hit its usage limit", 422);
+    } else {
+      couponRejected = code;
+    }
+  }
+
+  // Shipping zone. When the customer hasn't picked a state yet, the cart
+  // page should show "calculated at checkout" — we still return a quote but
+  // shippingKobo stays 0 and no zone is returned.
+  let shippingKobo = 0;
+  let freeShippingEligible = false;
+  let shippingZone: QuoteFromIdsResult["shippingZone"];
+  if (input.state) {
+    const zone = await db.shippingZone.findFirst({
+      where: { active: true, states: { has: input.state } },
+      orderBy: { priority: "asc" },
+    });
+    if (zone) {
+      shippingZone = { name: zone.name, etaDays: zone.etaDays };
+      shippingKobo = Number(zone.baseRateKobo);
+      if (zone.freeOverKobo != null) {
+        const dry = computeQuote({ lines: inputLines });
+        if (BigInt(dry.subtotalKobo - dry.bulkDiscountKobo) >= zone.freeOverKobo) {
+          freeShippingEligible = true;
+        }
+      }
+    } else {
+      const fb = await db.fallbackShipping.findFirst();
+      if (fb?.enabled) {
+        shippingKobo = Number(fb.flatRateKobo);
+        shippingZone = { name: "Standard", etaDays: fb.etaDays };
+      }
+    }
+  }
+
+  const quote = computeQuote({
+    lines: inputLines,
+    ...(couponApplied && { coupon: couponApplied }),
+    shippingKobo,
+    freeShippingEligible,
+  });
+
+  return {
+    quote,
+    ...(couponApplied && { couponApplied }),
+    ...(couponRejected && { couponRejected }),
+    ...(shippingZone && { shippingZone }),
   };
 }

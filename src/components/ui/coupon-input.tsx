@@ -14,10 +14,12 @@ interface CouponInputProps {
   /** Called when user removes the applied coupon. */
   onRemove: () => void;
   hint?: React.ReactNode;
+  /** Validation error from the server (e.g. "Coupon expired or used up"). */
+  error?: string;
   className?: string;
 }
 
-export function CouponInput({ value, onApply, onRemove, hint, className }: CouponInputProps) {
+export function CouponInput({ value, onApply, onRemove, hint, error, className }: CouponInputProps) {
   const [draft, setDraft] = React.useState("");
 
   if (value) {
@@ -52,7 +54,11 @@ export function CouponInput({ value, onApply, onRemove, hint, className }: Coupo
           Apply
         </Button>
       </form>
-      {hint && <p className="text-[11px] text-fg-subtle mt-1.5">{hint}</p>}
+      {error ? (
+        <p className="text-[11px] text-danger mt-1.5">{error}</p>
+      ) : hint ? (
+        <p className="text-[11px] text-fg-subtle mt-1.5">{hint}</p>
+      ) : null}
     </div>
   );
 }
