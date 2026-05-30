@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MessageCircle, ShoppingBag, Tag, Heart } from "lucide-react";
+import { MessageCircle, ShoppingBag, Tag, Heart, Bell, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Money } from "@/components/ui/money";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -180,21 +181,23 @@ export function PDPDetail({ product }: { product: Product }) {
             </div>
           )}
         </div>
-        <Button
-          onClick={handleAdd}
-          disabled={oos || noRoomLeft}
-          size="lg"
-          className="flex-1"
-        >
-          {oos
-            ? "Notify me when back"
-            : noRoomLeft
+        {oos ? (
+          <RestockNotify slug={product.slug} />
+        ) : (
+          <Button
+            onClick={handleAdd}
+            disabled={noRoomLeft}
+            size="lg"
+            className="flex-1"
+          >
+            {noRoomLeft
               ? "Already in your cart"
               : product.preorder
                 ? "Pre-order"
                 : "Add to cart"}
-          <ShoppingBag className="size-4" />
-        </Button>
+            <ShoppingBag className="size-4" />
+          </Button>
+        )}
         <Button size="lg" variant="secondary" aria-label="Save to wishlist">
           <Heart className="size-4" />
         </Button>
@@ -228,5 +231,73 @@ export function PDPDetail({ product }: { product: Product }) {
         </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+/**
+ * Inline form shown in place of the disabled "Add to cart" button when the
+ * selected variant is sold out. Captures an email (preferred — cheaper to
+ * notify than SMS) and POSTs to the restock wait-list. Duplicate submits
+ * surface the same friendly success message; the server tracks it as
+ * alreadySubscribed but we don't expose that to the customer.
+ */
+function RestockNotify({ slug }: { slug: string }) {
+  const [email, setEmail] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !email.includes("@")) {
+      toast.error("Enter a valid email so we can let you know.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/v1/products/${encodeURIComponent(slug)}/notify-restock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), source: "pdp" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not save your request");
+        return;
+      }
+      setDone(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="flex-1 inline-flex items-center gap-2 px-4 py-3 rounded-md bg-success-bg text-success text-sm font-semibold">
+        <Check className="size-4" /> We&apos;ll email you when this is back.
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="flex-1 flex flex-col sm:flex-row gap-2">
+      <Input
+        type="email"
+        placeholder="you@email.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="flex-1 min-w-0"
+        required
+      />
+      <Button type="submit" size="lg" disabled={submitting} className="shrink-0">
+        {submitting ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Bell className="size-4" />
+        )}
+        {submitting ? "Saving…" : "Notify me"}
+      </Button>
+    </form>
   );
 }

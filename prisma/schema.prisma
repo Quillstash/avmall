@@ -159,6 +159,7 @@ model Product {
   bulkTiers       BulkTier[]
   orderLines      OrderLine[]
   stockReservations StockReservation[]
+  stockNotifications StockNotification[]
 
   @@index([categoryId])
   @@index([archivedAt])
@@ -735,6 +736,31 @@ model NewsletterSubscriber {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("newsletter_subscribers")
+}
+
+// ─── Restock notifications ────────────────────────────────────────────────
+
+/// "Notify me when this is back" signups from the PDP. Either email or phone
+/// is captured (preferably email; cheaper to notify). Staff fires the email
+/// from /admin/products once stock comes back. Postgres treats NULLs as
+/// distinct, so the partial uniqueness still allows the same product to
+/// have many anonymous phone-only or email-only entries.
+model StockNotification {
+  id         String    @id @default(uuid()) @db.Uuid
+  productId  String    @map("product_id") @db.Uuid
+  email      String?
+  phone      String?
+  source     String?
+  notifiedAt DateTime? @map("notified_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, email])
+  @@unique([productId, phone])
+  @@index([productId])
+  @@index([notifiedAt])
+  @@map("stock_notifications")
 }
 
 // ─── Staff password reset ────────────────────────────────────────────────
