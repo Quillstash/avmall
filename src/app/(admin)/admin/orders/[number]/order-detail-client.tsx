@@ -376,8 +376,23 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   >
                     <MessageCircle className="size-3.5" /> WhatsApp customer
                   </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    <Mail className="size-3.5" /> Email receipt — Phase 5
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      const res = await fetch(
+                        `/api/v1/admin/orders/${encodeURIComponent(params.number)}/resend-receipt`,
+                        { method: "POST" },
+                      );
+                      const json = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        toast.error(
+                          json?.error?.message ?? "Could not send the receipt",
+                        );
+                        return;
+                      }
+                      toast.success(`Receipt sent to ${json.data.sentTo}`);
+                    }}
+                  >
+                    <Mail className="size-3.5" /> Email receipt
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
@@ -745,10 +760,6 @@ export function OrderDetailClient({ params, order }: PageProps) {
                       <MessageCircle className="size-3.5" />
                     </Button>
                   </a>
-                  {/* Email only shown when we have one — Customer.email is nullable */}
-                  <Button variant="ghost" size="icon" aria-label="Email" disabled>
-                    <Mail className="size-3.5" />
-                  </Button>
                   {order.customer && (
                     <Link href={`/admin/customers/${order.customer.id}`} className="flex-1">
                       <Button variant="secondary" size="sm" width="full">

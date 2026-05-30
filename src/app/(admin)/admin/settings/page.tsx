@@ -1,81 +1,52 @@
-import {
-  Store,
-  CreditCard,
-  Truck,
-  Bell,
-  Webhook,
-  Receipt,
-  Globe,
-  KeyRound,
-  Database,
-  ChevronRight,
-} from "lucide-react";
+import { Truck, Shield, Sparkles, User, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 
+/**
+ * Settings is currently a launcher for the screens that already exist.
+ * Placeholder cards (Business profile, Domains, Payments, Tax, Email
+ * Templates, Webhooks, API keys, Data export) lived here before but they
+ * pointed at href="#" — kept honest by removing until the relevant feature
+ * lands.
+ */
 const SECTIONS = [
   {
-    title: "Store",
+    title: "Shipping",
     items: [
-      { icon: Store, label: "Business profile", desc: "Name, RC number, contact, social", href: "#" },
-      { icon: Globe, label: "Domains & SEO", desc: "Storefront URL, meta tags, sitemap", href: "#" },
-    ],
-  },
-  {
-    title: "Commerce",
-    items: [
-      {
-        icon: CreditCard,
-        label: "Payments",
-        desc: "Nuqood keys, bank account, POS terminals",
-        href: "#",
-      },
       {
         icon: Truck,
-        label: "Shipping & couriers",
-        desc: "Zones, fallbacks, courier integrations",
+        label: "Shipping zones",
+        desc: "Per-state base rates, free-shipping thresholds, fallbacks",
         href: "/admin/shipping",
       },
+    ],
+  },
+  {
+    title: "Team",
+    items: [
       {
-        icon: Receipt,
-        label: "Tax",
-        desc: "VAT settings, receipts, invoice templates",
-        href: "#",
+        icon: Shield,
+        label: "Staff & roles",
+        desc: "Invite staff, change roles, disable users",
+        href: "/admin/staff",
+      },
+      {
+        icon: User,
+        label: "Your profile",
+        desc: "Display name, change password",
+        href: "/admin/profile",
       },
     ],
   },
   {
-    title: "Notifications",
+    title: "AI agent",
     items: [
       {
-        icon: Bell,
-        label: "Email & SMS templates",
-        desc: "Order confirmation, shipped, OTP, abandoned cart",
-        href: "#",
-      },
-      {
-        icon: Webhook,
-        label: "Webhooks",
-        desc: "Outbound events to your CRM / ops tooling",
-        href: "#",
-      },
-    ],
-  },
-  {
-    title: "Advanced",
-    items: [
-      {
-        icon: KeyRound,
-        label: "API keys & tokens",
-        desc: "AI agent JWTs, integration tokens (rotatable)",
-        href: "#",
-      },
-      {
-        icon: Database,
-        label: "Data export & backup",
-        desc: "CSV/JSON exports, Bumpa migration tools",
-        href: "#",
+        icon: Sparkles,
+        label: "AI agent",
+        desc: "Conversation handoffs, negotiation rules",
+        href: "/admin/ai",
       },
     ],
   },
@@ -87,7 +58,10 @@ export default function AdminSettingsPage() {
       <AdminTopBar breadcrumbs={[{ label: "Settings" }]} />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-[1400px] mx-auto">
-          <PageHeader title="Settings" subtitle="Store, commerce, notifications, and integrations" />
+          <PageHeader
+            title="Settings"
+            subtitle="Most configuration lives inside the relevant area — these are the launchers"
+          />
 
           <div className="grid lg:grid-cols-2 gap-8">
             {SECTIONS.map((section) => (
@@ -109,7 +83,9 @@ export default function AdminSettingsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-sm">{item.label}</div>
-                          <div className="text-xs text-fg-muted mt-0.5">{item.desc}</div>
+                          <div className="text-xs text-fg-muted mt-0.5">
+                            {item.desc}
+                          </div>
                         </div>
                         <ChevronRight className="size-4 text-fg-muted" />
                       </Link>
@@ -118,6 +94,13 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-10 p-5 rounded-lg border border-dashed border-border bg-surface-2 text-sm text-fg-muted leading-relaxed max-w-3xl">
+            <div className="font-semibold text-fg mb-1.5">More settings coming.</div>
+            Business profile, tax, payment provider config, email templates, and
+            data export will appear here as each feature ships. Nuqood keys live in
+            Vercel environment variables today.
           </div>
         </div>
       </div>
