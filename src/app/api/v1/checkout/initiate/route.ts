@@ -60,9 +60,14 @@ export async function POST(req: NextRequest) {
       throw new AppError("DB_NOT_CONFIGURED", "Database required for checkout.", 503);
     }
     if (!nuqoodConfigured) {
+      const missing = [
+        !env.NUQOOD_API_KEY && "NUQOOD_API_KEY",
+        !env.NUQOOD_SECRET_KEY && "NUQOOD_SECRET_KEY",
+        !env.NUQOOD_BUSINESS_CODE && "NUQOOD_BUSINESS_CODE",
+      ].filter(Boolean).join(", ");
       throw new AppError(
         "NUQOOD_NOT_CONFIGURED",
-        "Bank transfer payments are not available right now. Please try Pay on Delivery or contact us.",
+        `Missing env vars: ${missing}`,
         503,
       );
     }
