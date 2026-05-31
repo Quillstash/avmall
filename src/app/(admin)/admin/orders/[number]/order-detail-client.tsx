@@ -15,11 +15,14 @@ import {
   Link as LinkIcon,
   Truck,
   Phone,
-  Sparkles,
   AlertTriangle,
   Check,
   XCircle,
   Copy,
+  CheckCircle,
+  Package,
+  MapPin,
+  Send,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { Button } from "@/components/ui/button";
@@ -128,6 +131,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const [actionLoading, setActionLoading] = React.useState(false);
   const router = useRouter();
 
+  // Internal notes
+  const [notes, setNotes] = React.useState(order.notes);
+  const [noteText, setNoteText] = React.useState("");
+  const [savingNote, setSavingNote] = React.useState(false);
+
   async function recordPayment(data: {
     amountKobo: number;
     method: string;
@@ -206,29 +214,57 @@ export function OrderDetailClient({ params, order }: PageProps) {
     }
   }
 
-  async function shipOrder(override = false) {
+  async function changeStatus(newStatus: string) {
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/admin/orders/${params.number}/ship`, {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/status`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ override }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
       if (res.status === 404 || res.status === 503) {
-        toast.success("Order marked as shipped (local)");
+        toast.success(`Order ${newStatus} (local)`);
+        router.refresh();
         return;
       }
 
       const payload = await res.json();
-      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't mark as shipped");
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't update status");
 
-      toast.success("Order marked as shipped");
+      toast.success(`Order marked as ${newStatus}`);
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't mark as shipped");
+      toast.error(err instanceof Error ? err.message : "Couldn't update status");
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  async function saveNote() {
+    const text = noteText.trim();
+    if (!text) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/notes`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (res.status === 503 || res.status === 404) {
+        // Mock mode — add locally
+        setNotes((prev) => [...prev, { id: crypto.randomUUID(), text, author: currentStaffName, createdAt: new Date() }]);
+        setNoteText("");
+        return;
+      }
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't save note");
+      setNotes((prev) => [...prev, payload.data]);
+      setNoteText("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't save note");
+    } finally {
+      setSavingNote(false);
     }
   }
 
@@ -535,16 +571,20 @@ export function OrderDetailClient({ params, order }: PageProps) {
                       value={`−${formatMoney(totalLineDiscounts)}`}
                       accent
                     />
-                    <TotalRow
-                      label={
-                        <span>
-                          Coupon{" "}
-                          <code className="font-mono text-[10px] text-fg-muted">JANUARY10</code>
-                        </span>
-                      }
-                      value={`−${formatMoney(couponDiscount)}`}
-                      accent
-                    />
+                    {couponDiscount > 0 && (
+                      <TotalRow
+                        label={
+                          <span>
+                            Coupon{" "}
+                            {order.appliedCouponCode && (
+                              <code className="font-mono text-[10px] text-fg-muted">{order.appliedCouponCode}</code>
+                            )}
+                          </span>
+                        }
+                        value={`−${formatMoney(couponDiscount)}`}
+                        accent
+                      />
+                    )}
                     <TotalRow
                       label={
                         <span>
@@ -644,34 +684,12 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </div>
                 )}
 
-                {/* Next action — always rendered, paired with the payment block */}
-                <div className="rounded-lg p-5 lg:p-6 bg-surface border border-border flex flex-col">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-3">
-                    Next action
-                  </div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="size-10 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center flex-shrink-0">
-                      <Truck className="size-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base font-bold">Mark as shipped</div>
-                      <div className="text-xs text-fg-muted mt-0.5">
-                        {isPartiallyPaid
-                          ? "Disabled until paid in full"
-                          : "Ready to dispatch"}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    width="full"
-                    disabled={isPartiallyPaid || actionLoading}
-                    loading={actionLoading}
-                    onClick={() => shipOrder(false)}
-                    className="mt-auto"
-                  >
-                    Mark as shipped
-                  </Button>
-                </div>
+                {/* Next action — shows the correct step for current status */}
+                <NextActionCard
+                  status={order.status}
+                  loading={actionLoading}
+                  onAction={changeStatus}
+                />
               </div>
 
               <Card
@@ -690,40 +708,40 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 <Timeline events={timeline} />
               </Card>
 
-              <Card
-                title="AI conversation"
-                action={
-                  <Link
-                    href="/admin/ai"
-                    className="text-xs font-semibold text-brand-primary hover:underline"
-                  >
-                    Open thread →
-                  </Link>
-                }
-              >
-                <div className="p-4 rounded-md bg-info-bg border border-brand-primary/15">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <Sparkles className="size-3.5" />
-                    <span className="text-xs font-bold">Ada (AI agent)</span>
-                    <span className="ml-auto text-xs text-fg-muted">
-                      WhatsApp · 18 messages
-                    </span>
-                  </div>
-                  <div className="text-xs leading-relaxed text-fg-muted">
-                    Customer asked for bulk pricing on shea balm and incense; Ada quoted a 9%
-                    blended discount and the customer accepted at{" "}
-                    <code className="font-mono text-fg">JANUARY10</code> coupon equivalent. No
-                    handoff requested.
-                  </div>
-                </div>
-              </Card>
-
               <Card title="Internal notes">
                 <div className="flex flex-col gap-3">
-                  <p className="text-xs text-fg-muted">
-                    Add a note for the team. Notes are visible to staff only.
-                  </p>
-                  <Textarea placeholder="Add a note for the team…" rows={3} />
+                  {notes.length === 0 ? (
+                    <p className="text-xs text-fg-muted">No notes yet. Notes are visible to staff only.</p>
+                  ) : (
+                    <div className="flex flex-col gap-3 mb-1">
+                      {notes.map((n) => (
+                        <NoteEntry
+                          key={n.id}
+                          author={n.author}
+                          time={n.createdAt.toLocaleString("en-NG", { timeZone: "Africa/Lagos", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                          text={n.text}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2 pt-1 border-t border-border">
+                    <Textarea
+                      placeholder="Add a note for the team…"
+                      rows={2}
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        disabled={!noteText.trim() || savingNote}
+                        loading={savingNote}
+                        onClick={saveNote}
+                      >
+                        <Send className="size-3.5" /> Save note
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </Card>
             </div>
@@ -946,6 +964,58 @@ function TotalRow({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function NextActionCard({
+  status,
+  loading,
+  onAction,
+}: {
+  status: string;
+  loading: boolean;
+  onAction: (s: string) => void;
+}) {
+  const steps: Record<string, { label: string; next: string; icon: React.ReactNode; desc: string }> = {
+    pending:    { label: "Confirm order",    next: "confirmed",  icon: <CheckCircle className="size-4" />, desc: "Acknowledge and accept the order" },
+    confirmed:  { label: "Mark processing",  next: "processing", icon: <Package className="size-4" />,     desc: "Picking and packing in progress" },
+    processing: { label: "Mark as shipped",  next: "shipped",    icon: <Truck className="size-4" />,       desc: "Dispatched to courier" },
+    shipped:    { label: "Mark delivered",   next: "delivered",  icon: <MapPin className="size-4" />,      desc: "Customer received the order" },
+  };
+
+  const step = steps[status];
+
+  if (!step) {
+    return (
+      <div className="rounded-lg p-5 bg-surface border border-border">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">Status</div>
+        <div className="text-sm text-fg-muted capitalize">{status} — no further actions</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg p-5 lg:p-6 bg-surface border border-border flex flex-col">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-3">Next action</div>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="size-10 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center flex-shrink-0">
+          {step.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-bold">{step.label}</div>
+          <div className="text-xs text-fg-muted mt-0.5">{step.desc}</div>
+        </div>
+      </div>
+      <Button
+        width="full"
+        disabled={loading}
+        loading={loading}
+        onClick={() => onAction(step.next)}
+        className="mt-auto"
+      >
+        {step.label}
+      </Button>
     </div>
   );
 }

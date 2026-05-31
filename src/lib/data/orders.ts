@@ -86,6 +86,12 @@ export interface OrderDetail {
     by: string;
     createdAt: Date;
   }[];
+  notes: {
+    id: string;
+    text: string;
+    author: string;
+    createdAt: Date;
+  }[];
 }
 
 function mapDbStatusToView(s: string): OrderStatus {
@@ -170,6 +176,10 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
         include: { recordedBy: { select: { name: true } } },
         orderBy: { createdAt: "asc" },
       },
+      notes: {
+        include: { author: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
   if (!o) return null;
@@ -230,6 +240,12 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
       status: p.status,
       by: p.recordedBy?.name ?? "Customer",
       createdAt: p.createdAt,
+    })),
+    notes: o.notes.map((n) => ({
+      id: n.id,
+      text: n.text,
+      author: n.author?.name ?? "Staff",
+      createdAt: n.createdAt,
     })),
   };
 }
@@ -296,6 +312,7 @@ function mockOrderDetail(number: string): OrderDetail {
       by: p.by,
       createdAt: new Date(),
     })),
+    notes: [],
   };
 }
 
