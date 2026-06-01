@@ -701,7 +701,10 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 }
                 padded={false}
               >
-                <PaymentLedger payments={payments} />
+                <PaymentLedger
+                  payments={payments}
+                  onPrint={() => window.print()}
+                />
               </Card>
 
               <Card title="Status timeline">
