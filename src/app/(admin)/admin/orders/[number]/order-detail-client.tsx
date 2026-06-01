@@ -19,9 +19,7 @@ import {
   Check,
   XCircle,
   Copy,
-  CheckCircle,
-  Package,
-  MapPin,
+  ChevronDown,
   Send,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
@@ -383,6 +381,40 @@ export function OrderDetailClient({ params, order }: PageProps) {
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
+              {/* Status changer — only show for non-terminal statuses */}
+              {order.status !== "cancelled" && order.status !== "delivered" && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" size="sm" disabled={actionLoading}>
+                      {actionLoading
+                        ? <Loader2 className="size-3.5 animate-spin" />
+                        : <Truck className="size-3.5" />
+                      }
+                      Update status <ChevronDown className="size-3 ml-0.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {order.status !== "confirmed" && (
+                      <DropdownMenuItem onClick={() => changeStatus("confirmed")}>
+                        <Check className="size-3.5 text-brand-primary" /> Confirm order
+                      </DropdownMenuItem>
+                    )}
+                    {order.status !== "processing" && (
+                      <DropdownMenuItem onClick={() => changeStatus("processing")}>
+                        <Plus className="size-3.5 text-status-processing" /> Mark processing
+                      </DropdownMenuItem>
+                    )}
+                    {order.status !== "shipped" && (
+                      <DropdownMenuItem onClick={() => changeStatus("shipped")}>
+                        <Truck className="size-3.5 text-status-shipped" /> Mark shipped
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => changeStatus("delivered")}>
+                      <Check className="size-3.5 text-success" /> Mark delivered
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -684,12 +716,6 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </div>
                 )}
 
-                {/* Next action — shows the correct step for current status */}
-                <NextActionCard
-                  status={order.status}
-                  loading={actionLoading}
-                  onAction={changeStatus}
-                />
               </div>
 
               <Card
@@ -967,58 +993,6 @@ function TotalRow({
       >
         {value}
       </span>
-    </div>
-  );
-}
-
-function NextActionCard({
-  status,
-  loading,
-  onAction,
-}: {
-  status: string;
-  loading: boolean;
-  onAction: (s: string) => void;
-}) {
-  const steps: Record<string, { label: string; next: string; icon: React.ReactNode; desc: string }> = {
-    pending:    { label: "Confirm order",    next: "confirmed",  icon: <CheckCircle className="size-4" />, desc: "Acknowledge and accept the order" },
-    confirmed:  { label: "Mark processing",  next: "processing", icon: <Package className="size-4" />,     desc: "Picking and packing in progress" },
-    processing: { label: "Mark as shipped",  next: "shipped",    icon: <Truck className="size-4" />,       desc: "Dispatched to courier" },
-    shipped:    { label: "Mark delivered",   next: "delivered",  icon: <MapPin className="size-4" />,      desc: "Customer received the order" },
-  };
-
-  const step = steps[status];
-
-  if (!step) {
-    return (
-      <div className="rounded-lg p-5 bg-surface border border-border">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">Status</div>
-        <div className="text-sm text-fg-muted capitalize">{status} — no further actions</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg p-5 lg:p-6 bg-surface border border-border flex flex-col">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-3">Next action</div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="size-10 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center flex-shrink-0">
-          {step.icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-base font-bold">{step.label}</div>
-          <div className="text-xs text-fg-muted mt-0.5">{step.desc}</div>
-        </div>
-      </div>
-      <Button
-        width="full"
-        disabled={loading}
-        loading={loading}
-        onClick={() => onAction(step.next)}
-        className="mt-auto"
-      >
-        {step.label}
-      </Button>
     </div>
   );
 }

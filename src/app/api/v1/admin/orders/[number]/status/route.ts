@@ -1,14 +1,13 @@
 /**
  * POST /api/v1/admin/orders/:number/status
  *
- * Advance an order through its status state machine.
- * Valid transitions (CLAUDE.md Appendix A):
- *   pending    → confirmed
- *   confirmed  → processing
- *   processing → shipped   (also calls consumeReservations + emails customer)
- *   shipped    → delivered
+ * Set an order's status directly. Admin can jump to any forward status
+ * without following the strict one-step machine — e.g. confirmed → shipped
+ * in one click. Backwards moves (e.g. delivered → pending) are blocked.
+ * Cancel uses /cancel. Refund uses /refund.
  *
- * Cancel is handled by /cancel. Refund is handled separately.
+ * Shipping (any transition → "shipped") consumes active stock reservations
+ * and sends the shipped email.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,11 +21,13 @@ import { emailOnOrderShipped } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 
-const VALID_TRANSITIONS: Record<string, string> = {
-  pending: "confirmed",
-  confirmed: "processing",
-  processing: "shipped",
-  shipped: "delivered",
+// Order rank — higher = further along. Used to block backwards moves.
+const STATUS_RANK: Record<string, number> = {
+  pending: 0,
+  confirmed: 1,
+  processing: 2,
+  shipped: 3,
+  delivered: 4,
 };
 
 const bodySchema = z.object({
@@ -52,27 +53,26 @@ export async function POST(
         include: { reservations: { where: { status: "active" } } },
       });
       if (!order) throw new NotFoundError("Order");
+      if (order.status === "cancelled") throw new ConflictError("Order is cancelled");
+      if (order.status === newStatus) throw new ConflictError(`Order is already ${newStatus}`);
 
-      const allowed = VALID_TRANSITIONS[order.status];
-      if (allowed !== newStatus) {
-        throw new ConflictError(
-          `Cannot move from "${order.status}" to "${newStatus}". Expected next: "${allowed ?? "none (terminal)"}"`,
-        );
+      const currentRank = STATUS_RANK[order.status] ?? 0;
+      const newRank = STATUS_RANK[newStatus] ?? 0;
+      if (newRank < currentRank) {
+        throw new ConflictError(`Cannot move backwards from "${order.status}" to "${newStatus}"`);
       }
 
-      // shipping consumes stock reservations
-      if (newStatus === "shipped") {
-        await consumeReservations(
-          tx,
-          order.reservations.map((r) => r.id),
-        );
+      // Shipping (reaching "shipped" for the first time) consumes reservations
+      const wasNotShipped = order.status !== "shipped" && order.status !== "delivered";
+      if (newStatus === "shipped" && wasNotShipped && order.reservations.length > 0) {
+        await consumeReservations(tx, order.reservations.map((r) => r.id));
       }
 
       const next = await tx.order.update({
         where: { id: order.id },
         data: {
           status: newStatus,
-          ...(newStatus === "shipped" && { shippedAt: new Date() }),
+          ...(newStatus === "shipped" && wasNotShipped && { shippedAt: new Date() }),
         },
       });
 
@@ -92,7 +92,7 @@ export async function POST(
       return next;
     });
 
-    if (newStatus === "shipped") {
+    if (updated.status === "shipped") {
       void emailOnOrderShipped(updated.id, {});
     }
 
