@@ -20,6 +20,8 @@ import {
   XCircle,
   Copy,
   ChevronDown,
+  Pencil,
+  Trash2,
   Send,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
@@ -43,6 +45,14 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { NumberInput } from "@/components/ui/number-input";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PaymentLedger } from "@/components/admin/payment-ledger";
 import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
@@ -127,6 +137,51 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const [recordOpen, setRecordOpen] = React.useState(false);
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [actionLoading, setActionLoading] = React.useState(false);
+
+  // Line-item editing
+  type LineItem = (typeof orderItems)[number];
+  const [editQtyTarget, setEditQtyTarget] = React.useState<LineItem | null>(null);
+  const [editQtyValue, setEditQtyValue] = React.useState(1);
+  const [removeTarget, setRemoveTarget] = React.useState<LineItem | null>(null);
+  const [lineActionLoading, setLineActionLoading] = React.useState(false);
+
+  async function submitEditQty() {
+    if (!editQtyTarget) return;
+    setLineActionLoading(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/orders/${params.number}/lines/${editQtyTarget.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantity: editQtyValue }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) { toast.error(json?.error?.message ?? "Could not update"); return; }
+      toast.success("Quantity updated");
+      setEditQtyTarget(null);
+      router.refresh();
+    } catch { toast.error("Network error"); }
+    finally { setLineActionLoading(false); }
+  }
+
+  async function submitRemoveLine() {
+    if (!removeTarget) return;
+    setLineActionLoading(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/orders/${params.number}/lines/${removeTarget.id}`,
+        { method: "DELETE" },
+      );
+      const json = await res.json();
+      if (!res.ok) { toast.error(json?.error?.message ?? "Could not remove"); return; }
+      toast.success(`${removeTarget.name} removed`);
+      setRemoveTarget(null);
+      router.refresh();
+    } catch { toast.error("Network error"); }
+    finally { setLineActionLoading(false); }
+  }
   const router = useRouter();
 
   // Internal notes
@@ -576,15 +631,21 @@ export function OrderDetailClient({ params, order }: PageProps) {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {/* Line edits post-creation are non-trivial
-                                  (stock + refund implications). For now,
-                                  cancel + recreate is the recommended path —
-                                  see /admin/orders/new. */}
-                              <DropdownMenuItem disabled>
-                                Edit qty (cancel + recreate)
+                              <DropdownMenuItem
+                                disabled={order.status === "cancelled" || order.status === "delivered"}
+                                onClick={() => {
+                                  setEditQtyTarget(it);
+                                  setEditQtyValue(it.qty);
+                                }}
+                              >
+                                <Pencil className="size-3.5" /> Edit quantity
                               </DropdownMenuItem>
-                              <DropdownMenuItem disabled>
-                                Remove (cancel + recreate)
+                              <DropdownMenuItem
+                                destructive
+                                disabled={order.status === "cancelled" || order.status === "delivered" || orderItems.length <= 1}
+                                onClick={() => setRemoveTarget(it)}
+                              >
+                                <Trash2 className="size-3.5" /> Remove item
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -913,6 +974,61 @@ export function OrderDetailClient({ params, order }: PageProps) {
         typeToConfirm="CANCEL"
         loading={actionLoading}
         onConfirm={cancelOrder}
+      />
+
+      {/* Edit quantity dialog */}
+      <Dialog open={!!editQtyTarget} onOpenChange={(o) => !o && setEditQtyTarget(null)}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Edit quantity</DialogTitle>
+          </DialogHeader>
+          {editQtyTarget && (
+            <div className="flex flex-col gap-4 mt-2">
+              <p className="text-sm text-fg-muted">
+                <span className="font-semibold text-fg">{editQtyTarget.name}</span>
+                {editQtyTarget.variant !== "—" && ` · ${editQtyTarget.variant}`}
+              </p>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">New quantity</div>
+                <NumberInput
+                  value={editQtyValue}
+                  onChange={setEditQtyValue}
+                  min={1}
+                  max={999}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setEditQtyTarget(null)} disabled={lineActionLoading}>
+              Cancel
+            </Button>
+            <Button onClick={submitEditQty} disabled={lineActionLoading || editQtyValue === editQtyTarget?.qty}>
+              {lineActionLoading && <Loader2 className="size-4 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove line confirm */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(o) => !o && setRemoveTarget(null)}
+        title="Remove item?"
+        description={
+          removeTarget ? (
+            <>
+              Remove <span className="font-semibold">{removeTarget.name}</span> from this order.
+              Order totals will be recalculated and stock will be released.
+            </>
+          ) : null
+        }
+        confirmLabel="Remove item"
+        cancelLabel="Keep it"
+        destructive
+        loading={lineActionLoading}
+        onConfirm={submitRemoveLine}
       />
     </>
   );
