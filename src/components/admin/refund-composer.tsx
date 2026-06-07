@@ -29,8 +29,8 @@ export interface RefundLine {
 interface RefundComposerProps {
   lines: RefundLine[];
   onLinesChange: (lines: RefundLine[]) => void;
-  method: "original" | "credit" | "transfer";
-  onMethodChange: (m: "original" | "credit" | "transfer") => void;
+  method: "original" | "transfer";
+  onMethodChange: (m: "original" | "transfer") => void;
   note: string;
   onNoteChange: (n: string) => void;
   onSubmit: () => void;
@@ -158,11 +158,10 @@ export function RefundComposer({
       <Field id="refund-method" label="Refund method">
         <RadioGroup
           value={method}
-          onValueChange={(v) => onMethodChange(v as "original" | "credit" | "transfer")}
+          onValueChange={(v) => onMethodChange(v as "original" | "transfer")}
         >
           {[
             { id: "original", label: "Original payment method", sub: "Standard 3–5 business days" },
-            { id: "credit", label: "Store credit (+5% bonus)", sub: "Instant — encourages repeat" },
             { id: "transfer", label: "Bank transfer", sub: "Same-day for verified accounts" },
           ].map((m) => (
             <label

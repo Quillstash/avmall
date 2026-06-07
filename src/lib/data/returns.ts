@@ -4,6 +4,7 @@
 
 import "server-only";
 
+import type { ReturnStatus, ReturnRefundMethod } from "@prisma/client";
 import { db, hasDatabase, withRetry } from "@/lib/db";
 import {
   RETURNS as MOCK_RETURNS,
@@ -20,6 +21,105 @@ function formatLagosShort(d: Date): string {
     month: "short",
     timeZone: "Africa/Lagos",
   });
+}
+
+function formatLagosDateTime(d: Date): string {
+  return d.toLocaleString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Lagos",
+  });
+}
+
+export interface AdminReturnDetailLine {
+  id: string;
+  name: string;
+  variant: string;
+  quantity: number;
+  unitKobo: number;
+  condition: "unopened" | "used" | "damaged";
+  restock: boolean;
+  refundKobo: number;
+}
+
+export interface AdminReturnDetail {
+  id: string;
+  number: string;
+  status: ReturnStatus;
+  reason: string;
+  internalNote: string | null;
+  refundKobo: number;
+  refundMethod: ReturnRefundMethod;
+  outsideWindow: boolean;
+  fullyReturned: boolean;
+  photos: string[];
+  createdAt: string;
+  orderNumber: string;
+  customer: { id: string; name: string; phone: string };
+  lines: AdminReturnDetailLine[];
+}
+
+/** Full return for the admin detail page. Looked up by the customer-facing
+ *  RET-XXXXXXX number (that's what the list links carry). */
+export async function getAdminReturnByNumber(
+  number: string,
+): Promise<AdminReturnDetail | null> {
+  if (!hasDatabase) return null;
+
+  const r = await withRetry(() =>
+    db.return.findUnique({
+      where: { number },
+      include: {
+        order: { select: { number: true } },
+        customer: { select: { id: true, name: true, phone: true } },
+        lines: {
+          include: {
+            orderLine: {
+              select: {
+                nameSnapshot: true,
+                variantSnapshot: true,
+                unitKobo: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  );
+  if (!r) return null;
+
+  return {
+    id: r.id,
+    number: r.number,
+    status: r.status,
+    reason: r.reason,
+    internalNote: r.internalNote,
+    refundKobo: Number(r.refundKobo),
+    refundMethod: r.refundMethod,
+    outsideWindow: r.outsideWindow,
+    fullyReturned: r.fullyReturned,
+    photos: r.photos,
+    createdAt: formatLagosDateTime(r.createdAt),
+    orderNumber: r.order.number,
+    customer: {
+      id: r.customer.id,
+      name: r.customer.name,
+      phone: r.customer.phone,
+    },
+    lines: r.lines.map((l) => ({
+      id: l.id,
+      name: l.orderLine.nameSnapshot,
+      variant: l.orderLine.variantSnapshot ?? "",
+      quantity: l.quantity,
+      unitKobo: Number(l.orderLine.unitKobo),
+      condition: l.condition,
+      restock: l.restock,
+      refundKobo: Number(l.refundKobo),
+    })),
+  };
 }
 
 export async function listAdminReturns(): Promise<ReturnListRow[]> {

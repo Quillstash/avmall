@@ -12,7 +12,18 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Money } from "@/components/ui/money";
+import { formatMoney } from "@/lib/money";
+import { isValidNigerianPhone } from "@/lib/phone";
 import { toast } from "@/components/ui/toaster";
+
+interface OrderHit {
+  number: string;
+  customerName: string;
+  customerPhone: string;
+  totalKobo: number;
+  status: string;
+  createdAt: string;
+}
 
 export interface LoadedOrder {
   number: string;
@@ -61,14 +72,30 @@ export function NewReturnClient({
   const order = initialOrder ?? null;
   const error = initialError ?? null;
 
-  // Guest/walk-in orders have no customer on file — capture one for the return
-  // (pre-filled from the order's shipping name/phone). Reset on order change.
-  const [custName, setCustName] = React.useState(order?.customer.name ?? "");
-  const [custPhone, setCustPhone] = React.useState(order?.customer.phone ?? "");
+  // Debounced order typeahead.
+  const [suggestions, setSuggestions] = React.useState<OrderHit[]>([]);
+  const [searching, setSearching] = React.useState(false);
+  const [showSuggest, setShowSuggest] = React.useState(false);
+  const searchRef = React.useRef<HTMLDivElement>(null);
+
+  // Guest/walk-in orders have no customer on file — capture one for the return.
+  // Pre-fill from the order's shipping snapshot only when it carries a real
+  // phone (storefront guest checkout); walk-in/POS orders use placeholders like
+  // "Walk-in", so leave the fields empty for staff to fill. Reset on order change.
+  const prefillContact = React.useCallback(
+    (o: typeof order): { name: string; phone: string } =>
+      o && isValidNigerianPhone(o.customer.phone)
+        ? { name: o.customer.name, phone: o.customer.phone }
+        : { name: "", phone: "" },
+    [],
+  );
+  const [custName, setCustName] = React.useState(() => prefillContact(order).name);
+  const [custPhone, setCustPhone] = React.useState(() => prefillContact(order).phone);
   React.useEffect(() => {
-    setCustName(order?.customer.name ?? "");
-    setCustPhone(order?.customer.phone ?? "");
-  }, [order]);
+    const c = prefillContact(order);
+    setCustName(c.name);
+    setCustPhone(c.phone);
+  }, [order, prefillContact]);
 
   // Per-line draft state. Built fresh whenever the order changes.
   const [drafts, setDrafts] = React.useState<DraftLine[]>(() =>
@@ -82,19 +109,26 @@ export function NewReturnClient({
     })),
   );
 
-  // Reset drafts when the loaded order changes (server reload)
-  React.useEffect(() => {
+  // Reset per-line drafts whenever the loaded order changes. Done during render
+  // (not in an effect) so `drafts` always matches the order being rendered —
+  // otherwise the first render after navigating to a new order reads stale
+  // drafts and crashes on drafts[i].
+  const [draftsForOrder, setDraftsForOrder] = React.useState<string | null>(
+    order?.number ?? null,
+  );
+  if ((order?.number ?? null) !== draftsForOrder) {
+    setDraftsForOrder(order?.number ?? null);
     setDrafts(
       (order?.lines ?? []).map((l) => ({
         orderLineId: l.id,
         selected: false,
         quantity: 1,
-        condition: "unopened",
+        condition: "unopened" as const,
         restock: true,
         refundKobo: l.unitKobo,
       })),
     );
-  }, [order]);
+  }
 
   const [reason, setReason] = React.useState("");
   const [refundMethod, setRefundMethod] = React.useState<"original" | "transfer">(
@@ -106,10 +140,56 @@ export function NewReturnClient({
   function lookup() {
     const trimmed = orderInput.trim();
     if (!trimmed) return;
+    selectOrder(trimmed);
+  }
+
+  function selectOrder(number: string) {
+    setShowSuggest(false);
     const next = new URLSearchParams(searchParams.toString());
-    next.set("order", trimmed);
+    next.set("order", number);
     router.push(`/admin/returns/new?${next.toString()}`);
   }
+
+  // Fetch suggestions as the operator types (debounced, abortable).
+  React.useEffect(() => {
+    const q = orderInput.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/v1/admin/orders/search?q=${encodeURIComponent(q)}`,
+          { signal: controller.signal },
+        );
+        const json = await res.json();
+        if (res.ok) setSuggestions(json.data?.orders ?? []);
+      } catch {
+        /* user keeps typing */
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(t);
+    };
+  }, [orderInput]);
+
+  // Close the dropdown when clicking outside it.
+  React.useEffect(() => {
+    if (!showSuggest) return;
+    function onDown(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggest(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [showSuggest]);
 
   const outsideWindow =
     order?.deliveredAt != null &&
@@ -137,8 +217,8 @@ export function NewReturnClient({
       toast.error("A reason is required for every return.");
       return;
     }
-    if (!order.hasCustomer && (!custName.trim() || custPhone.trim().length < 7)) {
-      toast.error("Enter the customer's name and phone to record this return.");
+    if (!order.hasCustomer && (!custName.trim() || !isValidNigerianPhone(custPhone))) {
+      toast.error("Enter the customer's name and a valid Nigerian phone number.");
       return;
     }
     setSubmitting(true);
@@ -196,20 +276,62 @@ export function NewReturnClient({
           {/* Order lookup */}
           <Card title="Find the order">
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex-1 flex items-center gap-2 px-3 h-10 rounded-md border border-border-strong bg-surface">
-                <Search className="size-4 text-fg-muted" />
-                <input
-                  value={orderInput}
-                  onChange={(e) => setOrderInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      lookup();
-                    }
-                  }}
-                  placeholder="Order number, e.g. AVM-2026-00000001"
-                  className="flex-1 bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
-                />
+              <div className="relative flex-1" ref={searchRef}>
+                <div className="flex items-center gap-2 px-3 h-10 rounded-md border border-border-strong bg-surface focus-within:ring-2 focus-within:ring-brand-primary/30">
+                  <Search className="size-4 text-fg-muted" />
+                  <input
+                    value={orderInput}
+                    onChange={(e) => {
+                      setOrderInput(e.target.value);
+                      setShowSuggest(true);
+                    }}
+                    onFocus={() => setShowSuggest(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        lookup();
+                      } else if (e.key === "Escape") {
+                        setShowSuggest(false);
+                      }
+                    }}
+                    placeholder="Search by order #, customer name or phone…"
+                    className="flex-1 bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
+                  />
+                  {searching && (
+                    <Loader2 className="size-3.5 animate-spin text-fg-muted" />
+                  )}
+                </div>
+                {showSuggest && orderInput.trim().length >= 2 && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-surface border border-border-strong rounded-md shadow-lg max-h-72 overflow-y-auto">
+                    {searching && suggestions.length === 0 ? (
+                      <div className="p-3 text-xs text-fg-muted inline-flex items-center gap-2">
+                        <Loader2 className="size-3.5 animate-spin" /> Searching…
+                      </div>
+                    ) : suggestions.length === 0 ? (
+                      <div className="p-3 text-xs text-fg-muted">No matching orders</div>
+                    ) : (
+                      suggestions.map((s) => (
+                        <button
+                          key={s.number}
+                          type="button"
+                          onClick={() => selectOrder(s.number)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2 text-left border-b border-border last:border-b-0"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold font-mono tabular">#{s.number}</div>
+                            <div className="text-[11px] text-fg-muted truncate">
+                              {s.customerName} · {s.customerPhone}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-sm font-bold tabular">{formatMoney(s.totalKobo)}</div>
+                            <div className="text-[10px] text-fg-muted capitalize">{s.status}</div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
               <Button onClick={lookup} disabled={!orderInput.trim()}>
                 Look up
@@ -306,7 +428,14 @@ export function NewReturnClient({
               <Card title="Returning items">
                 <div className="flex flex-col gap-2">
                   {order.lines.map((line, i) => {
-                    const draft = drafts[i]!;
+                    const draft = drafts[i] ?? {
+                      orderLineId: line.id,
+                      selected: false,
+                      quantity: 1,
+                      condition: "unopened" as const,
+                      restock: true,
+                      refundKobo: line.unitKobo,
+                    };
                     const remaining = line.quantity - line.alreadyReturned;
                     const fullyReturned = remaining <= 0;
                     return (

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Save, Eye, Plus } from "lucide-react";
+import { Save, Eye, Plus, Sparkles } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,84 @@ export default function AdminNewProductPage() {
   const [addingCat, setAddingCat] = React.useState(false);
   const [newCatName, setNewCatName] = React.useState("");
   const [catSaving, setCatSaving] = React.useState(false);
+  const [genCopy, setGenCopy] = React.useState(false);
+  const [genImage, setGenImage] = React.useState(false);
+
+  // AI: generate short/full description + tags from the product name.
+  async function generateCopy() {
+    if (!name.trim()) {
+      toast.error("Enter a product name first.");
+      return;
+    }
+    setGenCopy(true);
+    try {
+      const res = await fetch("/api/v1/admin/products/ai/generate-copy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          ...(brand.trim() && { brand: brand.trim() }),
+          category,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not generate copy");
+        return;
+      }
+      const d = json.data ?? {};
+      if (d.shortDesc) setShort(d.shortDesc);
+      if (d.longDesc) setLongDesc(d.longDesc);
+      if (Array.isArray(d.tags) && d.tags.length) setTags(d.tags);
+      toast.success("Generated description, short text & tags");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setGenCopy(false);
+    }
+  }
+
+  // AI: generate a clean studio image from an uploaded photo.
+  async function generateImage() {
+    const source =
+      images.find((i) => i.primary && i.url && !i.progress) ??
+      images.find((i) => i.url && !i.progress);
+    if (!source?.url) {
+      toast.error("Upload a product photo first.");
+      return;
+    }
+    setGenImage(true);
+    try {
+      const res = await fetch("/api/v1/admin/products/ai/generate-image", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ imageUrl: source.url, name: name.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not generate image");
+        return;
+      }
+      const img = json.data?.image;
+      if (img?.url) {
+        setImages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            url: img.url,
+            key: img.key,
+            primary: prev.length === 0,
+          },
+        ]);
+        markTouched("images");
+        toast.success("AI product image added");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setGenImage(false);
+    }
+  }
   const [short, setShort] = React.useState("");
   const [longDesc, setLongDesc] = React.useState("");
   const [slug, setSlug] = React.useState("");
@@ -397,6 +475,22 @@ export default function AdminNewProductPage() {
                       </div>
                     )}
                   </Field>
+                  <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-2 px-3 py-2">
+                    <span className="text-xs text-fg-muted inline-flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-brand-primary" />
+                      Let AI draft the description, short text &amp; tags from the name.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={generateCopy}
+                      disabled={!name.trim() || genCopy}
+                      loading={genCopy}
+                    >
+                      <Sparkles className="size-3.5" /> Generate with AI
+                    </Button>
+                  </div>
                   <Field
                     id="short"
                     label="Short description"
@@ -449,6 +543,23 @@ export default function AdminNewProductPage() {
                     max={8}
                   />
                 </Field>
+                {images.some((i) => i.url && !i.progress) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={generateImage}
+                      disabled={genImage}
+                      loading={genImage}
+                    >
+                      <Sparkles className="size-3.5" /> Generate AI product image
+                    </Button>
+                    <span className="text-[11px] text-fg-muted">
+                      A clean studio shot generated from your uploaded photo.
+                    </span>
+                  </div>
+                )}
               </Card>
 
               <Card title="Pricing">

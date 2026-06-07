@@ -388,8 +388,6 @@ export function OrderDetailClient({ params, order }: PageProps) {
         return "pos";
       case "Cash":
         return "cash";
-      case "Store credit":
-        return "store_credit";
       default:
         return "bank_transfer";
     }
@@ -839,16 +837,13 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 {isOverpaid && (
                   <div className="rounded-lg p-5 lg:p-6 bg-info-bg border border-brand-primary/30">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-brand-primary mb-2">
-                      Overpaid · credit due
+                      Overpaid · refund due
                     </div>
                     <div className="text-3xl lg:text-4xl font-bold tracking-tight mb-4 tabular">
                       {formatMoney(Math.abs(outstanding))}
                     </div>
                     <div className="flex flex-col gap-2.5">
-                      <Button width="full">Issue store credit (+5% bonus)</Button>
-                      <Button width="full" variant="secondary">
-                        Refund to original method
-                      </Button>
+                      <Button width="full">Refund to original method</Button>
                     </div>
                   </div>
                 )}
@@ -1257,8 +1252,6 @@ function prettyMethod(method: string): string {
       return "POS terminal";
     case "cash":
       return "Cash";
-    case "store_credit":
-      return "Store credit";
     default:
       return method;
   }

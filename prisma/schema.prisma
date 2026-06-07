@@ -451,7 +451,6 @@ enum PaymentMethod {
   bank_transfer
   pos
   cash
-  store_credit
 }
 
 enum PaymentRecordStatus {
@@ -513,7 +512,6 @@ enum ReturnCondition {
 
 enum ReturnRefundMethod {
   original
-  credit
   transfer
 }
 

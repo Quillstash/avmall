@@ -32,9 +32,9 @@ export async function POST(
     const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) throw new ValidationError({ method: "Invalid" });
 
-    await db.$transaction(async (tx) => {
+    const refundedReturnId = await db.$transaction(async (tx) => {
       const ret = await tx.return.findUnique({
-        where: { id: params.id },
+        where: { number: params.id },
         include: { order: true, customer: true },
       });
       if (!ret) throw new NotFoundError("Return");
@@ -86,11 +86,13 @@ export async function POST(
         },
         tx,
       );
+
+      return ret.id;
     });
 
     const methodLabel =
       parsed.data.method === "original" ? "Original payment method" : "Bank transfer";
-    void emailOnRefundProcessed(params.id, methodLabel);
+    void emailOnRefundProcessed(refundedReturnId, methodLabel);
 
     return NextResponse.json(apiSuccess({ status: "refunded" }));
   } catch (err) {

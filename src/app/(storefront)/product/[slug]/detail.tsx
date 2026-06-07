@@ -233,7 +233,7 @@ export function PDPDetail({ product }: { product: Product }) {
         <TabsContent value="returns">
           <p className="text-sm text-fg-muted leading-relaxed">
             14-day no-questions returns on unopened items. Refunds processed within 48 hours of
-            receipt to your original payment method or as Avmall store credit (5% bonus).
+            receipt to your original payment method.
           </p>
         </TabsContent>
       </Tabs>

@@ -69,7 +69,7 @@ export default async function AccountPage() {
           : `${totalOrders} order${totalOrders === 1 ? "" : "s"} placed · ${formatMoney(lifetimeSpendKobo)} lifetime spend`}
       </p>
 
-      {/* Quick stats — drop store credit until the credit model lands. */}
+      {/* Quick stats. */}
       <div className="grid grid-cols-2 gap-4 mb-10">
         <StatCard label="Total orders" value={totalOrders.toString()} />
         <StatCard

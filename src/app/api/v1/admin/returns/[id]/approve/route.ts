@@ -19,7 +19,7 @@ export async function POST(
     const session = await requireStaffSession();
     requirePermission(session, "returns.approve");
 
-    const ret = await db.return.findUnique({ where: { id: params.id } });
+    const ret = await db.return.findUnique({ where: { number: params.id } });
     if (!ret) throw new NotFoundError("Return");
     if (ret.status !== "requested") {
       throw new ConflictError(`Return already ${ret.status}`);
@@ -52,7 +52,7 @@ export async function DELETE(
     const session = await requireStaffSession();
     requirePermission(session, "returns.approve");
 
-    const ret = await db.return.findUnique({ where: { id: params.id } });
+    const ret = await db.return.findUnique({ where: { number: params.id } });
     if (!ret) throw new NotFoundError("Return");
 
     await db.return.update({

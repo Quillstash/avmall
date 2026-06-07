@@ -94,7 +94,7 @@ export function RecordPaymentModal({
               tone="warning"
               icon={<AlertTriangle className="size-4" />}
               title="Amount exceeds outstanding"
-              description="The customer will be overpaid. You can issue store credit (+5% bonus) or refund the difference."
+              description="The customer will be overpaid. You can refund the difference."
             />
           )}
 

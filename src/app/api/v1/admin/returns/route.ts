@@ -124,6 +124,19 @@ export async function POST(req: NextRequest) {
           "This order has no customer. Add the customer's name and phone to record the return.",
       });
     }
+    // Normalise the captured contact phone up-front so an invalid value (e.g. a
+    // walk-in/POS placeholder like "Walk-in") is a clean 400, not a 500 thrown
+    // mid-transaction.
+    let contactPhone: string | null = null;
+    if (!order.customerId && body.contact) {
+      try {
+        contactPhone = normaliseNigerianPhone(body.contact.phone);
+      } catch {
+        throw new ValidationError({
+          "contact.phone": "Enter a valid Nigerian phone number for the customer.",
+        });
+      }
+    }
 
     // Outside-window flag (per CLAUDE.md §20). Doesn't block — just records the
     // fact for the audit + UI alert.
@@ -190,8 +203,8 @@ export async function POST(req: NextRequest) {
         // from the captured contact (and backfill the order so it's no longer a
         // guest). The non-customer / contact-missing cases were validated above.
         let customerId = order.customerId;
-        if (!customerId && body.contact) {
-          const phone = normaliseNigerianPhone(body.contact.phone);
+        if (!customerId && body.contact && contactPhone) {
+          const phone = contactPhone;
           const existing = await tx.customer.findUnique({ where: { phone } });
           if (existing?.blacklisted) {
             throw new ConflictError("Customer is blacklisted — escalate to manager");

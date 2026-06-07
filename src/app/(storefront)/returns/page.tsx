@@ -37,7 +37,7 @@ export default function ReturnsPage() {
             "Open your order from /account/orders and tap 'Request return'. Pick the items and tell us briefly why.",
             "We confirm by WhatsApp within an hour during business hours. If your address is in Lagos we schedule a free pickup.",
             "We inspect the items in our warehouse — usually same-day after they arrive.",
-            "Refund issued within 7 working days to your original payment method. Bank transfers, card refunds, or store credit (+5%) at your choice.",
+            "Refund issued within 7 working days to your original payment method, or by bank transfer if you prefer.",
           ].map((step, i) => (
             <li key={i} className="flex gap-4">
               <div className="size-8 flex-shrink-0 rounded-full bg-brand-primary text-brand-primary-fg flex items-center justify-center font-bold text-sm">
@@ -68,7 +68,7 @@ export default function ReturnsPage() {
             items={[
               "Opened beauty, food, and personal-care items",
               "Custom or bespoke orders",
-              "Gift cards and store credit",
+              "Gift cards",
               "Anything returned outside the 14-day window",
             ]}
           />
