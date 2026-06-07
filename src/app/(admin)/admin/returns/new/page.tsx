@@ -21,16 +21,14 @@ async function loadOrder(number: string): Promise<LoadedOrder | { error: string 
     },
   });
   if (!order) return { error: `No order found with number "${number}".` };
-  if (!order.customerId) {
-    return {
-      error: `Order ${number} has no linked customer — counter returns need a customer record.`,
-    };
-  }
 
   return {
     number: order.number,
     createdAt: order.createdAt.toISOString(),
     deliveredAt: order.deliveredAt?.toISOString() ?? null,
+    // Guest / walk-in / POS orders have no linked customer; the form captures
+    // one so the return can still be recorded.
+    hasCustomer: !!order.customerId,
     customer: {
       name: order.customer?.name ?? order.shipName,
       phone: order.customer?.phone ?? order.shipPhone,

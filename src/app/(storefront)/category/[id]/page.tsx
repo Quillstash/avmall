@@ -8,6 +8,7 @@ import {
   listProducts,
 } from "@/lib/data/products";
 import { SITE } from "@/lib/site";
+import { getStorefrontStoreId } from "@/lib/store";
 import { CategoryToolbar } from "./toolbar";
 import { CategorySidebar } from "./sidebar";
 
@@ -54,7 +55,11 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const onSaleOnly = searchParams.onSale === "1";
   const hasFilters = minKobo != null || maxKobo != null || inStockOnly || onSaleOnly;
 
-  let products = await listProducts({ category: params.id });
+  const storeId = await getStorefrontStoreId();
+  let products = await listProducts({
+    category: params.id,
+    ...(storeId ? { storeId } : {}),
+  });
 
   // Apply filters in-memory — the catalogue is small enough today that we
   // don't need to push these into Prisma. Move into listProducts if the
@@ -71,7 +76,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     });
   } else if (products.length < 8) {
     // Pad to keep the grid lively when a fresh unfiltered category is sparse.
-    const pool = await listProducts({ limit: 8 });
+    const pool = await listProducts({ limit: 8, ...(storeId ? { storeId } : {}) });
     const ids = new Set(products.map((p) => p.id));
     for (const p of pool) {
       if (products.length >= 8) break;

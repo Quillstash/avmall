@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Plus,
+  ScanLine,
   Download,
   ArrowUp,
   ArrowDown,
@@ -17,6 +18,12 @@ import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
 import { LineChart, DonutChart } from "@/components/ui/charts";
 import { getDashboard, type DashboardData } from "@/lib/data/dashboard";
+import {
+  getRevenueReport,
+  resolveRevenueRange,
+  revenueReportArg,
+} from "@/lib/data/reports";
+import { RevenueRangePicker } from "@/components/admin/revenue-range-picker";
 import { formatMoney } from "@/lib/money";
 import type { OrderListRow } from "@/lib/data/orders";
 import { cn } from "@/lib/utils";
@@ -24,8 +31,28 @@ import { cn } from "@/lib/utils";
 // Hit on every request so the KPIs reflect the live state.
 export const dynamic = "force-dynamic";
 
-export default async function AdminDashboardPage() {
-  const data = await getDashboard();
+function fmtDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Africa/Lagos",
+  });
+}
+
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: { range?: string; from?: string; to?: string };
+}) {
+  const resolved = resolveRevenueRange(searchParams);
+  const [data, revenue] = await Promise.all([
+    getDashboard(),
+    getRevenueReport(revenueReportArg(resolved)),
+  ]);
+  const revenueLabel = resolved.isCustom
+    ? `${fmtDay(revenue.from)} – ${fmtDay(revenue.to)}`
+    : `last ${resolved.presetRange} days`;
   return (
     <>
       <AdminTopBar breadcrumbs={[{ label: "Dashboard" }]} />
@@ -53,8 +80,13 @@ export default async function AdminDashboardPage() {
                   <Download className="size-3.5" /> Export
                 </Button>
                 <Link href="/admin/orders/new">
-                  <Button size="sm">
+                  <Button variant="secondary" size="sm">
                     <Plus className="size-3.5" /> New order
+                  </Button>
+                </Link>
+                <Link href="/admin/pos">
+                  <Button size="sm">
+                    <ScanLine className="size-3.5" /> Open register
                   </Button>
                 </Link>
               </>
@@ -106,8 +138,18 @@ export default async function AdminDashboardPage() {
 
           {/* Chart + donut */}
           <div className="grid lg:grid-cols-[1.7fr_1fr] gap-3.5 mb-5">
-            <Card title="Revenue · last 30 days">
-              <RevenueChart series={data.revenueSeries} />
+            <Card
+              title="Revenue"
+              actions={
+                <RevenueRangePicker
+                  basePath="/admin"
+                  activeRange={resolved.isCustom ? null : resolved.presetRange}
+                  from={resolved.from}
+                  to={resolved.to}
+                />
+              }
+            >
+              <RevenueChart series={revenue.byDay} label={revenueLabel} />
             </Card>
             <Card title="Orders by status">
               <Donut data={data.ordersByStatus} />
@@ -275,7 +317,13 @@ function Card({
   );
 }
 
-function RevenueChart({ series }: { series: DashboardData["revenueSeries"] }) {
+function RevenueChart({
+  series,
+  label,
+}: {
+  series: { date: string; revenueKobo: number }[];
+  label: string;
+}) {
   // The series is in kobo; convert to whole-Naira values for the chart so the
   // axis numbers stay readable.
   const data = series.map((s) => s.revenueKobo / 100);
@@ -298,7 +346,7 @@ function RevenueChart({ series }: { series: DashboardData["revenueSeries"] }) {
         <span className="text-[28px] font-bold tracking-tight tabular">
           {formatMoney(total)}
         </span>
-        <span className="text-xs text-fg-muted">last 30 days</span>
+        <span className="text-xs text-fg-muted">{label}</span>
       </div>
       {data.every((d) => d === 0) ? (
         <div className="h-[200px] flex items-center justify-center text-sm text-fg-muted">

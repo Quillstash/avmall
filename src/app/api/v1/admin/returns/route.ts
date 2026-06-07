@@ -34,6 +34,8 @@ import { db, hasDatabase } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
+import { getMainStoreId } from "@/lib/store";
+import { normaliseNigerianPhone } from "@/lib/phone";
 import { nextReturnNumber } from "@/lib/return-number";
 import { emailOnReturnReceived } from "@/lib/return-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
@@ -64,6 +66,18 @@ const bodySchema = z.object({
   reason: z.string().min(1, "A reason is required"),
   refundMethod: z.enum(["original", "transfer"]),
   internalNote: z.string().max(2000).optional(),
+  /**
+   * Customer to attach to the return. Required only when the order has no
+   * linked customer (guest / walk-in / POS). Find-or-created by phone, and
+   * backfilled onto the order so it's no longer a guest order.
+   */
+  contact: z
+    .object({
+      name: z.string().min(1, "Customer name is required"),
+      phone: z.string().min(7, "Customer phone is required"),
+      email: z.string().email().optional(),
+    })
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -98,13 +112,17 @@ export async function POST(req: NextRequest) {
       },
     });
     if (!order) throw new NotFoundError(`Order ${body.orderNumber}`);
-    if (!order.customerId || !order.customer) {
-      throw new ConflictError(
-        "Order has no linked customer — guest walk-ins can't be returned via this flow yet",
-      );
-    }
-    if (order.customer.blacklisted) {
+    if (order.customer?.blacklisted) {
       throw new ConflictError("Customer is blacklisted — escalate to manager");
+    }
+    // Counter returns record a customer on the Return row. Most orders have
+    // one; guest / walk-in / POS orders (no linked customer) require staff to
+    // capture the customer's details here so we can create the record.
+    if (!order.customerId && !body.contact) {
+      throw new ValidationError({
+        contact:
+          "This order has no customer. Add the customer's name and phone to record the return.",
+      });
     }
 
     // Outside-window flag (per CLAUDE.md §20). Doesn't block — just records the
@@ -168,13 +186,41 @@ export async function POST(req: NextRequest) {
 
     const result = await db.$transaction(
       async (tx) => {
+        // Resolve the customer for the return: the order's, else find-or-create
+        // from the captured contact (and backfill the order so it's no longer a
+        // guest). The non-customer / contact-missing cases were validated above.
+        let customerId = order.customerId;
+        if (!customerId && body.contact) {
+          const phone = normaliseNigerianPhone(body.contact.phone);
+          const existing = await tx.customer.findUnique({ where: { phone } });
+          if (existing?.blacklisted) {
+            throw new ConflictError("Customer is blacklisted — escalate to manager");
+          }
+          const customer =
+            existing ??
+            (await tx.customer.create({
+              data: {
+                phone,
+                name: body.contact.name.trim(),
+                email: body.contact.email ?? null,
+              },
+            }));
+          customerId = customer.id;
+          await tx.order.update({ where: { id: order.id }, data: { customerId } });
+        }
+        if (!customerId) {
+          throw new ValidationError({
+            contact: "Customer details are required to record this return.",
+          });
+        }
+
         const number = await nextReturnNumber(tx);
 
         const created = await tx.return.create({
           data: {
             number,
             orderId: order.id,
-            customerId: order.customerId!,
+            customerId,
             // Counter return: item is already in hand, so we open it past
             // `requested` and `in_transit` straight to `received`.
             status: "received",
@@ -197,17 +243,29 @@ export async function POST(req: NextRequest) {
           include: { lines: true },
         });
 
-        // Restock — only when the variant exists and the line opted in.
+        // Restock — into the order's store, only when the variant exists and
+        // the line opted in. Upsert so a store without a row yet gets one.
+        const restockStoreId = order.storeId ?? (await getMainStoreId());
         for (const p of prepared) {
-          if (!p.restock || !p.variantId) continue;
-          const v = await tx.productVariant.findUnique({
-            where: { id: p.variantId },
-            select: { onHand: true, label: true, sku: true },
+          if (!p.restock || !p.variantId || !restockStoreId) continue;
+          const ss = await tx.storeStock.findUnique({
+            where: {
+              storeId_variantId: { storeId: restockStoreId, variantId: p.variantId },
+            },
+            select: { onHand: true },
           });
-          if (!v) continue;
-          await tx.productVariant.update({
-            where: { id: p.variantId },
-            data: { onHand: { increment: p.quantity } },
+          const prev = ss?.onHand ?? 0;
+          await tx.storeStock.upsert({
+            where: {
+              storeId_variantId: { storeId: restockStoreId, variantId: p.variantId },
+            },
+            update: { onHand: { increment: p.quantity } },
+            create: {
+              storeId: restockStoreId,
+              variantId: p.variantId,
+              onHand: p.quantity,
+              reserved: 0,
+            },
           });
           await writeAudit(
             {
@@ -216,10 +274,11 @@ export async function POST(req: NextRequest) {
               action: "product.stock_adjust",
               entityType: "product_variant",
               entityId: p.variantId,
-              before: { onHand: v.onHand },
-              after: { onHand: v.onHand + p.quantity },
+              before: { onHand: prev },
+              after: { onHand: prev + p.quantity },
               metadata: {
                 reason: "return",
+                storeId: restockStoreId,
                 returnId: created.id,
                 returnNumber: number,
                 orderNumber: body.orderNumber,

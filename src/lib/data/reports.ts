@@ -11,6 +11,9 @@ import { db, hasDatabase, withRetry } from "@/lib/db";
 
 export interface RevenueReport {
   rangeDays: number;
+  /** ISO bounds of the window actually used (after preset/custom resolution). */
+  from: string;
+  to: string;
   totalRevenueKobo: number;
   totalOrders: number;
   aovKobo: number;
@@ -19,10 +22,77 @@ export interface RevenueReport {
   byChannel: { source: string; revenueKobo: number; orderCount: number }[];
 }
 
-export async function getRevenueReport(rangeDays = 30): Promise<RevenueReport> {
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Cap the daily chart so a huge custom range can't blow up the bucket loop. */
+const MAX_CHART_DAYS = 400;
+
+function lagosDayKey(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Lagos",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
+ * Parse revenue range search params (?range=N or ?from=…&to=…) into a resolved
+ * shape both the dashboard and the revenue report can use.
+ */
+export function resolveRevenueRange(sp: {
+  range?: string;
+  from?: string;
+  to?: string;
+}): { isCustom: boolean; presetRange: number; from: string; to: string } {
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const f = sp.from;
+  const t = sp.to;
+  const isCustom =
+    !!f &&
+    !!t &&
+    dateRe.test(f) &&
+    dateRe.test(t) &&
+    !Number.isNaN(Date.parse(f)) &&
+    !Number.isNaN(Date.parse(t));
+  const n = Number(sp.range);
+  const presetRange = [7, 30, 90].includes(n) ? n : 30;
+  return { isCustom, presetRange, from: f ?? "", to: t ?? "" };
+}
+
+/** Turn a resolved range into the argument getRevenueReport expects. */
+export function revenueReportArg(
+  r: ReturnType<typeof resolveRevenueRange>,
+): { from: Date; to: Date } | number {
+  return r.isCustom
+    ? { from: new Date(`${r.from}T00:00:00`), to: new Date(`${r.to}T23:59:59.999`) }
+    : r.presetRange;
+}
+
+/**
+ * Revenue report for a preset day-count OR an explicit { from, to } window.
+ * Pass a number for "last N days" (backwards-compatible), or a date range for
+ * the custom picker.
+ */
+export async function getRevenueReport(
+  range: { from: Date; to: Date } | number = 30,
+): Promise<RevenueReport> {
+  const now = new Date();
+  let from: Date;
+  let to: Date;
+  if (typeof range === "number") {
+    to = now;
+    from = new Date(now.getTime() - (Math.max(1, range) - 1) * DAY_MS);
+  } else {
+    // Guard against a reversed range.
+    from = range.from <= range.to ? range.from : range.to;
+    to = range.from <= range.to ? range.to : range.from;
+  }
+
   if (!hasDatabase) {
     return {
-      rangeDays,
+      rangeDays: 0,
+      from: from.toISOString(),
+      to: to.toISOString(),
       totalRevenueKobo: 0,
       totalOrders: 0,
       aovKobo: 0,
@@ -32,13 +102,11 @@ export async function getRevenueReport(rangeDays = 30): Promise<RevenueReport> {
     };
   }
 
-  const since = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
-
   const [orders, payments] = await Promise.all([
     withRetry(() =>
       db.order.findMany({
         where: {
-          createdAt: { gte: since },
+          createdAt: { gte: from, lte: to },
           status: { notIn: ["cancelled"] },
         },
         select: {
@@ -51,7 +119,7 @@ export async function getRevenueReport(rangeDays = 30): Promise<RevenueReport> {
     withRetry(() =>
       db.orderPayment.findMany({
         where: {
-          createdAt: { gte: since },
+          createdAt: { gte: from, lte: to },
           status: "completed",
         },
         select: { method: true, amountKobo: true },
@@ -66,26 +134,19 @@ export async function getRevenueReport(rangeDays = 30): Promise<RevenueReport> {
   const totalOrders = orders.length;
   const aovKobo = totalOrders > 0 ? Math.round(totalRevenueKobo / totalOrders) : 0;
 
-  // Bucket by Lagos calendar day.
+  // Bucket by Lagos calendar day across the window (capped).
   const dayMap = new Map<string, { revenueKobo: number; orderCount: number }>();
-  for (let i = rangeDays - 1; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    const key = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Africa/Lagos",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
-    dayMap.set(key, { revenueKobo: 0, orderCount: 0 });
+  let cursor = from.getTime();
+  for (let i = 0; i < MAX_CHART_DAYS && cursor <= to.getTime(); i++) {
+    dayMap.set(lagosDayKey(new Date(cursor)), { revenueKobo: 0, orderCount: 0 });
+    cursor += DAY_MS;
+  }
+  // Make sure the final day is represented even on a partial-day boundary.
+  if (!dayMap.has(lagosDayKey(to))) {
+    dayMap.set(lagosDayKey(to), { revenueKobo: 0, orderCount: 0 });
   }
   for (const o of orders) {
-    const key = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Africa/Lagos",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(o.createdAt);
-    const slot = dayMap.get(key);
+    const slot = dayMap.get(lagosDayKey(o.createdAt));
     if (slot) {
       slot.revenueKobo += Number(o.totalKobo);
       slot.orderCount += 1;
@@ -111,7 +172,9 @@ export async function getRevenueReport(rangeDays = 30): Promise<RevenueReport> {
   }
 
   return {
-    rangeDays,
+    rangeDays: dayMap.size,
+    from: from.toISOString(),
+    to: to.toISOString(),
     totalRevenueKobo,
     totalOrders,
     aovKobo,
@@ -165,8 +228,10 @@ export async function getInventoryReport(): Promise<InventoryReport> {
         name: true,
         brand: true,
         priceKobo: true,
+        saleKobo: true,
+        saleActive: true,
         costPriceKobo: true,
-        variants: { select: { onHand: true } },
+        variants: { select: { storeStock: { select: { onHand: true } } } },
       },
     }),
   );
@@ -178,9 +243,17 @@ export async function getInventoryReport(): Promise<InventoryReport> {
   const lowStockRows: InventoryReport["lowStockRows"] = [];
 
   for (const p of products) {
-    const stock = p.variants.reduce((a, v) => a + v.onHand, 0);
+    const stock = p.variants.reduce(
+      (a, v) => a + v.storeStock.reduce((b, s) => b + s.onHand, 0),
+      0,
+    );
     const cost = Number(p.costPriceKobo);
-    const price = Number(p.priceKobo);
+    // Effective price: the sale price when the item is on sale, else the
+    // regular price. Retail value + projected profit are based on this.
+    const price =
+      p.saleActive && p.saleKobo != null
+        ? Number(p.saleKobo)
+        : Number(p.priceKobo);
     totalCostKobo += cost * stock;
     totalRetailKobo += price * stock;
     if (stock === 0) {

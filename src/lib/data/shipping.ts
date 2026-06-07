@@ -17,7 +17,6 @@ export interface ShippingZoneView {
   baseRateKobo: number;
   freeOverKobo: number | null;
   etaDays: string;
-  priority: number;
   active: boolean;
   /** Other zones that cover any of the same states. Computed client-side. */
   overlapsWith?: string[];
@@ -48,12 +47,11 @@ export async function listShippingZones(): Promise<ShippingZoneView[]> {
       baseRateKobo: z.baseRateKobo,
       freeOverKobo: z.freeOverKobo,
       etaDays: z.etaDays,
-      priority: ("priority" in z && typeof z.priority === "number" ? z.priority : 100),
       active: z.active,
     })));
   }
   const rows = await db.shippingZone.findMany({
-    orderBy: [{ priority: "asc" }, { name: "asc" }],
+    orderBy: { name: "asc" },
   });
   const view: ShippingZoneView[] = rows.map((z) => ({
     id: z.id,
@@ -62,7 +60,6 @@ export async function listShippingZones(): Promise<ShippingZoneView[]> {
     baseRateKobo: Number(z.baseRateKobo),
     freeOverKobo: z.freeOverKobo == null ? null : Number(z.freeOverKobo),
     etaDays: z.etaDays,
-    priority: z.priority,
     active: z.active,
   }));
   return annotateOverlaps(view);
@@ -79,4 +76,30 @@ export async function getFallbackShipping(): Promise<FallbackShippingView | null
     flatRateKobo: Number(row.flatRateKobo),
     etaDays: row.etaDays,
   };
+}
+
+export interface CourierView {
+  id: string;
+  name: string;
+  active: boolean;
+  isPrimary: boolean;
+  phone: string | null;
+  trackingUrl: string | null;
+  note: string | null;
+}
+
+export async function listCouriers(): Promise<CourierView[]> {
+  if (!hasDatabase) return [];
+  const rows = await db.courier.findMany({
+    orderBy: [{ isPrimary: "desc" }, { position: "asc" }, { name: "asc" }],
+  });
+  return rows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    active: c.active,
+    isPrimary: c.isPrimary,
+    phone: c.phone,
+    trackingUrl: c.trackingUrl,
+    note: c.note,
+  }));
 }

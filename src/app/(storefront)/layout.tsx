@@ -3,6 +3,7 @@ import { StorefrontFooter } from "@/components/storefront/footer";
 import { Toaster } from "@/components/ui/toaster";
 import { PaymentRecovery } from "@/components/storefront/payment-recovery";
 import { SITE } from "@/lib/site";
+import { listActiveStores, getStorefrontStore } from "@/lib/store";
 
 // Organisation JSON-LD — Google reads this once for the whole site.
 // Lives on the storefront layout so it appears on every customer-facing page.
@@ -36,14 +37,20 @@ const ORG_SCHEMA = {
   },
 };
 
-export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
+export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
+  // Stores + the customer's selected store drive the per-store storefront.
+  const [stores, current] = await Promise.all([
+    listActiveStores(),
+    getStorefrontStore(),
+  ]);
+
   return (
     <div className="min-h-screen flex flex-col bg-bg">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_SCHEMA) }}
       />
-      <TopNav />
+      <TopNav stores={stores} currentStoreSlug={current?.slug ?? null} />
       <PaymentRecovery />
       <main className="flex-1">{children}</main>
       <StorefrontFooter />

@@ -4,21 +4,38 @@ import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Money } from "@/components/ui/money";
 import { LineChart } from "@/components/ui/charts";
-import { getRevenueReport } from "@/lib/data/reports";
+import {
+  getRevenueReport,
+  resolveRevenueRange,
+  revenueReportArg,
+} from "@/lib/data/reports";
 import { formatMoney } from "@/lib/money";
+import { RevenueRangePicker } from "@/components/admin/revenue-range-picker";
 
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: { range?: string };
+  searchParams: { range?: string; from?: string; to?: string };
+}
+
+function fmtDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Africa/Lagos",
+  });
 }
 
 export default async function RevenueReportPage({ searchParams }: PageProps) {
-  const range = (() => {
-    const n = Number(searchParams.range);
-    return [7, 30, 90].includes(n) ? n : 30;
-  })();
-  const data = await getRevenueReport(range);
+  const resolved = resolveRevenueRange(searchParams);
+  const { isCustom, presetRange } = resolved;
+  const data = await getRevenueReport(revenueReportArg(resolved));
+
+  const subtitle = isCustom
+    ? `${fmtDay(data.from)} – ${fmtDay(data.to)}`
+    : `Last ${presetRange} days`;
+  const range = presetRange;
 
   const series = data.byDay.map((d) => d.revenueKobo / 100);
   const labels = data.byDay.map((d, i) =>
@@ -43,28 +60,23 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
         <div className="p-6 max-w-[1200px] mx-auto">
           <PageHeader
             title="Revenue & sales"
-            subtitle={`Last ${range} days`}
+            subtitle={subtitle}
             actions={
-              <div className="inline-flex p-0.5 bg-surface-2 rounded-md text-xs font-semibold">
-                {[7, 30, 90].map((d) => (
-                  <Link
-                    key={d}
-                    href={`/admin/reports/revenue?range=${d}`}
-                    className={
-                      d === range
-                        ? "px-2.5 py-1 rounded-sm bg-surface shadow-sm text-fg"
-                        : "px-2.5 py-1 rounded-sm text-fg-muted"
-                    }
-                  >
-                    {d}d
-                  </Link>
-                ))}
-              </div>
+              <RevenueRangePicker
+                basePath="/admin/reports/revenue"
+                activeRange={isCustom ? null : presetRange}
+                from={resolved.from}
+                to={resolved.to}
+              />
             }
           />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-5">
-            <KpiCard label="Revenue" value={formatMoney(data.totalRevenueKobo)} sub={`${range} days`} />
+            <KpiCard
+              label="Revenue"
+              value={formatMoney(data.totalRevenueKobo)}
+              sub={isCustom ? "selected range" : `${range} days`}
+            />
             <KpiCard label="Orders" value={String(data.totalOrders)} sub="non-cancelled" />
             <KpiCard label="AOV" value={formatMoney(data.aovKobo)} sub="per order" />
           </div>

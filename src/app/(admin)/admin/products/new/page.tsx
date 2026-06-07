@@ -18,7 +18,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { CodeInput } from "@/components/ui/code-input";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toaster";
-import { CATEGORIES, type BulkTier, type ProductCategoryId } from "@/lib/mock-data";
+import { CATEGORIES, type BulkTier } from "@/lib/mock-data";
 import { Money } from "@/components/ui/money";
 import { ProfitDisplay } from "@/components/admin/profit-display";
 import {
@@ -44,7 +44,13 @@ export default function AdminNewProductPage() {
 
   const [name, setName] = React.useState("");
   const [brand, setBrand] = React.useState("");
-  const [category, setCategory] = React.useState<ProductCategoryId>("home");
+  const [category, setCategory] = React.useState<string>("home");
+  const [categories, setCategories] = React.useState<{ slug: string; name: string }[]>(
+    () => CATEGORIES.map((c) => ({ slug: c.id, name: c.name })),
+  );
+  const [addingCat, setAddingCat] = React.useState(false);
+  const [newCatName, setNewCatName] = React.useState("");
+  const [catSaving, setCatSaving] = React.useState(false);
   const [short, setShort] = React.useState("");
   const [longDesc, setLongDesc] = React.useState("");
   const [slug, setSlug] = React.useState("");
@@ -104,10 +110,56 @@ export default function AdminNewProductPage() {
     if (!slugTouched) setSlug(slugify(name));
   }, [name, slugTouched]);
 
+  // Load real categories from the DB so any newly-created ones appear too.
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/v1/admin/categories")
+      .then((r) => r.json())
+      .then((j) => {
+        if (alive && Array.isArray(j?.data?.categories) && j.data.categories.length) {
+          setCategories(j.data.categories);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function addCategory() {
+    const nm = newCatName.trim();
+    if (!nm) return;
+    setCatSaving(true);
+    try {
+      const res = await fetch("/api/v1/admin/categories", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: nm }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not add category");
+        return;
+      }
+      const cat = json.data.category as { slug: string; name: string };
+      setCategories((prev) =>
+        prev.some((c) => c.slug === cat.slug) ? prev : [...prev, cat],
+      );
+      setCategory(cat.slug);
+      setAddingCat(false);
+      setNewCatName("");
+      toast.success(`Category "${cat.name}" added`);
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setCatSaving(false);
+    }
+  }
+
   // Per-field validation
   const fieldErrors = {
     name: !name.trim() ? "Required" : null,
-    brand: !brand.trim() ? "Required" : null,
+    brand: null, // optional
     price:
       priceKobo == null || priceKobo <= 0
         ? "Required — must be greater than zero"
@@ -275,28 +327,75 @@ export default function AdminNewProductPage() {
                       autoFocus
                     />
                   </Field>
-                  <Field id="brand" label="Brand" required error={showErr("brand")}>
+                  <Field id="brand" label="Brand" optional>
                     <Input
                       id="brand"
                       value={brand}
                       onChange={(e) => setBrand(e.target.value)}
-                      onBlur={() => markTouched("brand")}
                       placeholder="e.g. Oraimo, Itel, Kenwood"
-                      invalid={!!showErr("brand")}
                     />
                   </Field>
                   <Field id="category" label="Category" required>
-                    <Select
-                      id="category"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as ProductCategoryId)}
-                    >
-                      {CATEGORIES.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </Select>
+                    {addingCat ? (
+                      <div className="flex gap-2">
+                        <Input
+                          id="new-category"
+                          autoFocus
+                          value={newCatName}
+                          onChange={(e) => setNewCatName(e.target.value)}
+                          placeholder="New category name"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void addCategory();
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={addCategory}
+                          disabled={catSaving || !newCatName.trim()}
+                          loading={catSaving}
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setAddingCat(false);
+                            setNewCatName("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Select
+                          id="category"
+                          value={category}
+                          onChange={(e) => setCategory(e.target.value)}
+                          className="flex-1"
+                        >
+                          {categories.map((c) => (
+                            <option key={c.slug} value={c.slug}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </Select>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setAddingCat(true)}
+                        >
+                          <Plus className="size-3.5" /> New
+                        </Button>
+                      </div>
+                    )}
                   </Field>
                   <Field
                     id="short"
@@ -516,7 +615,11 @@ export default function AdminNewProductPage() {
                   onChange={setMatrix}
                   productPriceKobo={priceKobo ?? 0}
                   productCostKobo={costKobo ?? 0}
-                  skuPrefix={(brand.slice(0, 3) + "-" + (slug || slugify(name))).toUpperCase()}
+                  skuPrefix={
+                    (((brand.trim() || name).replace(/[^a-zA-Z0-9]/g, "").slice(0, 3) || "AVM") +
+                      "-" +
+                      (slug || slugify(name))).toUpperCase()
+                  }
                 />
                 {!hasMatrix && (
                   <div className="mt-4 max-w-sm">

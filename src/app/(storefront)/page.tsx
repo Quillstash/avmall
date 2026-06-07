@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/storefront/product-card";
 import { NewsletterSignup } from "@/components/storefront/newsletter-signup";
 import { listProducts } from "@/lib/data/products";
+import { getStorefrontStoreId } from "@/lib/store";
 import { SITE } from "@/lib/site";
 
 // Live product data — revalidate every 5 min so first request after a cold
@@ -58,7 +59,12 @@ const CATEGORY_VISUALS = [
 ];
 
 export default async function HomePage() {
-  const all = await listProducts({ limit: 8, featuredFirst: true });
+  const storeId = await getStorefrontStoreId();
+  const all = await listProducts({
+    limit: 8,
+    featuredFirst: true,
+    ...(storeId ? { storeId } : {}),
+  });
   const newArrivals = all.slice(0, 4);
   const bestsellers = all.slice(4, 8).length === 4 ? all.slice(4, 8) : all.slice(0, 4);
 

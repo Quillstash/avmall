@@ -28,12 +28,24 @@ import type {
   ProductImage as DbProductImage,
 } from "@prisma/client";
 
+type DbVariantWithStock = DbVariant & {
+  storeStock: { onHand: number; reserved: number }[];
+};
+
 type DbProductWith = DbProduct & {
-  variants: DbVariant[];
+  variants: DbVariantWithStock[];
   bulkTiers: DbBulkTier[];
   category: DbCategoryRow;
   images?: DbProductImage[];
 };
+
+/**
+ * Total on-hand for a variant across whatever store_stock rows were loaded —
+ * one store when the query scoped by storeId, all stores (aggregate) when not.
+ */
+function variantStock(v: { storeStock?: { onHand: number }[] }): number {
+  return (v.storeStock ?? []).reduce((a, s) => a + s.onHand, 0);
+}
 
 /** Compose the public URL for an R2 key. Returns null when R2 isn't
  *  configured, so the legacy CloudFront fallback can step in. */
@@ -76,7 +88,7 @@ function productFromDb(p: DbProductWith): Product {
     cost: Number(p.costPriceKobo),
     ...(p.saleKobo != null && { sale: Number(p.saleKobo) }),
     saleActive: p.saleActive,
-    stock: p.variants.reduce((a, v) => a + v.onHand, 0),
+    stock: p.variants.reduce((a, v) => a + variantStock(v), 0),
     rating: 4.7,
     reviews: 0,
     bulk: p.bulkTiers.map((t) => ({
@@ -88,7 +100,7 @@ function productFromDb(p: DbProductWith): Product {
     variants: p.variants.map((v) => ({
       id: v.id,
       label: v.label,
-      stock: v.onHand,
+      stock: variantStock(v),
       price: v.priceKobo == null ? null : Number(v.priceKobo),
       ...(v.option1Value && { option1Value: v.option1Value }),
       ...(v.option2Value && { option2Value: v.option2Value }),
@@ -202,6 +214,12 @@ export async function listProducts(opts?: {
   includeUnpublished?: boolean;
   /** Free-text search across name/brand/slug (case-insensitive substring). */
   search?: string;
+  /**
+   * Scope stock + availability to one store. When set, only products stocked
+   * at that store are returned and `stock` reflects that store. When omitted,
+   * stock is the sum across all stores (admin aggregate view).
+   */
+  storeId?: string;
 }): Promise<Product[]> {
   const q = opts?.search?.trim().toLowerCase();
 
@@ -236,7 +254,14 @@ export async function listProducts(opts?: {
     db.product.findMany({
       where,
       include: {
-        variants: { orderBy: { position: "asc" } },
+        variants: {
+          orderBy: { position: "asc" },
+          include: {
+            storeStock: opts?.storeId
+              ? { where: { storeId: opts.storeId } }
+              : true,
+          },
+        },
         bulkTiers: true,
         category: true,
         images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }] },
@@ -248,10 +273,19 @@ export async function listProducts(opts?: {
     }),
   );
 
-  return products.map((p) => finalize(p as DbProductWith));
+  // Store-scoped view: hide products not stocked at the selected store (a
+  // product is "in" a store when it has at least one store_stock row there).
+  const visible = opts?.storeId
+    ? products.filter((p) => p.variants.some((v) => v.storeStock.length > 0))
+    : products;
+
+  return visible.map((p) => finalize(p as DbProductWith));
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+export async function getProductBySlug(
+  slug: string,
+  storeId?: string,
+): Promise<Product | null> {
   if (!hasDatabase) {
     return MOCK_PRODUCTS.find((p) => p.slug === slug) ?? null;
   }
@@ -259,7 +293,12 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     db.product.findUnique({
       where: { slug },
       include: {
-        variants: { orderBy: { position: "asc" } },
+        variants: {
+          orderBy: { position: "asc" },
+          include: {
+            storeStock: storeId ? { where: { storeId } } : true,
+          },
+        },
         bulkTiers: true,
         category: true,
         images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }] },
@@ -300,6 +339,7 @@ export interface ProductSearchHit {
 export async function searchProducts(
   query: string,
   limit = 8,
+  storeId?: string,
 ): Promise<ProductSearchHit[]> {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
@@ -338,7 +378,14 @@ export async function searchProducts(
         ],
       },
       include: {
-        variants: { select: { onHand: true } },
+        variants: {
+          select: {
+            storeStock: {
+              ...(storeId ? { where: { storeId } } : {}),
+              select: { onHand: true },
+            },
+          },
+        },
         category: { select: { slug: true } },
         images: {
           orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
@@ -351,21 +398,27 @@ export async function searchProducts(
     }),
   );
 
-  return rows.map((p) => {
-    const r2Url = p.images[0] ? publicUrlForKey(p.images[0].key) : null;
-    return {
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      brand: p.brand,
-      imageUrl: r2Url ?? defaultImageFor(p.slug),
-      priceKobo: Number(p.priceKobo),
-      saleKobo: p.saleKobo == null ? null : Number(p.saleKobo),
-      saleActive: p.saleActive,
-      category: p.category.slug,
-      stock: p.variants.reduce((a, v) => a + v.onHand, 0),
-    };
-  });
+  return rows
+    // Store-scoped search hides products not stocked at that store.
+    .filter((p) => (storeId ? p.variants.some((v) => v.storeStock.length > 0) : true))
+    .map((p) => {
+      const r2Url = p.images[0] ? publicUrlForKey(p.images[0].key) : null;
+      return {
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        brand: p.brand,
+        imageUrl: r2Url ?? defaultImageFor(p.slug),
+        priceKobo: Number(p.priceKobo),
+        saleKobo: p.saleKobo == null ? null : Number(p.saleKobo),
+        saleActive: p.saleActive,
+        category: p.category.slug,
+        stock: p.variants.reduce(
+          (a, v) => a + v.storeStock.reduce((b, s) => b + s.onHand, 0),
+          0,
+        ),
+      };
+    });
 }
 
 /**

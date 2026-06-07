@@ -120,6 +120,22 @@ async function main() {
     });
   }
 
+  console.log("→ Seeding Main store");
+  const mainStore = await db.store.upsert({
+    where: { slug: "main" },
+    update: {},
+    create: {
+      name: "Main Store",
+      slug: "main",
+      isMain: true,
+      active: true,
+      address: "14 Bourdillon Road",
+      city: "Ikoyi",
+      state: "Lagos",
+      phone: "+234 803 421 7790",
+    },
+  });
+
   console.log(`→ Seeding ${PRODUCTS.length} products from the mock catalogue`);
   // Wipe old rows whose slugs are no longer in the catalogue (idempotency).
   const keepSlugs = PRODUCTS.map((p) => p.slug);
@@ -184,11 +200,10 @@ async function main() {
     // derived from the variant id so re-seeding is idempotent.
     for (const [i, v] of p.variants.entries()) {
       const sku = v.id.toUpperCase();
-      await db.productVariant.upsert({
+      const variant = await db.productVariant.upsert({
         where: { sku },
         update: {
           label: v.label,
-          onHand: v.stock,
           priceKobo: v.price != null ? BigInt(v.price) : null,
           option1Value: v.option1Value ?? null,
           option2Value: v.option2Value ?? null,
@@ -199,11 +214,23 @@ async function main() {
           productId: created.id,
           label: v.label,
           sku,
-          onHand: v.stock,
           priceKobo: v.price != null ? BigInt(v.price) : null,
           option1Value: v.option1Value ?? null,
           option2Value: v.option2Value ?? null,
           position: i,
+        },
+      });
+      // Stock lives per store now — seed the Main store's shelf.
+      await db.storeStock.upsert({
+        where: {
+          storeId_variantId: { storeId: mainStore.id, variantId: variant.id },
+        },
+        update: { onHand: v.stock },
+        create: {
+          storeId: mainStore.id,
+          variantId: variant.id,
+          onHand: v.stock,
+          reserved: 0,
         },
       });
     }
@@ -224,13 +251,17 @@ async function main() {
   }
 
   console.log("→ Seeding super admin");
+  // System roles are created by the add_roles migration; link the admin to one.
+  const superRole = await db.role.findUnique({ where: { slug: "super_admin" } });
   await db.user.upsert({
     where: { email: "admin@avmall.ng" },
-    update: {},
+    update: { ...(superRole && { roleId: superRole.id }) },
     create: {
       email: "admin@avmall.ng",
       name: "Funmi A.",
       role: "super_admin",
+      ...(superRole && { roleId: superRole.id }),
+      storeId: mainStore.id,
       passwordHash: await bcrypt.hash("changeme", 10),
       totpEnabled: false,
     },

@@ -10,6 +10,7 @@ import { SITE } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { NavSearch } from "@/components/storefront/nav-search";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { StoreSwitcher, type StoreOption } from "@/components/storefront/store-switcher";
 
 const NAV_LINKS = [
   { href: "/category/phones", label: "Phones & Tablets" },
@@ -19,7 +20,13 @@ const NAV_LINKS = [
   { href: "/category/home", label: "Home & Kitchen" },
 ];
 
-export function TopNav() {
+export function TopNav({
+  stores = [],
+  currentStoreSlug = null,
+}: {
+  stores?: StoreOption[];
+  currentStoreSlug?: string | null;
+}) {
   const lines = useCart((s) => s.lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -31,6 +38,9 @@ export function TopNav() {
         {/* Top utility strip (desktop only) */}
         <div className="hidden lg:block border-b border-border">
           <div className="mx-auto max-w-7xl px-6 h-9 flex items-center gap-5 text-xs text-fg-muted">
+            {stores.length > 0 && (
+              <StoreSwitcher stores={stores} currentSlug={currentStoreSlug} />
+            )}
             <span>Free shipping on orders over ₦25,000 in Lagos</span>
             <span className="ml-auto">NGN ₦</span>
             <Link href="/faq" className="hover:text-fg">Help</Link>

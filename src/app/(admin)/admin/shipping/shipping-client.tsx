@@ -20,19 +20,23 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toaster";
+import { CouriersSection } from "./couriers-section";
 import type {
   ShippingZoneView,
   FallbackShippingView,
+  CourierView,
 } from "@/lib/data/shipping";
 
 interface ShippingClientProps {
   initialZones: ShippingZoneView[];
   initialFallback: FallbackShippingView | null;
+  initialCouriers: CourierView[];
 }
 
 export function ShippingClient({
   initialZones,
   initialFallback,
+  initialCouriers,
 }: ShippingClientProps) {
   const router = useRouter();
   const [zones, setZones] = React.useState<ShippingZoneView[]>(initialZones);
@@ -122,7 +126,7 @@ export function ShippingClient({
               tone="warning"
               icon={<AlertTriangle className="size-5" />}
               title="Overlapping zones detected"
-              description="Two or more zones share at least one state. The lower-priority zone wins at checkout — deactivate or merge the overlap to prevent surprises."
+              description="Two or more active zones cover the same state. Each state should have exactly one shipping price — merge or deactivate the overlapping zone so checkout is unambiguous."
               className="mb-5"
             />
           )}
@@ -267,22 +271,7 @@ export function ShippingClient({
                 )}
               </Card>
 
-              <Card title="Couriers">
-                <ul className="text-sm space-y-2.5">
-                  <li className="flex items-center justify-between">
-                    <span>GIG Logistics</span>
-                    <Badge tone="success">Primary</Badge>
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span>Sendbox</span>
-                    <Badge>Backup</Badge>
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span>DHL (international)</span>
-                    <Badge tone="neutral">Inactive</Badge>
-                  </li>
-                </ul>
-              </Card>
+              <CouriersSection couriers={initialCouriers} />
             </div>
           </div>
         </div>

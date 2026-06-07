@@ -30,6 +30,7 @@ import { nextOrderNumber } from "@/lib/order-number";
 import { writeAudit } from "@/lib/audit";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
+import { resolveStaffStoreId } from "@/lib/store";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { emailOnOrderCreated } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
@@ -113,12 +114,24 @@ export async function POST(req: NextRequest) {
     const shipState = body.shipping.state?.trim() || "Lagos";
     const shipPhone = normalizedPhone ?? "Walk-in";
 
+    // Staff-created orders draw from the operator's store.
+    const storeId = await resolveStaffStoreId(session);
+    if (!storeId) {
+      throw new AppError("NO_STORE", "No store assigned to this staff member.", 400);
+    }
+
     // Hydrate products by slug. Mock-data slugs match DB slugs, so the form's
     // mock-driven product picker can submit slugs without resolving UUIDs.
     const slugs = Array.from(new Set(body.items.map((i) => i.productSlug)));
     const products = await db.product.findMany({
       where: { slug: { in: slugs }, archivedAt: null, published: true },
-      include: { variants: { orderBy: { position: "asc" } }, bulkTiers: true },
+      include: {
+        variants: {
+          orderBy: { position: "asc" },
+          include: { storeStock: { where: { storeId } } },
+        },
+        bulkTiers: true,
+      },
     });
     const productBySlug = new Map(products.map((p) => [p.slug, p]));
 
@@ -126,8 +139,12 @@ export async function POST(req: NextRequest) {
       const p = productBySlug.get(item.productSlug);
       if (!p) throw new NotFoundError(`Product ${item.productSlug}`);
 
-      // Default to first variant with stock, falling back to the first variant.
-      const variant = p.variants.find((v) => v.onHand > 0) ?? p.variants[0];
+      // Default to a variant in stock at this store, else the first variant.
+      const variant =
+        p.variants.find((v) => {
+          const s = v.storeStock[0];
+          return s && s.onHand - s.reserved > 0;
+        }) ?? p.variants[0];
       if (!variant) throw new NotFoundError(`Variant for ${item.productSlug}`);
 
       const unitKobo = Number(
@@ -154,7 +171,7 @@ export async function POST(req: NextRequest) {
     let shippingZoneId: string | null = null;
     const zone = await db.shippingZone.findFirst({
       where: { active: true, states: { has: shipState } },
-      orderBy: { priority: "asc" },
+      orderBy: { createdAt: "asc" },
     });
     if (zone) {
       shippingZoneId = zone.id;
@@ -172,9 +189,10 @@ export async function POST(req: NextRequest) {
 
     const order = await db.$transaction(
       async (tx) => {
-        // Reserve stock (SELECT FOR UPDATE per CLAUDE.md §6).
+        // Reserve stock at the operator's store (SELECT FOR UPDATE per §6).
         await reserveStock(
           tx,
+          storeId,
           inputLines.map((l) => ({
             productId: l.productId,
             variantId: l.variantId,
@@ -189,6 +207,7 @@ export async function POST(req: NextRequest) {
           data: {
             number: orderNumber,
             customerId: customer?.id ?? null,
+            storeId,
             status: "pending",
             paymentStatus: "unpaid",
             source: body.source,

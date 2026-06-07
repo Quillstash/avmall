@@ -30,6 +30,7 @@ import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { getMainStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 import { formatMoney } from "@/lib/money";
@@ -72,10 +73,17 @@ export async function POST(req: NextRequest) {
     const body = parsed.data;
 
     // Hydrate products by slug — the AI passes slugs (not internal UUIDs).
+    const storeId = await getMainStoreId();
     const slugs = Array.from(new Set(body.items.map((i) => i.productSlug)));
     const products = await db.product.findMany({
       where: { slug: { in: slugs }, archivedAt: null, published: true },
-      include: { variants: { orderBy: { position: "asc" } }, bulkTiers: true },
+      include: {
+        variants: {
+          orderBy: { position: "asc" },
+          include: { storeStock: storeId ? { where: { storeId } } : true },
+        },
+        bulkTiers: true,
+      },
     });
     const productBySlug = new Map(products.map((p) => [p.slug, p]));
 
@@ -85,7 +93,10 @@ export async function POST(req: NextRequest) {
 
       const variant = item.variantId
         ? p.variants.find((v) => v.id === item.variantId)
-        : (p.variants.find((v) => v.onHand > 0) ?? p.variants[0]);
+        : (p.variants.find((v) => {
+            const s = v.storeStock[0];
+            return s && s.onHand - s.reserved > 0;
+          }) ?? p.variants[0]);
       if (!variant) throw new NotFoundError(`Variant for ${item.productSlug}`);
 
       const unitKobo = Number(
@@ -114,7 +125,7 @@ export async function POST(req: NextRequest) {
     if (body.state) {
       const zone = await db.shippingZone.findFirst({
         where: { active: true, states: { has: body.state } },
-        orderBy: { priority: "asc" },
+        orderBy: { createdAt: "asc" },
       });
       if (zone) {
         shippingZoneInfo = { name: zone.name, etaDays: zone.etaDays };

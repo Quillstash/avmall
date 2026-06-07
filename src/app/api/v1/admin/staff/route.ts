@@ -18,13 +18,13 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, enumForSlug } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import { staffInvitationEmail } from "@/lib/email-templates";
 import { SITE } from "@/lib/site";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
-import { ConflictError, ValidationError } from "@/lib/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -33,7 +33,7 @@ const INVITE_TTL_DAYS = 7;
 const bodySchema = z.object({
   email: z.string().email().transform((s) => s.trim().toLowerCase()),
   name: z.string().min(1).max(120),
-  role: z.enum(["super_admin", "manager", "sales", "inventory", "support"]),
+  roleId: z.string().uuid("Pick a role"),
 });
 
 function makeToken(): string {
@@ -53,7 +53,11 @@ export async function POST(req: NextRequest) {
         [issue?.path.join(".") ?? "body"]: issue?.message ?? "Invalid",
       });
     }
-    const { email, name, role } = parsed.data;
+    const { email, name, roleId } = parsed.data;
+
+    const role = await db.role.findUnique({ where: { id: roleId } });
+    if (!role) throw new NotFoundError("Role");
+    const roleEnum = enumForSlug(role.slug);
 
     // Refuse if a User with this email already exists. (Staff are unique on
     // email; super-admins can resend a password reset for active staff.)
@@ -79,13 +83,14 @@ export async function POST(req: NextRequest) {
     const invitation = existing
       ? await db.staffInvitation.update({
           where: { id: existing.id },
-          data: { token, expiresAt, name, role, invitedById: session.id },
+          data: { token, expiresAt, name, role: roleEnum, roleId: role.id, invitedById: session.id },
         })
       : await db.staffInvitation.create({
           data: {
             email,
             name,
-            role,
+            role: roleEnum,
+            roleId: role.id,
             token,
             expiresAt,
             invitedById: session.id,
@@ -96,7 +101,7 @@ export async function POST(req: NextRequest) {
     const { subject, html, text } = staffInvitationEmail({
       recipientName: name,
       inviterName: session.name ?? "An admin",
-      role,
+      role: role.name,
       acceptUrl,
       expiresAt,
     });
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
       text,
       tags: [
         { name: "kind", value: "staff-invite" },
-        { name: "role", value: role },
+        { name: "role", value: role.slug },
       ],
     });
 
@@ -120,7 +125,7 @@ export async function POST(req: NextRequest) {
       entityId: invitation.id,
       after: {
         email,
-        role,
+        role: role.slug,
         expiresAt: invitation.expiresAt.toISOString(),
         emailSent: send.ok,
         emailSkipped: !!send.skipped,

@@ -22,7 +22,6 @@ export default async function AdminEditShippingZonePage({ params }: PageProps) {
         baseRateKobo: Number(zone.baseRateKobo),
         freeOverKobo: zone.freeOverKobo == null ? null : Number(zone.freeOverKobo),
         etaDays: zone.etaDays,
-        priority: zone.priority,
         active: zone.active,
       }}
     />

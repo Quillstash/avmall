@@ -31,6 +31,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
+import { getMainStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { env } from "@/lib/env";
 import { SITE } from "@/lib/site";
@@ -73,11 +74,17 @@ export async function POST(req: NextRequest) {
     }
     const { items } = parsed.data;
 
+    // AI surfaces the Main store's availability (the storefront default).
+    const storeId = await getMainStoreId();
+
     const slugs = Array.from(new Set(items.map((i) => i.productSlug)));
     const products = await db.product.findMany({
       where: { slug: { in: slugs }, archivedAt: null, published: true },
       include: {
-        variants: { orderBy: { position: "asc" } },
+        variants: {
+          orderBy: { position: "asc" },
+          include: { storeStock: storeId ? { where: { storeId } } : true },
+        },
         bulkTiers: true,
         images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }] },
       },
@@ -107,10 +114,14 @@ export async function POST(req: NextRequest) {
 
       const variant = item.variantId
         ? product.variants.find((v) => v.id === item.variantId)
-        : (product.variants.find((v) => v.onHand > 0) ?? product.variants[0]);
+        : (product.variants.find((v) => {
+            const s = v.storeStock[0];
+            return s && s.onHand - s.reserved > 0;
+          }) ?? product.variants[0]);
       if (!variant) throw new NotFoundError(`Variant for ${item.productSlug}`);
 
-      const available = variant.onHand - variant.reserved;
+      const vs = variant.storeStock[0];
+      const available = vs ? vs.onHand - vs.reserved : 0;
       if (available < item.quantity && !product.preorder) {
         throw new AppError(
           "STOCK_UNAVAILABLE",
@@ -134,7 +145,7 @@ export async function POST(req: NextRequest) {
         bg: product.themeBg ?? "linear-gradient(135deg, #ece4d4 0%, #c4a87a 100%)",
         variantLabel: variant.label,
         unitKobo,
-        stock: variant.onHand - variant.reserved,
+        stock: available,
         bulk: product.bulkTiers.map((t) => ({
           min: t.min,
           max: t.max,

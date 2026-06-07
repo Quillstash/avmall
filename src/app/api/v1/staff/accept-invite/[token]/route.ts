@@ -75,6 +75,7 @@ export async function POST(
           email: invitation.email,
           name: invitation.name,
           role: invitation.role,
+          roleId: invitation.roleId,
           passwordHash,
           active: true,
         },

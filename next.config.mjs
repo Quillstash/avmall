@@ -14,6 +14,7 @@ const r2Host = (() => {
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  allowedDevOrigins: ["cbf2-102-214-14-5.ngrok-free.app"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },

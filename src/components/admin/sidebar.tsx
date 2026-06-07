@@ -7,7 +7,9 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   LayoutDashboard,
+  ScanLine,
   ShoppingBag,
+  Store,
   Package,
   Users,
   Archive,
@@ -33,6 +35,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/admin/pos", label: "Register", icon: ScanLine },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/customers", label: "Customers", icon: Users },
@@ -44,6 +47,7 @@ const NAV: NavItem[] = [
 ];
 
 const SECONDARY: NavItem[] = [
+  { href: "/admin/stores", label: "Stores", icon: Store },
   { href: "/admin/staff", label: "Staff & roles", icon: Shield },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

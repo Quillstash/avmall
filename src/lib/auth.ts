@@ -18,6 +18,7 @@ import { getServerSession } from "next-auth";
 import { db } from "./db";
 import { env } from "./env";
 import { UnauthorizedError } from "./errors";
+import { permissionsForRole } from "./permissions";
 import type { StaffRole } from "@prisma/client";
 
 declare module "next-auth" {
@@ -27,6 +28,12 @@ declare module "next-auth" {
       email: string;
       name: string;
       role: StaffRole;
+      /** Dynamic role id (null = legacy enum-only). */
+      roleId: string | null;
+      /** Resolved permission keys for the user's role (fresh each request). */
+      permissions: string[];
+      /** Home store. null = HQ / all-stores. */
+      storeId: string | null;
     };
   }
 }
@@ -35,7 +42,25 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: StaffRole;
+    roleId: string | null;
+    storeId: string | null;
   }
+}
+
+/** Resolve a user's permissions: their dynamic Role's set, else the static
+ *  fallback for the legacy enum role. */
+async function resolvePermissions(
+  roleId: string | null,
+  enumRole: StaffRole,
+): Promise<string[]> {
+  if (roleId) {
+    const role = await db.role.findUnique({
+      where: { id: roleId },
+      select: { permissions: true },
+    });
+    if (role) return role.permissions;
+  }
+  return permissionsForRole(enumRole);
 }
 
 const adapter = PrismaAdapter(db) as NonNullable<AuthOptions["adapter"]>;
@@ -80,6 +105,8 @@ export const authOptions: AuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          roleId: user.roleId,
+          storeId: user.storeId,
         } as never;
       },
     }),
@@ -87,9 +114,16 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const u = user as unknown as { id: string; role: StaffRole };
+        const u = user as unknown as {
+          id: string;
+          role: StaffRole;
+          roleId: string | null;
+          storeId: string | null;
+        };
         token.id = u.id;
         token.role = u.role;
+        token.roleId = u.roleId ?? null;
+        token.storeId = u.storeId ?? null;
       }
       return token;
     },
@@ -97,6 +131,13 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
+        session.user.roleId = token.roleId ?? null;
+        session.user.storeId = token.storeId ?? null;
+        // Resolve permissions fresh each request so role edits apply at once.
+        session.user.permissions = await resolvePermissions(
+          token.roleId ?? null,
+          token.role,
+        );
       }
       return session;
     },

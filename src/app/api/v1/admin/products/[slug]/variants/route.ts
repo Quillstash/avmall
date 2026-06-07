@@ -14,6 +14,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
+import { resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -69,20 +70,29 @@ export async function POST(
     }
 
     const position = (product.variants[0]?.position ?? -1) + 1;
+    const storeId = await resolveStaffStoreId(session);
 
-    const variant = await db.productVariant.create({
-      data: {
-        productId: product.id,
-        label: b.label,
-        sku: b.sku,
-        ...(b.option1Value && { option1Value: b.option1Value }),
-        ...(b.option2Value && { option2Value: b.option2Value }),
-        onHand: b.stock,
-        ...(b.priceOverrideKobo != null && {
-          priceKobo: BigInt(b.priceOverrideKobo),
-        }),
-        position,
-      },
+    const variant = await db.$transaction(async (tx) => {
+      const v = await tx.productVariant.create({
+        data: {
+          productId: product.id,
+          label: b.label,
+          sku: b.sku,
+          ...(b.option1Value && { option1Value: b.option1Value }),
+          ...(b.option2Value && { option2Value: b.option2Value }),
+          ...(b.priceOverrideKobo != null && {
+            priceKobo: BigInt(b.priceOverrideKobo),
+          }),
+          position,
+        },
+      });
+      // Seed the new variant's opening stock at the operator's store.
+      if (storeId) {
+        await tx.storeStock.create({
+          data: { storeId, variantId: v.id, onHand: b.stock, reserved: 0 },
+        });
+      }
+      return v;
     });
 
     await writeAudit({
@@ -96,7 +106,8 @@ export async function POST(
         productSlug: product.slug,
         sku: variant.sku,
         label: variant.label,
-        onHand: variant.onHand,
+        onHand: b.stock,
+        storeId,
       },
     });
 
@@ -106,7 +117,7 @@ export async function POST(
           id: variant.id,
           label: variant.label,
           sku: variant.sku,
-          stock: variant.onHand,
+          stock: b.stock,
         },
       }),
       { status: 201 },

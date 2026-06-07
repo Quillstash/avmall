@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     const zone = await db.shippingZone.findFirst({
       where: { active: true, states: { has: state } },
-      orderBy: { priority: "asc" },
+      orderBy: { createdAt: "asc" },
     });
 
     if (zone) {

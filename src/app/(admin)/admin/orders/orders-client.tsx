@@ -15,6 +15,8 @@ import {
   Package,
   Truck,
   MapPin,
+  Pencil,
+  Loader2,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
@@ -34,8 +36,16 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
 import { waLink } from "@/lib/contact-links";
+import { cn } from "@/lib/utils";
 import { type OrderListRow, type OrderSource } from "@/lib/admin-mock-data";
 
 const STATUS_OPTIONS = [
@@ -59,6 +69,24 @@ const SOURCE_OPTIONS = [
   { value: "ai", label: "AI agent" },
 ];
 
+// Forward-only status flow for the bulk "Edit status" dialog. Rank mirrors the
+// server's STATUS_RANK so we can show, before applying, how many of the
+// selected orders can actually move — the API rejects backward / same-status
+// moves with a 409.
+const STATUS_RANK: Record<string, number> = {
+  pending: 0,
+  confirmed: 1,
+  processing: 2,
+  shipped: 3,
+  delivered: 4,
+};
+const BULK_STATUS_FLOW = [
+  { value: "confirmed", label: "Confirmed", icon: CheckCircle },
+  { value: "processing", label: "Processing", icon: Package },
+  { value: "shipped", label: "Shipped", icon: Truck },
+  { value: "delivered", label: "Delivered", icon: MapPin },
+] as const;
+
 interface Props {
   orders: OrderListRow[];
   totals: { weekCount: number; weekRevenueLabel: string };
@@ -75,6 +103,9 @@ export function OrdersListClient({ orders, totals }: Props) {
   const [cancelTarget, setCancelTarget] = React.useState<OrderListRow | null>(null);
   const [cancelLoading, setCancelLoading] = React.useState(false);
   const [statusLoading, setStatusLoading] = React.useState<string | null>(null);
+  const [bulkStatusOpen, setBulkStatusOpen] = React.useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = React.useState<string>("");
+  const [bulkStatusLoading, setBulkStatusLoading] = React.useState(false);
 
   const filters: FilterConfig[] = [
     { id: "status", label: "Status", values: statusValues, options: STATUS_OPTIONS, multi: true },
@@ -139,6 +170,20 @@ export function OrdersListClient({ orders, totals }: Props) {
     [filtered, rowSelection],
   );
 
+  // Every selected row, whatever its status — the bulk status dialog narrows
+  // these to the ones that can actually move to the chosen status.
+  const selectedRows = React.useMemo(
+    () => filtered.filter((_, i) => (rowSelection as Record<string, boolean>)[i]),
+    [filtered, rowSelection],
+  );
+  const bulkEligible = React.useMemo(() => {
+    if (!bulkStatusValue) return [];
+    const targetRank = STATUS_RANK[bulkStatusValue] ?? 0;
+    return selectedRows.filter(
+      (o) => o.status !== "cancelled" && (STATUS_RANK[o.status] ?? 0) < targetRank,
+    );
+  }, [selectedRows, bulkStatusValue]);
+
   async function changeStatus(number: string, status: string) {
     setStatusLoading(number);
     try {
@@ -184,6 +229,41 @@ export function OrdersListClient({ orders, totals }: Props) {
     toast.success(`Cancelled ${ok} / ${selectedNumbers.length}`);
     setRowSelection({});
     router.refresh();
+  }
+
+  async function applyBulkStatus() {
+    if (!bulkStatusValue || bulkEligible.length === 0) return;
+    setBulkStatusLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        bulkEligible.map((o) =>
+          fetch(`/api/v1/admin/orders/${encodeURIComponent(o.number)}/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: bulkStatusValue }),
+          }),
+        ),
+      );
+      const ok = results.filter(
+        (r) =>
+          r.status === "fulfilled" &&
+          (r as PromiseFulfilledResult<Response>).value.ok,
+      ).length;
+      if (ok === bulkEligible.length) {
+        toast.success(`Updated ${ok} order${ok === 1 ? "" : "s"} → ${bulkStatusValue}`);
+      } else {
+        toast.error(
+          `Updated ${ok} / ${bulkEligible.length} — ${bulkEligible.length - ok} couldn't be changed`,
+        );
+      }
+      setBulkStatusOpen(false);
+      setRowSelection({});
+      router.refresh();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setBulkStatusLoading(false);
+    }
   }
 
   const columns: ColumnDef<OrderListRow>[] = [
@@ -410,9 +490,19 @@ export function OrdersListClient({ orders, totals }: Props) {
                 onClear={() => table.resetRowSelection()}
                 actions={[
                   {
+                    id: "status",
+                    label: "Edit status",
+                    icon: <Pencil className="size-3.5" />,
+                    onClick: () => {
+                      setBulkStatusValue("");
+                      setBulkStatusOpen(true);
+                    },
+                  },
+                  {
                     id: "cancel",
                     label: "Cancel orders",
                     icon: <XCircle className="size-3.5" />,
+                    destructive: true,
                     onClick: bulkCancel,
                   },
                 ]}
@@ -466,6 +556,104 @@ export function OrdersListClient({ orders, totals }: Props) {
           }
         }}
       />
+
+      {/* Bulk status editor */}
+      <Dialog
+        open={bulkStatusOpen}
+        onOpenChange={(o) => {
+          if (!bulkStatusLoading) setBulkStatusOpen(o);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Update status · {selectedRows.length} order
+              {selectedRows.length === 1 ? "" : "s"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="mt-2 flex flex-col gap-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">
+                Move selected orders to
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {BULK_STATUS_FLOW.map((s) => {
+                  const Icon = s.icon;
+                  const active = bulkStatusValue === s.value;
+                  return (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setBulkStatusValue(s.value)}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm font-semibold transition-colors",
+                        active
+                          ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
+                          : "border-border-strong hover:bg-surface-2",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {bulkStatusValue && (
+              <div
+                className={cn(
+                  "text-xs rounded-md p-2.5 leading-relaxed",
+                  bulkEligible.length === 0
+                    ? "bg-warning-bg text-warning"
+                    : "bg-surface-2 text-fg-muted",
+                )}
+              >
+                {bulkEligible.length === 0 ? (
+                  <>
+                    None of the selected orders can move to{" "}
+                    <span className="font-semibold">{bulkStatusValue}</span> — they're
+                    already there, further along, or cancelled.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-bold text-fg">{bulkEligible.length}</span> of{" "}
+                    {selectedRows.length} will move to{" "}
+                    <span className="font-semibold">{bulkStatusValue}</span>.
+                    {selectedRows.length - bulkEligible.length > 0 && (
+                      <>
+                        {" "}
+                        {selectedRows.length - bulkEligible.length} skipped (already there,
+                        further along, or cancelled).
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setBulkStatusOpen(false)}
+              disabled={bulkStatusLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={applyBulkStatus}
+              disabled={!bulkStatusValue || bulkEligible.length === 0 || bulkStatusLoading}
+            >
+              {bulkStatusLoading && <Loader2 className="size-4 animate-spin" />}
+              {bulkStatusValue && bulkEligible.length > 0
+                ? `Update ${bulkEligible.length} order${bulkEligible.length === 1 ? "" : "s"}`
+                : "Update orders"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

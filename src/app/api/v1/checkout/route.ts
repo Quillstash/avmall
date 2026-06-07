@@ -14,6 +14,7 @@ import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
 import { reserveStock } from "@/lib/stock";
+import { resolveStorefrontStoreId, STORE_COOKIE } from "@/lib/store";
 import { withIdempotency } from "@/lib/idempotency";
 import { nextOrderNumber } from "@/lib/order-number";
 import { writeAudit } from "@/lib/audit";
@@ -50,6 +51,8 @@ const bodySchema = z.object({
   // Only POS/cash accepted here. Bank transfer uses /checkout/initiate.
   paymentMethod: z.enum(["pos", "cash"]),
   couponCode: z.string().optional(),
+  /** Store the customer is ordering from. Falls back to the cookie, then Main. */
+  storeId: z.string().uuid().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -71,6 +74,15 @@ export async function POST(req: NextRequest) {
       throw new ValidationError({ [issue?.path.join(".") ?? "body"]: issue?.message ?? "Invalid" });
     }
     const body = parsed.data;
+
+    // Which store the order draws stock from — explicit, else the storefront
+    // cookie's store slug, else the Main store.
+    const storeId =
+      body.storeId ??
+      (await resolveStorefrontStoreId(req.cookies.get(STORE_COOKIE)?.value ?? null));
+    if (!storeId) {
+      throw new AppError("NO_STORE", "No store available for this order.", 400);
+    }
 
     const session = await getCustomerSession();
     const normalizedPhone = normaliseNigerianPhone(parsed.data.contact.phone);
@@ -136,7 +148,7 @@ export async function POST(req: NextRequest) {
       let shippingZoneId: string | null = null;
       const zone = await db.shippingZone.findFirst({
         where: { active: true, states: { has: body.shipping.state } },
-        orderBy: { priority: "asc" },
+        orderBy: { createdAt: "asc" },
       });
       if (zone) {
         shippingZoneId = zone.id;
@@ -155,6 +167,7 @@ export async function POST(req: NextRequest) {
       const order = await db.$transaction(async (tx) => {
         await reserveStock(
           tx,
+          storeId,
           inputLines.map((l) => ({ productId: l.productId, variantId: l.variantId, quantity: l.quantity })),
           null,
         );
@@ -164,6 +177,7 @@ export async function POST(req: NextRequest) {
           data: {
             number: orderNumber,
             customerId: customer.id,
+            storeId,
             status: "pending",
             paymentStatus: "unpaid",
             source: "web",

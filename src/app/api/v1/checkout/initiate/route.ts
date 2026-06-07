@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     let freeShippingEligible = false;
     const zone = await db.shippingZone.findFirst({
       where: { active: true, states: { has: body.shipping.state } },
-      orderBy: { priority: "asc" },
+      orderBy: { createdAt: "asc" },
     });
     if (zone) {
       shippingKobo = Number(zone.baseRateKobo);

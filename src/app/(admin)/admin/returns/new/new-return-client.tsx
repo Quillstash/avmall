@@ -18,6 +18,8 @@ export interface LoadedOrder {
   number: string;
   createdAt: string;
   deliveredAt: string | null;
+  /** False for guest / walk-in / POS orders with no linked customer. */
+  hasCustomer: boolean;
   customer: { name: string; phone: string; blacklisted: boolean };
   lines: {
     id: string;
@@ -58,6 +60,15 @@ export function NewReturnClient({
   const [orderInput, setOrderInput] = React.useState(initialNumber);
   const order = initialOrder ?? null;
   const error = initialError ?? null;
+
+  // Guest/walk-in orders have no customer on file — capture one for the return
+  // (pre-filled from the order's shipping name/phone). Reset on order change.
+  const [custName, setCustName] = React.useState(order?.customer.name ?? "");
+  const [custPhone, setCustPhone] = React.useState(order?.customer.phone ?? "");
+  React.useEffect(() => {
+    setCustName(order?.customer.name ?? "");
+    setCustPhone(order?.customer.phone ?? "");
+  }, [order]);
 
   // Per-line draft state. Built fresh whenever the order changes.
   const [drafts, setDrafts] = React.useState<DraftLine[]>(() =>
@@ -126,6 +137,10 @@ export function NewReturnClient({
       toast.error("A reason is required for every return.");
       return;
     }
+    if (!order.hasCustomer && (!custName.trim() || custPhone.trim().length < 7)) {
+      toast.error("Enter the customer's name and phone to record this return.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/v1/admin/returns", {
@@ -143,6 +158,9 @@ export function NewReturnClient({
           reason: reason.trim(),
           refundMethod,
           ...(internalNote.trim() && { internalNote: internalNote.trim() }),
+          ...(order.hasCustomer
+            ? {}
+            : { contact: { name: custName.trim(), phone: custPhone.trim() } }),
         }),
       });
       const json = await res.json();
@@ -209,11 +227,15 @@ export function NewReturnClient({
               {/* Order summary */}
               <Card title={`Order ${order.number}`}>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                  <Fact label="Customer" value={order.customer.name} />
-                  <Fact
-                    label="Phone"
-                    value={<span className="font-mono">{order.customer.phone}</span>}
-                  />
+                  {order.hasCustomer && (
+                    <>
+                      <Fact label="Customer" value={order.customer.name} />
+                      <Fact
+                        label="Phone"
+                        value={<span className="font-mono">{order.customer.phone}</span>}
+                      />
+                    </>
+                  )}
                   <Fact
                     label="Order date"
                     value={new Date(order.createdAt).toLocaleDateString("en-NG", {
@@ -224,6 +246,37 @@ export function NewReturnClient({
                     })}
                   />
                 </div>
+
+                {!order.hasCustomer && (
+                  <div className="mt-3 p-3 rounded-md bg-surface-2 border border-border">
+                    <div className="flex items-start gap-2 text-xs text-fg-muted mb-3">
+                      <AlertTriangle className="size-4 flex-shrink-0 mt-0.5" />
+                      <span>
+                        Guest / walk-in order — no customer on file. Add the customer's
+                        details to record the return; they&apos;ll be saved and linked to
+                        this order.
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Field id="cust-name" label="Customer name">
+                        <Input
+                          id="cust-name"
+                          value={custName}
+                          onChange={(e) => setCustName(e.target.value)}
+                          placeholder="Full name"
+                        />
+                      </Field>
+                      <Field id="cust-phone" label="Phone">
+                        <Input
+                          id="cust-phone"
+                          value={custPhone}
+                          onChange={(e) => setCustPhone(e.target.value)}
+                          placeholder="+234 803 …"
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                )}
                 {(outsideWindow || order.customer.blacklisted) && (
                   <div className="mt-3 flex flex-col gap-2">
                     {outsideWindow && (

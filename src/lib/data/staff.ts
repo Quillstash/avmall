@@ -43,8 +43,10 @@ export async function listStaff(): Promise<StaffMember[]> {
         name: true,
         email: true,
         role: true,
+        roleId: true,
         active: true,
         lastSeenAt: true,
+        assignedRole: { select: { name: true } },
       },
     }),
   );
@@ -53,7 +55,53 @@ export async function listStaff(): Promise<StaffMember[]> {
     name: u.name,
     email: u.email,
     role: u.role as StaffMember["role"],
+    roleId: u.roleId,
+    roleName: u.assignedRole?.name ?? null,
     active: u.active,
     lastSeen: timeAgo(u.lastSeenAt),
+  }));
+}
+
+export interface StaffInvitationView {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  roleName: string | null;
+  status: "pending" | "accepted" | "expired";
+  invitedBy: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+/** Outstanding + historical staff invitations with a derived status. */
+export async function listStaffInvitations(): Promise<StaffInvitationView[]> {
+  if (!hasDatabase) return [];
+  const rows = await withRetry(() =>
+    db.staffInvitation.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        invitedBy: { select: { name: true } },
+        assignedRole: { select: { name: true } },
+      },
+    }),
+  );
+  const now = Date.now();
+  return rows.map((i) => ({
+    id: i.id,
+    email: i.email,
+    name: i.name,
+    role: i.role,
+    roleName: i.assignedRole?.name ?? null,
+    status: i.acceptedAt
+      ? "accepted"
+      : i.expiresAt.getTime() < now
+        ? "expired"
+        : "pending",
+    invitedBy: i.invitedBy?.name ?? null,
+    expiresAt: i.expiresAt.toISOString(),
+    acceptedAt: i.acceptedAt ? i.acceptedAt.toISOString() : null,
+    createdAt: i.createdAt.toISOString(),
   }));
 }

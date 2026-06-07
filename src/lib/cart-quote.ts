@@ -263,7 +263,7 @@ export async function quoteFromProductIds(
   if (input.state) {
     const zone = await db.shippingZone.findFirst({
       where: { active: true, states: { has: input.state } },
-      orderBy: { priority: "asc" },
+      orderBy: { createdAt: "asc" },
     });
     if (zone) {
       shippingZone = { name: zone.name, etaDays: zone.etaDays };

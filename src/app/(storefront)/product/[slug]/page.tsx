@@ -10,6 +10,7 @@ import {
 } from "@/lib/data/products";
 import { formatMoney } from "@/lib/money";
 import { SITE } from "@/lib/site";
+import { getStorefrontStoreId } from "@/lib/store";
 import { PDPDetail } from "./detail";
 
 // PDPs are DB-backed (price, stock, variants change). Defer to runtime + ISR.
@@ -51,7 +52,8 @@ export async function generateMetadata({ params }: PDPProps): Promise<Metadata> 
 }
 
 export default async function PDPPage({ params }: PDPProps) {
-  const product = await getProductBySlug(params.slug);
+  const storeId = (await getStorefrontStoreId()) ?? undefined;
+  const product = await getProductBySlug(params.slug, storeId);
   if (!product) notFound();
 
   const related = await getRelatedProducts(product, 4);

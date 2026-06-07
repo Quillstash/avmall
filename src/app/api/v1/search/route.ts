@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { searchProducts } from "@/lib/data/products";
+import { getStorefrontStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
       20,
     );
 
-    const hits = await searchProducts(q, limit);
+    const storeId = (await getStorefrontStoreId()) ?? undefined;
+    const hits = await searchProducts(q, limit, storeId);
     return NextResponse.json(apiSuccess({ products: hits }));
   } catch (err) {
     return handleApiError(err);

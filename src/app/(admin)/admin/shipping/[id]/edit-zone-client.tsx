@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { CurrencyInput } from "@/components/ui/currency-input";
-import { NumberInput } from "@/components/ui/number-input";
 import { toast } from "@/components/ui/toaster";
 import { NIGERIAN_STATES } from "@/lib/mock-data";
 
@@ -20,7 +19,6 @@ interface ZoneInput {
   baseRateKobo: number;
   freeOverKobo: number | null;
   etaDays: string;
-  priority: number;
   active: boolean;
 }
 
@@ -38,7 +36,6 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
     zone.freeOverKobo,
   );
   const [etaDays, setEtaDays] = React.useState(zone.etaDays);
-  const [priority, setPriority] = React.useState(zone.priority);
   const [active, setActive] = React.useState(zone.active);
   const [saving, setSaving] = React.useState(false);
 
@@ -70,7 +67,6 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
           baseRateKobo,
           freeOverKobo: freeOverEnabled ? freeOverKobo : null,
           etaDays: etaDays.trim(),
-          priority,
           active,
         }),
       });
@@ -167,27 +163,18 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
               </Card>
 
               <Card title="Rates">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Field id="base" label="Base rate" required>
-                    <CurrencyInput
-                      id="base"
-                      {...(baseRateKobo != null ? { valueKobo: baseRateKobo } : {})}
-                      onValueChange={(v) => setBaseRateKobo(v)}
-                    />
-                  </Field>
-                  <Field
-                    id="priority"
-                    label="Priority"
-                    hint="Lower wins when zones overlap"
-                  >
-                    <NumberInput
-                      value={priority}
-                      onChange={(n) => setPriority(Math.max(1, Math.min(1000, n)))}
-                      min={1}
-                      max={1000}
-                    />
-                  </Field>
-                </div>
+                <Field
+                  id="base"
+                  label="Base rate"
+                  required
+                  hint="One flat price for every state in this zone"
+                >
+                  <CurrencyInput
+                    id="base"
+                    {...(baseRateKobo != null ? { valueKobo: baseRateKobo } : {})}
+                    onValueChange={(v) => setBaseRateKobo(v)}
+                  />
+                </Field>
                 <div className="mt-4 p-3 rounded-md bg-surface-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input

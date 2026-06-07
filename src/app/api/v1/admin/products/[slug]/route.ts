@@ -13,6 +13,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission, hasPermission } from "@/lib/permissions";
+import { resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import {
@@ -153,12 +154,24 @@ export async function PATCH(
         },
       });
 
-      // Update default-variant stock if asked.
+      // Update default-variant stock if asked — per-store, at the operator's
+      // store (upsert so a store without a row yet gets one).
       if (b.stock !== undefined && product.variants[0]) {
-        await tx.productVariant.update({
-          where: { id: product.variants[0].id },
-          data: { onHand: b.stock },
-        });
+        const storeId = await resolveStaffStoreId(session);
+        if (storeId) {
+          await tx.storeStock.upsert({
+            where: {
+              storeId_variantId: { storeId, variantId: product.variants[0].id },
+            },
+            update: { onHand: b.stock },
+            create: {
+              storeId,
+              variantId: product.variants[0].id,
+              onHand: b.stock,
+              reserved: 0,
+            },
+          });
+        }
       }
 
       // Replace bulk tiers wholesale (simpler than diffing).

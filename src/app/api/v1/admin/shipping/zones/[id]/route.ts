@@ -22,7 +22,6 @@ const patchSchema = z.object({
   baseRateKobo: z.number().int().nonnegative().optional(),
   freeOverKobo: z.number().int().nonnegative().nullable().optional(),
   etaDays: z.string().min(1).optional(),
-  priority: z.number().int().min(1).max(1000).optional(),
   active: z.boolean().optional(),
 });
 
@@ -66,7 +65,6 @@ export async function PATCH(
           freeOverKobo: b.freeOverKobo == null ? null : BigInt(b.freeOverKobo),
         }),
         ...(b.etaDays !== undefined && { etaDays: b.etaDays }),
-        ...(b.priority !== undefined && { priority: b.priority }),
         ...(b.active !== undefined && { active: b.active }),
       },
     });

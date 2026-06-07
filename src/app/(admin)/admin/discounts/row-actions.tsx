@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Power, Trash2, Loader2 } from "lucide-react";
+import { MoreHorizontal, Power, Trash2, Loader2, Pencil } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +88,16 @@ export function DiscountRowActions({
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-10 min-w-44 rounded-md border border-border bg-surface shadow-lg py-1">
+          <button
+            onClick={() => {
+              setOpen(false);
+              router.push(`/admin/discounts/${id}/edit`);
+            }}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-surface-2 inline-flex items-center gap-2"
+          >
+            <Pencil className="size-4" />
+            Edit
+          </button>
           <button
             onClick={toggleActive}
             className="w-full text-left px-3 py-2 text-sm hover:bg-surface-2 inline-flex items-center gap-2"

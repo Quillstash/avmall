@@ -10,9 +10,11 @@
  *     baseRateKobo: number,
  *     freeOverKobo?: number | null,
  *     etaDays: string,
- *     priority?: number,
  *     active?: boolean,
  *   }
+ *
+ * One price per state — no priority. Keep states across zones non-overlapping
+ * (the admin warns on overlap); edit a zone to change a state's price.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -32,7 +34,6 @@ const bodySchema = z.object({
   baseRateKobo: z.number().int().nonnegative(),
   freeOverKobo: z.number().int().nonnegative().nullable().optional(),
   etaDays: z.string().min(1, "ETA is required"),
-  priority: z.number().int().min(1).max(1000).default(100),
   active: z.boolean().default(true),
 });
 
@@ -61,7 +62,6 @@ export async function POST(req: NextRequest) {
         baseRateKobo: BigInt(b.baseRateKobo),
         freeOverKobo: b.freeOverKobo == null ? null : BigInt(b.freeOverKobo),
         etaDays: b.etaDays,
-        priority: b.priority,
         active: b.active,
       },
     });
@@ -79,7 +79,6 @@ export async function POST(req: NextRequest) {
         freeOverKobo:
           created.freeOverKobo == null ? null : Number(created.freeOverKobo),
         etaDays: created.etaDays,
-        priority: created.priority,
         active: created.active,
       },
     });

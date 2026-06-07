@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import { ProductCard } from "@/components/storefront/product-card";
 import { listProducts } from "@/lib/data/products";
+import { getStorefrontStoreId } from "@/lib/store";
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";
@@ -21,7 +22,11 @@ export function generateMetadata({ searchParams }: SearchPageProps): Metadata {
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const q = (searchParams.q ?? "").trim();
-  const products = q.length >= 2 ? await listProducts({ search: q, limit: 60 }) : [];
+  const storeId = await getStorefrontStoreId();
+  const products =
+    q.length >= 2
+      ? await listProducts({ search: q, limit: 60, ...(storeId ? { storeId } : {}) })
+      : [];
 
   return (
     <div className="mx-auto max-w-7xl px-4 lg:px-6 pt-6 pb-12">

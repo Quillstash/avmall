@@ -16,6 +16,49 @@ datasource db {
   extensions = [pg_trgm, pgcrypto]
 }
 
+// ─── Stores (physical locations) ─────────────────────────────────────────
+
+model Store {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String // "Ikoyi flagship"
+  slug      String   @unique // storefront URL + dropdown key
+  /// The bare storefront URL lands on the main store. Exactly one is main.
+  isMain    Boolean  @default(false) @map("is_main")
+  active    Boolean  @default(true)
+  phone     String?
+  email     String?
+  address   String? // street line
+  city      String? // LGA
+  state     String? // Nigerian state
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  staff        User[]
+  stock        StoreStock[]
+  orders       Order[]
+  reservations StockReservation[]
+
+  @@map("stores")
+}
+
+/// Per-store inventory. A product is sellable at a store when it has a row
+/// here. Replaces the single global ProductVariant.onHand/reserved.
+model StoreStock {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  variantId String   @map("variant_id") @db.Uuid
+  onHand    Int      @default(0) @map("on_hand")
+  reserved  Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  store   Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, variantId])
+  @@index([variantId])
+  @@map("store_stock")
+}
+
 // ─── Staff & RBAC ────────────────────────────────────────────────────────
 
 enum StaffRole {
@@ -26,19 +69,47 @@ enum StaffRole {
   support
 }
 
+/// Dynamic role with an explicit permission set. The 5 enum-named roles are
+/// seeded as system roles (isSystem — editable but not deletable); custom roles
+/// can be created freely. The legacy User.role enum stays as a fallback.
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String // "Manager", "Warehouse lead"
+  slug        String   @unique // "manager", "warehouse-lead"
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  /// Permission keys — see PermissionKey in lib/permissions.ts.
+  permissions String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  users       User[]
+  invitations StaffInvitation[]
+
+  @@map("roles")
+}
+
 model User {
   id            String    @id @default(uuid()) @db.Uuid
   email         String    @unique
   name          String
   passwordHash  String    @map("password_hash")
+  /// Legacy coarse role enum — kept as a fallback. Permissions resolve from
+  /// roleId (the dynamic Role) when set, which it is for all migrated users.
   role          StaffRole
+  roleId        String?   @map("role_id") @db.Uuid
   active        Boolean   @default(true)
+  /// Home store. null = HQ / all-stores (e.g. super_admin). The POS sells from
+  /// this store; cross-store visibility is gated by the stores.view_all perm.
+  storeId       String?   @map("store_id") @db.Uuid
   totpSecret    String?   @map("totp_secret")
   totpEnabled   Boolean   @default(false) @map("totp_enabled")
   lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
+  assignedRole      Role?           @relation(fields: [roleId], references: [id])
+  store             Store?          @relation(fields: [storeId], references: [id])
   ordersCreated     Order[]         @relation("OrderCreatedBy")
   paymentsRecorded  OrderPayment[]  @relation("PaymentRecordedBy")
   notes             OrderNote[]
@@ -46,6 +117,8 @@ model User {
   invitationsSent   StaffInvitation[] @relation("StaffInvitedBy")
   passwordResets    PasswordReset[]
 
+  @@index([storeId])
+  @@index([roleId])
   @@map("users")
 }
 
@@ -178,10 +251,6 @@ model ProductVariant {
   /// option1Value matches Product.option1Name; option2Value matches option2Name.
   option1Value String? @map("option1_value")
   option2Value String? @map("option2_value")
-  /// On-hand inventory.
-  onHand      Int      @default(0) @map("on_hand")
-  /// Reserved by in-flight checkouts.
-  reserved    Int      @default(0)
   position    Int      @default(0)
   archivedAt  DateTime? @map("archived_at") @db.Timestamptz
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -190,6 +259,7 @@ model ProductVariant {
   product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   orderLines  OrderLine[]
   stockReservations StockReservation[]
+  storeStock  StoreStock[]
 
   @@index([productId])
   @@map("product_variants")
@@ -242,6 +312,7 @@ enum StockReservationStatus {
 
 model StockReservation {
   id          String                  @id @default(uuid()) @db.Uuid
+  storeId     String                  @map("store_id") @db.Uuid
   productId   String                  @map("product_id") @db.Uuid
   variantId   String?                 @map("variant_id") @db.Uuid
   orderId     String?                 @map("order_id") @db.Uuid
@@ -250,12 +321,14 @@ model StockReservation {
   status      StockReservationStatus  @default(active)
   createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz
 
+  store       Store                   @relation(fields: [storeId], references: [id])
   product     Product                 @relation(fields: [productId], references: [id])
   variant     ProductVariant?         @relation(fields: [variantId], references: [id])
   order       Order?                  @relation(fields: [orderId], references: [id])
 
   @@index([expiresAt, status])
   @@index([orderId])
+  @@index([storeId, variantId])
   @@map("stock_reservations")
 }
 
@@ -291,6 +364,8 @@ model Order {
   /// Customer-facing order number, AVM-YYYY-XXXXXXXX (Postgres sequence).
   number          String        @unique
   customerId      String?       @map("customer_id") @db.Uuid
+  /// Store the order belongs to (web: selected store; POS: operator's store).
+  storeId         String?       @map("store_id") @db.Uuid
   status          OrderStatus   @default(pending)
   paymentStatus   PaymentStatus @default(unpaid) @map("payment_status")
   source          OrderSource
@@ -327,6 +402,7 @@ model Order {
   cancelledAt     DateTime?     @map("cancelled_at") @db.Timestamptz
 
   customer        Customer?     @relation(fields: [customerId], references: [id])
+  store           Store?        @relation(fields: [storeId], references: [id])
   createdBy       User?         @relation("OrderCreatedBy", fields: [createdById], references: [id])
   shippingZone    ShippingZone? @relation(fields: [shippingZoneId], references: [id])
   lines           OrderLine[]
@@ -337,6 +413,7 @@ model Order {
   conversations   AiConversation[]
 
   @@index([customerId])
+  @@index([storeId])
   @@index([status])
   @@index([paymentStatus])
   @@index([createdAt])
@@ -532,7 +609,8 @@ model ShippingZone {
   /// Order subtotal above which shipping is free; null = never.
   freeOverKobo    BigInt?  @map("free_over_kobo")
   etaDays         String   @map("eta_days")
-  /// Lower priority wins when zones overlap (e.g. Lagos express beats Lagos standard).
+  /// Deprecated — priority/overlap resolution was removed (one price per state
+  /// now). Kept at default 100 to avoid a migration; safe to drop later.
   priority        Int      @default(100)
   active          Boolean  @default(true)
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -551,6 +629,24 @@ model FallbackShipping {
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("fallback_shipping")
+}
+
+/// Delivery couriers the business uses. Managed live from the admin shipping
+/// tab. `isPrimary` marks the default courier; `active` toggles availability.
+model Courier {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  active      Boolean  @default(true)
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  phone       String?
+  /// Tracking URL template, optionally with a `{tracking}` placeholder.
+  trackingUrl String?  @map("tracking_url")
+  note        String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("couriers")
 }
 
 // ─── Cart (server-side, replaces client mock store in Phase 4) ───────────
@@ -709,6 +805,7 @@ model StaffInvitation {
   email         String
   name          String
   role          StaffRole
+  roleId        String?   @map("role_id") @db.Uuid
   /// Long opaque secret in the invite link. Hashed at rest would be safer
   /// but the field's already protected by HTTPS + single-use semantics.
   token         String    @unique
@@ -718,6 +815,7 @@ model StaffInvitation {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   invitedBy     User?     @relation("StaffInvitedBy", fields: [invitedById], references: [id])
+  assignedRole  Role?     @relation(fields: [roleId], references: [id])
 
   @@index([email])
   @@index([expiresAt])

@@ -11,13 +11,15 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
+import { resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 
 const bodySchema = z.object({
   name: z.string().min(1),
-  brand: z.string().min(1),
+  /** Brand is optional — many SKUs are unbranded / generic. */
+  brand: z.string().optional(),
   categorySlug: z.string().min(1),
   shortDesc: z.string().default(""),
   longDesc: z.string().default(""),
@@ -113,35 +115,47 @@ export async function POST(req: NextRequest) {
     const category = await db.category.findUnique({ where: { slug: b.categorySlug } });
     if (!category) throw new NotFoundError(`Category ${b.categorySlug}`);
 
+    // SKU prefix from the brand, else the product name, else a default.
+    const skuPrefix =
+      (b.brand?.trim() || b.name)
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(0, 3)
+        .toUpperCase() || "AVM";
+
     // Variant rows: use the matrix when provided, else a single default variant.
-    const variantRows =
+    // Stock lives per-store now, so each row's opening stock is carried
+    // separately and written to store_stock after the variants are created.
+    const variantSpecs =
       b.variants && b.variants.length > 0
         ? b.variants.map((v, i) => ({
             label: v.label,
             sku: v.sku,
             option1Value: v.option1Value ?? null,
             option2Value: v.option2Value ?? null,
-            onHand: v.stock,
-            ...(v.priceOverrideKobo != null && {
-              priceKobo: BigInt(v.priceOverrideKobo),
-            }),
+            priceKobo:
+              v.priceOverrideKobo != null ? BigInt(v.priceOverrideKobo) : null,
             position: i,
+            stock: v.stock,
           }))
         : [
             {
               label: "Default",
-              sku: `${b.brand.slice(0, 3).toUpperCase()}-${slug.toUpperCase()}`,
-              onHand: b.stock,
+              sku: `${skuPrefix}-${slug.toUpperCase()}`,
+              option1Value: null,
+              option2Value: null,
+              priceKobo: null,
               position: 0,
+              stock: b.stock,
             },
           ];
+    const variantCreate = variantSpecs.map(({ stock: _stock, ...rest }) => rest);
 
     const product = await db.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
           slug,
           name: b.name,
-          brand: b.brand,
+          brand: b.brand?.trim() || "",
           shortDesc: b.shortDesc,
           longDesc: b.longDesc,
           categoryId: category.id,
@@ -163,7 +177,7 @@ export async function POST(req: NextRequest) {
           tags: b.tags,
           published: b.published,
           featured: b.featured,
-          variants: { create: variantRows },
+          variants: { create: variantCreate },
           ...(b.bulkTiers.length > 0 && {
             bulkTiers: {
               create: b.bulkTiers.map((t) => ({
@@ -186,7 +200,24 @@ export async function POST(req: NextRequest) {
             },
           }),
         },
+        include: { variants: true },
       });
+
+      // Seed each new variant's opening stock at the operator's store.
+      const storeId = await resolveStaffStoreId(session);
+      if (storeId) {
+        for (const v of created.variants) {
+          const spec = variantSpecs.find((s) => s.sku === v.sku);
+          await tx.storeStock.create({
+            data: {
+              storeId,
+              variantId: v.id,
+              onHand: spec?.stock ?? 0,
+              reserved: 0,
+            },
+          });
+        }
+      }
 
       await writeAudit(
         {

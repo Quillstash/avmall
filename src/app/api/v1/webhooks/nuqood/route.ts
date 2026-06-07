@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
 import { reserveStock } from "@/lib/stock";
+import { getMainStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { nextOrderNumber } from "@/lib/order-number";
 import { normaliseNigerianPhone } from "@/lib/phone";
@@ -166,7 +167,7 @@ export async function POST(req: NextRequest) {
       let shippingZoneId: string | null = null;
       const zone = await tx.shippingZone.findFirst({
         where: { active: true, states: { has: shipping.state } },
-        orderBy: { priority: "asc" },
+        orderBy: { createdAt: "asc" },
       });
       if (zone) {
         shippingZoneId = zone.id;
@@ -207,9 +208,13 @@ export async function POST(req: NextRequest) {
         throw new Error(`Customer ${customer.id} is blacklisted`);
       }
 
-      // Reserve stock
+      // Reserve stock. Bank-transfer checkouts don't yet carry a store, so
+      // these fulfil from the Main store. (PendingCheckout.storeId is a TODO.)
+      const storeId = await getMainStoreId();
+      if (!storeId) throw new Error("No store available to fulfil order");
       await reserveStock(
         tx,
+        storeId,
         inputLines.map((l) => ({ productId: l.productId, variantId: l.variantId, quantity: l.quantity })),
         null,
       );
@@ -219,6 +224,7 @@ export async function POST(req: NextRequest) {
         data: {
           number: orderNumber,
           customerId: customer.id,
+          storeId,
           status: "confirmed", // paid = auto-confirmed
           paymentStatus: "paid",
           source: "web",

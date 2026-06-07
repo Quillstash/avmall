@@ -152,7 +152,7 @@ export async function getDashboard(): Promise<DashboardData> {
         where: {
           archivedAt: null,
           published: true,
-          variants: { some: { onHand: { lte: 5 } } },
+          variants: { some: { storeStock: { some: { onHand: { lte: 5 } } } } },
         },
       }),
     ),

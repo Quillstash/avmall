@@ -499,6 +499,9 @@ export interface StaffMember {
   name: string;
   email: string;
   role: StaffRole;
+  /** Assigned dynamic role id + display name (null for legacy enum-only). */
+  roleId?: string | null;
+  roleName?: string | null;
   active: boolean;
   lastSeen: string;
 }

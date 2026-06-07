@@ -10,16 +10,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, enumForSlug } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import type { StaffRole } from "@prisma/client";
 
 const bodySchema = z.object({
-  role: z.enum(["super_admin", "manager", "sales", "inventory", "support"]).optional(),
+  roleId: z.string().uuid().optional(),
   active: z.boolean().optional(),
-}).refine((d) => d.role !== undefined || d.active !== undefined, {
-  message: "Provide at least one of: role, active",
+}).refine((d) => d.roleId !== undefined || d.active !== undefined, {
+  message: "Provide at least one of: roleId, active",
 });
 
 export async function PATCH(
@@ -47,14 +48,22 @@ export async function PATCH(
       throw new ForbiddenError("Use your profile page to edit your own account");
     }
 
+    // Resolve the new role (dynamic). The enum is kept in sync as a fallback.
+    let roleUpdate: { roleId: string; role: StaffRole } | undefined;
+    if (parsed.data.roleId !== undefined) {
+      const role = await db.role.findUnique({ where: { id: parsed.data.roleId } });
+      if (!role) throw new ValidationError({ roleId: "Unknown role" });
+      roleUpdate = { roleId: role.id, role: enumForSlug(role.slug) };
+    }
+
     const updated = await db.$transaction(async (tx) => {
       const next = await tx.user.update({
         where: { id: params.id },
         data: {
-          ...(parsed.data.role !== undefined && { role: parsed.data.role }),
+          ...(roleUpdate ?? {}),
           ...(parsed.data.active !== undefined && { active: parsed.data.active }),
         },
-        select: { id: true, name: true, email: true, role: true, active: true },
+        select: { id: true, name: true, email: true, role: true, roleId: true, active: true },
       });
 
       await writeAudit(
@@ -64,8 +73,8 @@ export async function PATCH(
           action: "staff.edit",
           entityType: "user",
           entityId: params.id,
-          before: { role: target.role, active: target.active },
-          after: { role: next.role, active: next.active },
+          before: { roleId: target.roleId, active: target.active },
+          after: { roleId: next.roleId, active: next.active },
         },
         tx,
       );
