@@ -181,8 +181,8 @@ export function VariantMatrix({
               Leave price blank to inherit ₦{(productPriceKobo / 100).toLocaleString()}.
             </div>
           </div>
-          <div className="border border-border rounded-md overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="border border-border rounded-md overflow-x-auto">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-surface-2 text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                 <tr>
                   <th className="text-left px-3 py-2">Variant</th>

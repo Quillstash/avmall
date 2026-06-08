@@ -285,7 +285,8 @@ export function StaffClient({
                   Pending and recent staff invites
                 </div>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead className="bg-surface-2">
                   <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                     <th className="text-left px-4 py-2.5">Invitee</th>
@@ -356,6 +357,7 @@ export function StaffClient({
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 

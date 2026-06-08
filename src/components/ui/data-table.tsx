@@ -19,6 +19,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 
+/** Plain-text label for a column, used on the mobile card view. Falls back to
+ *  a prettified column id when the header is a render function. */
+function headerText(header: unknown, id: string): string {
+  if (typeof header === "string") return header;
+  if (id && !id.startsWith("__")) {
+    return id
+      .replace(/([A-Z])/g, " $1")
+      .replace(/[_-]+/g, " ")
+      .replace(/^./, (c) => c.toUpperCase())
+      .trim();
+  }
+  return "";
+}
+
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
@@ -122,7 +136,8 @@ export function DataTable<TData>({
       {toolbar && (
         <div className="border-b border-border">{toolbar(table)}</div>
       )}
-      <div className="overflow-x-auto">
+      {/* Desktop: real table (still horizontally scrollable on small laptops). */}
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-surface-2">
             {table.getHeaderGroups().map((hg) => (
@@ -213,6 +228,111 @@ export function DataTable<TData>({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile/tablet: stacked cards generated from the same columns — no
+          horizontal scroll. First column is the card title; the rest become
+          labelled rows. Selection + actions sit in the card header. */}
+      <div className="lg:hidden">
+        {isLoading ? (
+          <div className="divide-y divide-border">
+            {Array.from({ length: Math.min(pageSize, 6) }, (_, i) => (
+              <div key={i} className="p-4 flex flex-col gap-2">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : table.getRowModel().rows.length === 0 ? (
+          <div className="px-4 py-12">
+            {emptyState ?? (
+              <div className="text-center text-sm text-fg-muted">No results.</div>
+            )}
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {table.getRowModel().rows.map((row) => {
+              const cells = row.getVisibleCells();
+              const selectCell = cells.find((c) => c.column.id === "__select");
+              const actionsCell = cells.find((c) => c.column.id === "actions");
+              const content = cells.filter(
+                (c) => c.column.id !== "__select" && c.column.id !== "actions",
+              );
+              const titleCell = content[0];
+              const rest = content.slice(1);
+              return (
+                <div
+                  key={row.id}
+                  data-state={row.getIsSelected() ? "selected" : undefined}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  className={cn(
+                    "p-4 flex flex-col gap-2.5",
+                    onRowClick && "cursor-pointer active:bg-surface-2",
+                    row.getIsSelected() && "bg-info-bg/40",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      {selectCell && (
+                        <span className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+                          {flexRender(
+                            selectCell.column.columnDef.cell,
+                            selectCell.getContext(),
+                          )}
+                        </span>
+                      )}
+                      {titleCell && (
+                        <div className="min-w-0 font-semibold">
+                          {flexRender(
+                            titleCell.column.columnDef.cell,
+                            titleCell.getContext(),
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {actionsCell && (
+                      <span
+                        className="flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {flexRender(
+                          actionsCell.column.columnDef.cell,
+                          actionsCell.getContext(),
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {rest.length > 0 && (
+                    <dl className="flex flex-col gap-1.5 text-sm">
+                      {rest.map((cell) => {
+                        const label = headerText(
+                          cell.column.columnDef.header,
+                          cell.column.id,
+                        );
+                        return (
+                          <div
+                            key={cell.id}
+                            className="flex items-center justify-between gap-3"
+                          >
+                            {label && (
+                              <dt className="text-xs text-fg-muted flex-shrink-0">
+                                {label}
+                              </dt>
+                            )}
+                            <dd className="min-w-0 text-right ml-auto">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {!hidePagination && table.getPageCount() > 1 && (

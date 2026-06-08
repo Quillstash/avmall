@@ -162,7 +162,8 @@ export function StoresClient({ stores }: { stores: StoreRow[] }) {
                 </p>
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-surface-2">
                   <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                     <th className="text-left px-4 py-2.5">Store</th>
@@ -239,6 +240,7 @@ export function StoresClient({ stores }: { stores: StoreRow[] }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>

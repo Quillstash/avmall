@@ -101,7 +101,8 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
               {data.byPaymentMethod.length === 0 ? (
                 <p className="text-sm text-fg-muted">No completed payments yet.</p>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[320px]">
                   <thead className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                     <tr>
                       <th className="text-left py-1.5">Method</th>
@@ -121,6 +122,7 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
 
@@ -129,7 +131,8 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
               {data.byChannel.length === 0 ? (
                 <p className="text-sm text-fg-muted">No orders yet.</p>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[320px]">
                   <thead className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                     <tr>
                       <th className="text-left py-1.5">Channel</th>
@@ -149,6 +152,7 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>
