@@ -144,7 +144,8 @@ export function ShippingClient({
                   </Link>
                 </div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[480px]">
                   <thead className="bg-surface-2">
                     <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                       <th className="text-left px-3.5 py-2.5">Zone</th>
@@ -233,6 +234,7 @@ export function ShippingClient({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
 

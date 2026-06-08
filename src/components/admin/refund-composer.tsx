@@ -63,8 +63,8 @@ export function RefundComposer({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-md border border-border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded-md border border-border overflow-x-auto">
+        <table className="w-full text-sm min-w-[420px]">
           <thead className="bg-surface-2 text-[10px] font-bold uppercase tracking-wider text-fg-muted">
             <tr>
               <th className="px-3 py-2 w-8" />

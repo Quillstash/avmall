@@ -639,7 +639,8 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 }
                 padded={false}
               >
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="text-[11px] font-bold uppercase tracking-wider text-fg-muted bg-surface-2">
                       <th className="text-left px-5 py-3">Product</th>
@@ -743,10 +744,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     ))}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Totals */}
                 <div className="flex justify-end px-5 py-5 border-t border-border bg-surface-2/50">
-                  <div className="min-w-[320px] space-y-1.5">
+                  <div className="w-full sm:w-auto sm:min-w-[320px] space-y-1.5">
                     <TotalRow label="Subtotal" value={formatMoney(itemsSubtotal)} />
                     <TotalRow
                       label="Bulk discounts"
