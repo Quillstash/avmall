@@ -145,7 +145,7 @@ export function ShippingClient({
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[480px]">
+                <table className="w-full text-sm min-w-[480px] stack-table">
                   <thead className="bg-surface-2">
                     <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                       <th className="text-left px-3.5 py-2.5">Zone</th>
@@ -160,7 +160,7 @@ export function ShippingClient({
                   <tbody>
                     {zones.map((z) => (
                       <tr key={z.id} className="border-t border-border hover:bg-surface-2">
-                        <td className="px-3.5 py-3">
+                        <td data-label="Zone" className="px-3.5 py-3">
                           <div className="flex items-center gap-2.5">
                             <MapPin className="size-4 text-fg-muted flex-shrink-0" />
                             <div className="min-w-0">
@@ -173,23 +173,23 @@ export function ShippingClient({
                             </div>
                           </div>
                         </td>
-                        <td className="px-3.5 py-3 text-xs text-fg-muted max-w-[280px]">
+                        <td data-label="Coverage" className="px-3.5 py-3 text-xs text-fg-muted lg:max-w-[280px]">
                           {z.states.length > 4
                             ? `${z.states.slice(0, 4).join(", ")} + ${z.states.length - 4} more`
                             : z.states.join(", ")}
                         </td>
-                        <td className="px-3.5 py-3 text-right">
+                        <td data-label="Base rate" className="px-3.5 py-3 text-right">
                           <Money kobo={z.baseRateKobo} className="font-bold" />
                         </td>
-                        <td className="px-3.5 py-3 text-right">
+                        <td data-label="Free over" className="px-3.5 py-3 text-right">
                           {z.freeOverKobo != null ? (
                             <Money kobo={z.freeOverKobo} />
                           ) : (
                             <span className="text-fg-subtle">—</span>
                           )}
                         </td>
-                        <td className="px-3.5 py-3 text-xs">{z.etaDays}</td>
-                        <td className="px-3.5 py-3">
+                        <td data-label="ETA" className="px-3.5 py-3 text-xs">{z.etaDays}</td>
+                        <td data-label="Active" className="px-3.5 py-3">
                           <div className="inline-flex items-center gap-2">
                             <Switch
                               checked={z.active}

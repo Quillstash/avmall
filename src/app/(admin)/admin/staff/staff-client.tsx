@@ -286,7 +286,7 @@ export function StaffClient({
                 </div>
               </div>
               <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[520px]">
+              <table className="w-full text-sm min-w-[520px] stack-table">
                 <thead className="bg-surface-2">
                   <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                     <th className="text-left px-4 py-2.5">Invitee</th>
@@ -299,19 +299,19 @@ export function StaffClient({
                 <tbody>
                   {initialInvitations.map((inv) => (
                     <tr key={inv.id} className="border-t border-border">
-                      <td className="px-4 py-3">
+                      <td data-label="Invitee" className="px-4 py-3">
                         <div className="font-semibold">{inv.name}</div>
                         <div className="text-[11px] text-fg-muted">{inv.email}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Role" className="px-4 py-3">
                         <Badge tone={ROLE_TONE[inv.role as StaffRole] ?? "neutral"}>
                           {inv.roleName ?? ROLE_LABELS[inv.role as StaffRole] ?? inv.role}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Status" className="px-4 py-3">
                         <InviteStatusBadge status={inv.status} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-fg-muted">
+                      <td data-label="Invited" className="px-4 py-3 text-xs text-fg-muted">
                         {new Date(inv.createdAt).toLocaleDateString("en-NG", {
                           day: "numeric",
                           month: "short",
