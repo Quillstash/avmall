@@ -384,8 +384,8 @@ export default function AdminNewProductPage() {
             }
           />
 
-          <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-            <div className="flex flex-col gap-4">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+            <div className="flex flex-col gap-4 min-w-0">
               <Card title="Basics">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Field
@@ -646,7 +646,7 @@ export default function AdminNewProductPage() {
                     <div className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                       Negotiation cap
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {(
                         [
                           { id: "global", label: "Use global default" },

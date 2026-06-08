@@ -65,94 +65,99 @@ export function BulkTierEditor({
   }
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-[10px] font-bold uppercase tracking-wider text-fg-muted">
-          <tr>
-            <th className="text-left px-3 py-2">Min qty</th>
-            <th className="text-left px-3 py-2">Max qty</th>
-            <th className="text-left px-3 py-2">Type</th>
-            <th className="text-left px-3 py-2">Value</th>
-            {showProfit && <th className="text-left px-3 py-2">Profit / unit</th>}
-            <th className="w-10" />
-          </tr>
-        </thead>
-        <tbody>
-          {tiers.map((tier, i) => (
-            <tr key={i} className="border-t border-border">
-              <td className="p-2">
+    <div className="flex flex-col gap-2">
+      {tiers.map((tier, i) => (
+        <div
+          key={i}
+          className="relative rounded-md border border-border bg-surface p-3 pr-10"
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Labeled label="Min qty">
+              <NumberInput
+                value={tier.min}
+                onChange={(n) => update(i, { min: Math.max(1, n) })}
+                min={1}
+                className="h-9"
+              />
+            </Labeled>
+            <Labeled label="Max qty">
+              <NumberInput
+                value={tier.max ?? 0}
+                onChange={(n) => update(i, { max: n === 0 ? null : n })}
+                min={0}
+                placeholder="∞"
+                className="h-9"
+              />
+            </Labeled>
+            <Labeled label="Discount type">
+              <Select
+                value={tier.type}
+                onChange={(e) => update(i, { type: e.target.value as BulkTier["type"] })}
+                className="h-9 text-xs"
+              >
+                <option value="percentage">% off</option>
+                <option value="fixed">₦ off (per unit)</option>
+              </Select>
+            </Labeled>
+            <Labeled label="Value">
+              {tier.type === "percentage" ? (
                 <NumberInput
-                  value={tier.min}
-                  onChange={(n) => update(i, { min: Math.max(1, n) })}
-                  min={1}
-                  className="h-8"
-                />
-              </td>
-              <td className="p-2">
-                <NumberInput
-                  value={tier.max ?? 0}
-                  onChange={(n) => update(i, { max: n === 0 ? null : n })}
+                  value={tier.value}
+                  onChange={(n) => update(i, { value: Math.min(100, Math.max(0, n)) })}
                   min={0}
-                  placeholder="∞"
-                  className="h-8"
+                  max={100}
+                  suffix="%"
+                  className="h-9"
                 />
-              </td>
-              <td className="p-2">
-                <Select
-                  value={tier.type}
-                  onChange={(e) => update(i, { type: e.target.value as BulkTier["type"] })}
-                  className="h-8 text-xs"
-                >
-                  <option value="percentage">% off</option>
-                  <option value="fixed">₦ off (per unit)</option>
-                </Select>
-              </td>
-              <td className="p-2">
-                {tier.type === "percentage" ? (
-                  <NumberInput
-                    value={tier.value}
-                    onChange={(n) => update(i, { value: Math.min(100, Math.max(0, n)) })}
-                    min={0}
-                    max={100}
-                    suffix="%"
-                    className="h-8"
-                  />
-                ) : (
-                  <CurrencyInput
-                    valueKobo={tier.value}
-                    onValueChange={(kobo) => update(i, { value: kobo ?? 0 })}
-                    className="h-8"
-                  />
-                )}
-              </td>
-              {showProfit && (
-                <td className="p-2">
-                  <ProfitDisplay
-                    priceKobo={effectiveUnitKobo(tier, priceKobo!)}
-                    costKobo={costKobo!}
-                    size="compact"
-                  />
-                </td>
+              ) : (
+                <CurrencyInput
+                  valueKobo={tier.value}
+                  onValueChange={(kobo) => update(i, { value: kobo ?? 0 })}
+                  className="h-9"
+                />
               )}
-              <td className="p-2 text-right">
-                <button
-                  type="button"
-                  onClick={() => remove(i)}
-                  aria-label="Remove tier"
-                  className="p-1.5 text-fg-muted hover:text-danger rounded-md hover:bg-surface"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="p-2 border-t border-border bg-surface-2">
-        <Button type="button" size="sm" variant="ghost" onClick={add}>
-          <Plus className="size-3.5" /> Add tier
-        </Button>
-      </div>
+            </Labeled>
+          </div>
+          {showProfit && (
+            <div className="mt-2.5 pt-2.5 border-t border-border flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-fg-muted">Profit / unit</span>
+              <ProfitDisplay
+                priceKobo={effectiveUnitKobo(tier, priceKobo!)}
+                costKobo={costKobo!}
+                size="compact"
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            aria-label="Remove tier"
+            className="absolute top-2 right-2 p-1.5 text-fg-muted hover:text-danger rounded-md hover:bg-surface-2"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
+      ))}
+      <Button type="button" size="sm" variant="secondary" onClick={add} className="self-start">
+        <Plus className="size-3.5" /> Add tier
+      </Button>
     </div>
+  );
+}
+
+function Labeled({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1 min-w-0">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
