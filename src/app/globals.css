@@ -138,3 +138,49 @@
     }
   }
 }
+
+/* Mobile "stack" for admin data tables that opt in with `stack-table`.
+   Below lg (1024px) each row becomes a card-like block and every cell shows
+   its column label via the cell's `data-label` attribute. Keeps the cell
+   content (toggles, menus, badges) intact — no re-implementation needed. */
+@media (max-width: 1023px) {
+  table.stack-table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+  table.stack-table thead {
+    display: none;
+  }
+  table.stack-table tbody,
+  table.stack-table tr,
+  table.stack-table td {
+    display: block;
+    width: 100%;
+  }
+  table.stack-table tr {
+    padding: 0.875rem 1rem;
+    border-top: 1px solid hsl(var(--border));
+  }
+  table.stack-table tr:first-child {
+    border-top: 0;
+  }
+  table.stack-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.25rem 0 !important;
+    text-align: right;
+  }
+  table.stack-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--fg-muted));
+    text-align: left;
+    flex-shrink: 0;
+  }
+}

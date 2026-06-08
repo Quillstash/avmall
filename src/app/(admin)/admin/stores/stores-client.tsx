@@ -163,7 +163,7 @@ export function StoresClient({ stores }: { stores: StoreRow[] }) {
               </div>
             ) : (
               <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[560px]">
+              <table className="w-full text-sm min-w-[560px] stack-table">
                 <thead className="bg-surface-2">
                   <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
                     <th className="text-left px-4 py-2.5">Store</th>
@@ -178,7 +178,7 @@ export function StoresClient({ stores }: { stores: StoreRow[] }) {
                 <tbody>
                   {stores.map((s) => (
                     <tr key={s.id} className="border-t border-border hover:bg-surface-2/50">
-                      <td className="px-4 py-3">
+                      <td data-label="Store" className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">{s.name}</span>
                           {s.isMain && (
@@ -189,25 +189,25 @@ export function StoresClient({ stores }: { stores: StoreRow[] }) {
                         </div>
                         <div className="text-[11px] text-fg-muted font-mono">/{s.slug}</div>
                       </td>
-                      <td className="px-4 py-3 text-fg-muted">
+                      <td data-label="Location" className="px-4 py-3 text-fg-muted">
                         {[s.city, s.state].filter(Boolean).join(", ") || "—"}
                       </td>
-                      <td className="px-4 py-3 text-right tabular">
+                      <td data-label="Products" className="px-4 py-3 text-right tabular">
                         <span className="inline-flex items-center gap-1 text-fg-muted">
                           <Package className="size-3" /> {s.stockedVariants}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right tabular">
+                      <td data-label="Staff" className="px-4 py-3 text-right tabular">
                         <span className="inline-flex items-center gap-1 text-fg-muted">
                           <Users className="size-3" /> {s.staffCount}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right tabular">
+                      <td data-label="Orders" className="px-4 py-3 text-right tabular">
                         <span className="inline-flex items-center gap-1 text-fg-muted">
                           <Receipt className="size-3" /> {s.orderCount}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Status" className="px-4 py-3">
                         <span
                           className={cn(
                             "inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full",

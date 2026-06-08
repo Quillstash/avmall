@@ -442,43 +442,75 @@ function RecentOrders({ rows }: { rows: OrderListRow[] }) {
     );
   }
   return (
-    <div className="overflow-x-auto">
-    <table className="w-full text-sm min-w-[560px]">
-      <thead className="bg-surface-2">
-        <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
-          <th className="text-left px-4 py-2.5">Order</th>
-          <th className="text-left px-4 py-2.5">Customer</th>
-          <th className="text-right px-4 py-2.5">Total</th>
-          <th className="text-left px-4 py-2.5">Status</th>
-          <th className="text-left px-4 py-2.5">Created</th>
-        </tr>
-      </thead>
-      <tbody>
+    <>
+      {/* Desktop: table */}
+      <div className="hidden lg:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-2">
+            <tr className="text-[10px] font-bold uppercase tracking-wider text-fg-muted">
+              <th className="text-left px-4 py-2.5">Order</th>
+              <th className="text-left px-4 py-2.5">Customer</th>
+              <th className="text-right px-4 py-2.5">Total</th>
+              <th className="text-left px-4 py-2.5">Status</th>
+              <th className="text-left px-4 py-2.5">Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((o) => (
+              <tr key={o.number} className="border-t border-border hover:bg-surface-2">
+                <td className="px-4 py-3 font-mono text-xs font-bold tabular">
+                  <Link href={`/admin/orders/${o.number}`} className="hover:text-brand-primary">
+                    #{o.number}
+                  </Link>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-semibold">{o.customerName}</div>
+                  <div className="text-[11px] text-fg-muted font-mono tabular">{o.customerPhone}</div>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Money kobo={o.totalKobo} className="font-bold" />
+                  <div className="mt-0.5">
+                    <PaymentStatusPill status={o.payment} bare />
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <OrderStatusPill status={o.status} />
+                </td>
+                <td className="px-4 py-3 text-xs text-fg-muted">{o.createdAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: cards */}
+      <div className="lg:hidden divide-y divide-border">
         {rows.map((o) => (
-          <tr key={o.number} className="border-t border-border hover:bg-surface-2">
-            <td className="px-4 py-3 font-mono text-xs font-bold tabular">
-              <Link href={`/admin/orders/${o.number}`} className="hover:text-brand-primary">
-                #{o.number}
-              </Link>
-            </td>
-            <td className="px-4 py-3">
-              <div className="font-semibold">{o.customerName}</div>
-              <div className="text-[11px] text-fg-muted font-mono tabular">{o.customerPhone}</div>
-            </td>
-            <td className="px-4 py-3 text-right">
-              <Money kobo={o.totalKobo} className="font-bold" />
-              <div className="mt-0.5">
+          <Link
+            key={o.number}
+            href={`/admin/orders/${o.number}`}
+            className="block p-4 active:bg-surface-2"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-mono text-xs font-bold tabular">#{o.number}</div>
+                <div className="text-sm font-semibold truncate mt-0.5">{o.customerName}</div>
+                <div className="text-[11px] text-fg-muted font-mono tabular">
+                  {o.customerPhone}
+                </div>
+              </div>
+              <OrderStatusPill status={o.status} />
+            </div>
+            <div className="flex items-center justify-between gap-3 mt-2">
+              <div className="flex items-center gap-2">
+                <Money kobo={o.totalKobo} className="font-bold" />
                 <PaymentStatusPill status={o.payment} bare />
               </div>
-            </td>
-            <td className="px-4 py-3">
-              <OrderStatusPill status={o.status} />
-            </td>
-            <td className="px-4 py-3 text-xs text-fg-muted">{o.createdAt}</td>
-          </tr>
+              <div className="text-xs text-fg-muted">{o.createdAt}</div>
+            </div>
+          </Link>
         ))}
-      </tbody>
-    </table>
-    </div>
+      </div>
+    </>
   );
 }
