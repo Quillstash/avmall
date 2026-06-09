@@ -205,8 +205,8 @@ export function DonutChart({
   let cumul = 0;
 
   return (
-    <div className={cn("flex items-center gap-4", className)}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+    <div className={cn("flex flex-col items-center gap-4 sm:flex-row", className)}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0 max-w-full">
         <circle cx={c} cy={c} r={r} fill="none" stroke="hsl(var(--surface-2))" strokeWidth={stroke} />
         {data.map((d, i) => {
           const len = (d.value / total) * cir;
@@ -235,12 +235,12 @@ export function DonutChart({
           </foreignObject>
         )}
       </svg>
-      <div className="flex-1 flex flex-col gap-1.5 text-xs">
+      <div className="w-full sm:flex-1 min-w-0 flex flex-col gap-1.5 text-xs">
         {data.map((d) => (
           <div key={d.label} className="flex items-center gap-2">
             <span className="size-2.5 rounded-sm flex-shrink-0" style={{ background: d.color }} />
-            <span className="flex-1">{d.label}</span>
-            <span className="font-bold tabular">{d.value}</span>
+            <span className="flex-1 min-w-0 truncate">{d.label}</span>
+            <span className="font-bold tabular flex-shrink-0">{d.value}</span>
           </div>
         ))}
       </div>
