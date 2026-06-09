@@ -306,8 +306,8 @@ function Card({
   padded?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-surface shadow-sm">
-      <div className="px-4 py-3.5 flex items-center justify-between gap-2">
+    <div className="rounded-lg border border-border bg-surface shadow-sm min-w-0">
+      <div className="px-4 py-3.5 flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm font-bold">{title}</div>
         {actions}
       </div>
@@ -353,7 +353,7 @@ function RevenueChart({
           No orders yet — the chart will fill in as orders come in.
         </div>
       ) : (
-        <LineChart data={data} labels={labels} height={200} />
+        <LineChart data={data} labels={labels} height={200} className="min-w-0" />
       )}
     </div>
   );
