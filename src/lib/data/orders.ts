@@ -92,6 +92,14 @@ export interface OrderDetail {
     author: string;
     createdAt: Date;
   }[];
+  installmentPlan: {
+    id: string;
+    status: "active" | "completed" | "cancelled" | "defaulted";
+    minPaymentKobo: number | null;
+    targetPayoffDate: Date | null;
+    note: string | null;
+    createdAt: Date;
+  } | null;
 }
 
 function mapDbStatusToView(s: string): OrderStatus {
@@ -180,6 +188,7 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
         include: { author: { select: { name: true } } },
         orderBy: { createdAt: "asc" },
       },
+      installmentPlan: true,
     },
   });
   if (!o) return null;
@@ -247,6 +256,19 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
       author: n.author?.name ?? "Staff",
       createdAt: n.createdAt,
     })),
+    installmentPlan: o.installmentPlan
+      ? {
+          id: o.installmentPlan.id,
+          status: o.installmentPlan.status,
+          minPaymentKobo:
+            o.installmentPlan.minPaymentKobo != null
+              ? Number(o.installmentPlan.minPaymentKobo)
+              : null,
+          targetPayoffDate: o.installmentPlan.targetPayoffDate,
+          note: o.installmentPlan.note,
+          createdAt: o.installmentPlan.createdAt,
+        }
+      : null,
   };
 }
 
@@ -313,6 +335,7 @@ function mockOrderDetail(number: string): OrderDetail {
       createdAt: new Date(),
     })),
     notes: [],
+    installmentPlan: null,
   };
 }
 

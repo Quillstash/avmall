@@ -58,6 +58,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PaymentLedger } from "@/components/admin/payment-ledger";
 import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
+import { InstallmentPanel } from "@/components/admin/installment-panel";
 import { toast } from "@/components/ui/toaster";
 import { telLink, waLink } from "@/lib/contact-links";
 import type { OrderPayment } from "@/lib/admin-mock-data";
@@ -106,6 +107,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const paid = Number(order.totals.paidKobo);
   const outstanding = Number(order.totals.outstandingKobo);
   const isPartiallyPaid = paid > 0 && outstanding > 0;
+  const hasPlan = !!order.installmentPlan;
 
   async function generatePaymentLink() {
     setGeneratingLink(true);
@@ -796,8 +798,9 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   operator sees "where the money is" and "what to do next"
                   side-by-side. Stacks below md. */}
               <div className="grid md:grid-cols-2 gap-5 lg:gap-6 items-stretch">
-                {/* Partial-payment edge case */}
-                {isPartiallyPaid && (
+                {/* Partial-payment edge case (hidden when an installment plan
+                    owns the balance display) */}
+                {isPartiallyPaid && !hasPlan && (
                   <div className="rounded-lg p-5 lg:p-6 bg-warning-bg border border-warning/30">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-warning mb-2">
                       Outstanding balance
@@ -851,7 +854,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 )}
 
                 {/* Paid-in-full happy path */}
-                {!isPartiallyPaid && !isOverpaid && (
+                {!isPartiallyPaid && !isOverpaid && !hasPlan && (
                   <div className="rounded-lg p-5 lg:p-6 bg-success-bg border border-brand-accent/30 flex flex-col">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-brand-accent mb-2 inline-flex items-center gap-1.5">
                       <Check className="size-3.5" /> Paid in full
@@ -865,6 +868,29 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   </div>
                 )}
 
+                {/* Installment (buy-now-pay-later) plan */}
+                <InstallmentPanel
+                  orderNumber={order.number}
+                  plan={
+                    order.installmentPlan
+                      ? {
+                          id: order.installmentPlan.id,
+                          status: order.installmentPlan.status,
+                          minPaymentKobo: order.installmentPlan.minPaymentKobo,
+                          targetPayoffDate: order.installmentPlan.targetPayoffDate
+                            ? new Date(order.installmentPlan.targetPayoffDate).toISOString()
+                            : null,
+                          note: order.installmentPlan.note,
+                        }
+                      : null
+                  }
+                  outstandingKobo={outstanding}
+                  totalKobo={Number(order.totals.totalKobo)}
+                  paidKobo={paid}
+                  customerName={order.customer?.name ?? order.shipping.name}
+                  customerPhone={order.customer?.phone ?? order.shipping.phone}
+                  onRecordPayment={() => setRecordOpen(true)}
+                />
               </div>
 
               <Card

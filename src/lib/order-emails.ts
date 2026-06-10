@@ -21,9 +21,61 @@ import {
   orderCancelledEmail,
 } from "@/lib/email-templates";
 import { SITE } from "@/lib/site";
+import { formatMoney } from "@/lib/money";
 
 function trackingUrl(orderNumber: string): string {
   return `${SITE.url}/orders/${orderNumber}`;
+}
+
+/** Installment-balance reminder. Returns true only if an email was sent
+ *  (customer has an address on file + there's still a balance). */
+export async function emailInstallmentReminder(orderId: string): Promise<boolean> {
+  if (!hasDatabase) return false;
+  try {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { customer: { select: { name: true, email: true } } },
+    });
+    if (!order) return false;
+    const email = order.customer?.email;
+    if (!email) return false;
+
+    const total = Number(order.totalKobo);
+    const paid = Number(order.paidKobo);
+    const outstanding = Math.max(0, total - paid);
+    if (outstanding <= 0) return false;
+
+    const name = order.customer?.name ?? order.shipName;
+    const url = trackingUrl(order.number);
+    const subject = `Payment reminder — order ${order.number}`;
+    const text = `Hi ${name},\n\nA friendly reminder that order ${order.number} has an outstanding balance of ${formatMoney(
+      outstanding,
+    )} (${formatMoney(paid)} of ${formatMoney(total)} paid). You can pay any amount towards it at any time.\n\nView your order: ${url}\n\nThank you,\n${SITE.name}`;
+    const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
+      <p>Hi ${name},</p>
+      <p>A friendly reminder that order <strong>${order.number}</strong> has an outstanding balance of <strong>${formatMoney(
+        outstanding,
+      )}</strong> (${formatMoney(paid)} of ${formatMoney(total)} paid).</p>
+      <p>You can pay any amount towards it at any time.</p>
+      <p><a href="${url}">View your order</a></p>
+      <p style="color:#64748b">Thank you,<br/>${SITE.name}</p>
+    </div>`;
+
+    await sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+      tags: [
+        { name: "kind", value: "installment-reminder" },
+        { name: "order", value: order.number },
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.error("[order-emails] installment reminder failed:", err);
+    return false;
+  }
 }
 
 /** Order-confirmation email, fired right after order creation. */

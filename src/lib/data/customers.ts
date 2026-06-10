@@ -24,6 +24,9 @@ export interface AdminCustomerDetail {
   ordersCount: number;
   lastOrderAt: Date | null;
   createdAt: Date;
+  /** Sum of outstanding balances on orders with an active installment plan. */
+  installmentOutstandingKobo: number;
+  activeInstallmentPlans: number;
 }
 
 export async function listCustomers(): Promise<CustomerListRow[]> {
@@ -79,19 +82,31 @@ export async function getCustomer(id: string): Promise<AdminCustomerDetail | nul
       ordersCount: m.orders,
       lastOrderAt: null,
       createdAt: new Date(),
+      installmentOutstandingKobo: 0,
+      activeInstallmentPlans: 0,
     };
   }
   const c = await db.customer.findUnique({
     where: { id },
     include: {
       orders: {
-        select: { totalKobo: true, createdAt: true },
+        select: {
+          totalKobo: true,
+          paidKobo: true,
+          createdAt: true,
+          installmentPlan: { select: { status: true } },
+        },
         orderBy: { createdAt: "desc" },
       },
     },
   });
   if (!c) return null;
   const lifetime = c.orders.reduce((a, o) => a + Number(o.totalKobo), 0);
+  const activePlans = c.orders.filter((o) => o.installmentPlan?.status === "active");
+  const installmentOutstanding = activePlans.reduce(
+    (a, o) => a + Math.max(0, Number(o.totalKobo) - Number(o.paidKobo)),
+    0,
+  );
   return {
     id: c.id,
     name: c.name,
@@ -104,6 +119,8 @@ export async function getCustomer(id: string): Promise<AdminCustomerDetail | nul
     ordersCount: c.orders.length,
     lastOrderAt: c.orders[0]?.createdAt ?? null,
     createdAt: c.createdAt,
+    installmentOutstandingKobo: installmentOutstanding,
+    activeInstallmentPlans: activePlans.length,
   };
 }
 

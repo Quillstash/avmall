@@ -36,7 +36,10 @@ export async function POST(
     const updated = await db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { number: params.number },
-        include: { reservations: { where: { status: "active" } } },
+        include: {
+          reservations: { where: { status: "active" } },
+          installmentPlan: true,
+        },
       });
       if (!order) throw new NotFoundError("Order");
       if (order.status === "cancelled") throw new ConflictError("Order is cancelled");
@@ -44,8 +47,11 @@ export async function POST(
         throw new ConflictError(`Order already ${order.status}`);
       }
 
+      // Buy-now-pay-later: an active installment plan is an explicit agreement
+      // to fulfil before full payment, so the paid-in-full gate doesn't apply.
+      const onInstallmentPlan = order.installmentPlan?.status === "active";
       const paidInFull = order.paidKobo >= order.totalKobo;
-      if (!paidInFull) {
+      if (!paidInFull && !onInstallmentPlan) {
         if (!parsed.data.override) {
           throw new ConflictError(
             "Order is not paid in full — pass override:true to ship anyway (Manager+)",

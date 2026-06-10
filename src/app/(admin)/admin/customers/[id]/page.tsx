@@ -6,6 +6,7 @@ import {
   Mail,
   ShieldAlert,
   MoreHorizontal,
+  CreditCard,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
@@ -117,6 +118,25 @@ export default async function AdminCustomerDetailPage({ params }: PageProps) {
                   <Stat label="Avg order" value={avgOrder} />
                   <Stat label="Last order" value={lastOrderLabel} />
                 </div>
+
+                {customer.installmentOutstandingKobo > 0 && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between gap-2 rounded-md bg-info-bg/50 border border-brand-primary/20 px-3 py-2.5">
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary">
+                        <CreditCard className="size-3.5" /> Owed on installments
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold tabular">
+                          {formatMoney(customer.installmentOutstandingKobo)}
+                        </div>
+                        <div className="text-[10px] text-fg-muted">
+                          {customer.activeInstallmentPlans} active plan
+                          {customer.activeInstallmentPlans === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </Card>
 
               <Card title="Contact">

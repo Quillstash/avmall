@@ -41,9 +41,27 @@ export async function POST(
     const { amountKobo, method, reference, note } = parsed.data;
 
     const result = await db.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { number: params.number } });
+      const order = await tx.order.findUnique({
+        where: { number: params.number },
+        include: { installmentPlan: true },
+      });
       if (!order) throw new NotFoundError("Order");
       if (order.status === "cancelled") throw new ConflictError("Order is cancelled");
+
+      // On an active installment plan, enforce any minimum-per-payment — unless
+      // this payment clears the remaining balance (the final top-up).
+      const plan = order.installmentPlan;
+      const outstanding = order.totalKobo - order.paidKobo;
+      if (
+        plan?.status === "active" &&
+        plan.minPaymentKobo != null &&
+        BigInt(amountKobo) < plan.minPaymentKobo &&
+        BigInt(amountKobo) < outstanding
+      ) {
+        throw new ConflictError(
+          `Minimum payment is ₦${(Number(plan.minPaymentKobo) / 100).toLocaleString("en-NG")}`,
+        );
+      }
 
       const payment = await tx.orderPayment.create({
         data: {
@@ -76,6 +94,14 @@ export async function POST(
           status: nextStatus,
         },
       });
+
+      // Paid off an active installment plan → mark it completed.
+      if (paymentStatus === "paid" && plan?.status === "active") {
+        await tx.installmentPlan.update({
+          where: { id: plan.id },
+          data: { status: "completed" },
+        });
+      }
 
       await writeAudit(
         {

@@ -112,6 +112,7 @@ model User {
   store             Store?          @relation(fields: [storeId], references: [id])
   ordersCreated     Order[]         @relation("OrderCreatedBy")
   paymentsRecorded  OrderPayment[]  @relation("PaymentRecordedBy")
+  installmentPlansCreated InstallmentPlan[] @relation("InstallmentPlanCreatedBy")
   notes             OrderNote[]
   auditLogs         AuditLog[]
   invitationsSent   StaffInvitation[] @relation("StaffInvitedBy")
@@ -411,6 +412,7 @@ model Order {
   returns         Return[]
   notes           OrderNote[]
   conversations   AiConversation[]
+  installmentPlan InstallmentPlan?
 
   @@index([customerId])
   @@index([storeId])
@@ -477,6 +479,39 @@ model OrderPayment {
 
   @@index([orderId])
   @@map("order_payments")
+}
+
+/// Buy-now-pay-later installment plan on an order. Flexible balance: the
+/// customer receives the goods and pays the balance down over time; staff
+/// record each payment through the normal OrderPayment ledger. The plan is
+/// "completed" when paid_kobo reaches total_kobo. One plan per order.
+enum InstallmentPlanStatus {
+  active
+  completed
+  cancelled
+  defaulted
+}
+
+model InstallmentPlan {
+  id               String                @id @default(uuid()) @db.Uuid
+  orderId          String                @unique @map("order_id") @db.Uuid
+  status           InstallmentPlanStatus @default(active)
+  /// Optional minimum amount (kobo) a single payment must meet.
+  minPaymentKobo   BigInt?               @map("min_payment_kobo")
+  /// Optional date the balance is expected to reach zero (drives overdue).
+  targetPayoffDate DateTime?             @map("target_payoff_date") @db.Timestamptz
+  note             String?
+  createdById      String?               @map("created_by_id") @db.Uuid
+  /// Last reminder send, for cadence throttling.
+  lastReminderAt   DateTime?             @map("last_reminder_at") @db.Timestamptz
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+
+  order            Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy        User?                 @relation("InstallmentPlanCreatedBy", fields: [createdById], references: [id])
+
+  @@index([status])
+  @@map("installment_plans")
 }
 
 model OrderNote {
