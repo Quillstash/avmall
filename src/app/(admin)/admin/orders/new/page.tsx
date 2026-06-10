@@ -15,7 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/ui/money";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { toast } from "@/components/ui/toaster";
-import { NIGERIAN_STATES, LAGOS_LGAS } from "@/lib/mock-data";
+import { NIGERIAN_STATES } from "@/lib/mock-data";
+import { NIGERIA_LGAS } from "@/lib/nigeria-lgas";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +50,7 @@ export default function AdminCreateOrderPage() {
   const [recipientName, setRecipientName] = React.useState("Walk-in customer");
   const [phone, setPhone] = React.useState("");
   const [state, setState] = React.useState("Lagos");
-  const [lga, setLga] = React.useState("Ikoyi");
+  const [lga, setLga] = React.useState(NIGERIA_LGAS["Lagos"]?.[0] ?? "");
   const [line1, setLine1] = React.useState("Walk-in (in-store)");
   const [notes, setNotes] = React.useState("");
   const [placing, setPlacing] = React.useState(false);
@@ -435,7 +436,12 @@ export default function AdminCreateOrderPage() {
                     <Select
                       id="state"
                       value={state}
-                      onChange={(e) => setState(e.target.value)}
+                      onChange={(e) => {
+                        const s = e.target.value;
+                        setState(s);
+                        // Reset the LGA to match the newly selected state.
+                        setLga(NIGERIA_LGAS[s]?.[0] ?? "");
+                      }}
                     >
                       {NIGERIAN_STATES.map((s) => (
                         <option key={s} value={s}>
@@ -450,7 +456,7 @@ export default function AdminCreateOrderPage() {
                       value={lga}
                       onChange={(e) => setLga(e.target.value)}
                     >
-                      {LAGOS_LGAS.map((l) => (
+                      {(NIGERIA_LGAS[state] ?? []).map((l) => (
                         <option key={l} value={l}>
                           {l}
                         </option>
