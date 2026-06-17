@@ -11,6 +11,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
+import { resolveStaffStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError } from "@/lib/errors";
 
@@ -43,15 +44,20 @@ export async function POST(
     if (!source || source.archivedAt) throw new NotFoundError("Product");
 
     const newSlug = await uniqueSlug(source.slug);
+    // Stock is per-store now; seed the copy's opening stock at the operator's
+    // store (zero — a fresh copy starts empty).
+    const storeId = await resolveStaffStoreId(session);
 
     const copy = await db.$transaction(async (tx) => {
       const product = await tx.product.create({
+        include: { variants: true },
         data: {
           slug: newSlug,
           name: `${source.name} (Copy)`,
           brand: source.brand,
           shortDesc: source.shortDesc,
           categoryId: source.categoryId,
+          storeId: source.storeId,
           themeBg: source.themeBg,
           priceKobo: source.priceKobo,
           costPriceKobo: source.costPriceKobo,
@@ -73,8 +79,6 @@ export async function POST(
               label: v.label,
               sku: `${v.sku ?? newSlug.toUpperCase()}-V${i + 1}`,
               priceKobo: v.priceKobo,
-              onHand: 0, // start with zero stock
-              reserved: 0,
               position: v.position,
               option1Value: v.option1Value,
               option2Value: v.option2Value,
@@ -90,6 +94,18 @@ export async function POST(
           },
         },
       });
+
+      // Seed opening (zero) stock for the copy's variants at the operator's store.
+      if (storeId && product.variants.length > 0) {
+        await tx.storeStock.createMany({
+          data: product.variants.map((v) => ({
+            storeId,
+            variantId: v.id,
+            onHand: 0,
+            reserved: 0,
+          })),
+        });
+      }
 
       await writeAudit(
         {

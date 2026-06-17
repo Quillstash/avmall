@@ -38,6 +38,7 @@ import { writeAudit } from "@/lib/audit";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import { resolveStaffStoreId } from "@/lib/store";
+import { normaliseNigerianPhone } from "@/lib/phone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 
@@ -63,6 +64,15 @@ const bodySchema = z.object({
     .default([]),
   manualDiscountKobo: z.number().int().nonnegative().default(0),
   note: z.string().optional(),
+  /** Optional walk-in customer. Captured for partial sales (so there's a
+   *  record of who owes) and to print their name on the receipt. */
+  customer: z
+    .object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().email().optional().or(z.literal("")),
+    })
+    .optional(),
   /** Till store. All-store operators (manager/super_admin) can pass one;
    *  otherwise the operator's home store is used. */
   storeId: z.string().uuid().optional(),
@@ -206,16 +216,49 @@ export async function POST(req: NextRequest) {
         const orderNumber = await nextOrderNumber(tx);
         const now = new Date();
 
+        // Optional walk-in customer. With a phone → find-or-create (so partial
+        // sales link to a real customer record + show on their profile).
+        // Name-only still prints on the receipt but creates no record, since
+        // phone is the customer key.
+        let customerId: string | null = null;
+        let shipName = "Walk-in customer";
+        let shipPhone = "Walk-in";
+        const cust = body.customer;
+        if (cust && (cust.name?.trim() || cust.phone?.trim())) {
+          const name = cust.name?.trim() || "Walk-in customer";
+          const email = cust.email?.trim() || null;
+          const rawPhone = cust.phone?.trim();
+          if (rawPhone) {
+            let phone: string;
+            try {
+              phone = normaliseNigerianPhone(rawPhone);
+            } catch {
+              throw new ValidationError({
+                "customer.phone": "Enter a valid Nigerian phone number",
+              });
+            }
+            const existing = await tx.customer.findFirst({ where: { storeId, phone } });
+            const customer =
+              existing ??
+              (await tx.customer.create({ data: { storeId, phone, name, email } }));
+            customerId = customer.id;
+            shipName = customer.name;
+            shipPhone = customer.phone;
+          } else {
+            shipName = name;
+          }
+        }
+
         const created = await tx.order.create({
           data: {
             number: orderNumber,
-            customerId: null,
+            customerId,
             storeId,
             status: "delivered",
             paymentStatus,
             source: "walkin",
-            shipName: "Walk-in customer",
-            shipPhone: "Walk-in",
+            shipName,
+            shipPhone,
             shipLine1: "Walk-in (in-store)",
             shipCity: "Lagos",
             shipState: "Lagos",
@@ -308,6 +351,8 @@ export async function POST(req: NextRequest) {
           number: order.number,
           status: order.status,
           paymentStatus: order.paymentStatus,
+          customerName: order.shipName === "Walk-in customer" ? null : order.shipName,
+          customerPhone: order.shipPhone === "Walk-in" ? null : order.shipPhone,
           totalKobo: Number(order.totalKobo),
           paidKobo: Number(order.paidKobo),
           subtotalKobo: Number(order.subtotalKobo),

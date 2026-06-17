@@ -5,7 +5,7 @@
 
 import "server-only";
 
-import { db, hasDatabase } from "@/lib/db";
+import { db, hasDatabase, withRetry } from "@/lib/db";
 import { SHIPPING_ZONES as MOCK_ZONES, type ShippingZone as MockZone } from "@/lib/admin-mock-data";
 
 /** View shape used by the admin shipping page — matches the legacy mock so
@@ -50,9 +50,11 @@ export async function listShippingZones(): Promise<ShippingZoneView[]> {
       active: z.active,
     })));
   }
-  const rows = await db.shippingZone.findMany({
-    orderBy: { name: "asc" },
-  });
+  const rows = await withRetry(() =>
+    db.shippingZone.findMany({
+      orderBy: { name: "asc" },
+    }),
+  );
   const view: ShippingZoneView[] = rows.map((z) => ({
     id: z.id,
     name: z.name,
@@ -69,7 +71,7 @@ export async function getFallbackShipping(): Promise<FallbackShippingView | null
   if (!hasDatabase) {
     return { enabled: true, flatRateKobo: 900_000, etaDays: "5–7 days" };
   }
-  const row = await db.fallbackShipping.findFirst();
+  const row = await withRetry(() => db.fallbackShipping.findFirst());
   if (!row) return null;
   return {
     enabled: row.enabled,
@@ -90,9 +92,11 @@ export interface CourierView {
 
 export async function listCouriers(): Promise<CourierView[]> {
   if (!hasDatabase) return [];
-  const rows = await db.courier.findMany({
-    orderBy: [{ isPrimary: "desc" }, { position: "asc" }, { name: "asc" }],
-  });
+  const rows = await withRetry(() =>
+    db.courier.findMany({
+      orderBy: [{ isPrimary: "desc" }, { position: "asc" }, { name: "asc" }],
+    }),
+  );
   return rows.map((c) => ({
     id: c.id,
     name: c.name,

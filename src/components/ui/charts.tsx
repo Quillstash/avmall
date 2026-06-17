@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -198,11 +200,13 @@ export function DonutChart({
   centerLabel,
   className,
 }: DonutChartProps) {
+  const [hover, setHover] = React.useState<number | null>(null);
   const total = data.reduce((a, d) => a + d.value, 0) || 1;
   const c = size / 2;
   const r = c - stroke / 2;
   const cir = 2 * Math.PI * r;
   let cumul = 0;
+  const hovered = hover != null ? data[hover] : null;
 
   return (
     <div className={cn("flex flex-col items-center gap-4 sm:flex-row", className)}>
@@ -224,20 +228,51 @@ export function DonutChart({
               strokeDasharray={`${len} ${cir}`}
               strokeDashoffset={off}
               transform={`rotate(-90 ${c} ${c})`}
+              opacity={hover === null || hover === i ? 1 : 0.3}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              style={{ cursor: "pointer", transition: "opacity 150ms" }}
             />
           );
         })}
-        {centerLabel && (
-          <foreignObject x={0} y={0} width={size} height={size}>
-            <div className="flex flex-col items-center justify-center h-full">
-              {centerLabel}
-            </div>
-          </foreignObject>
-        )}
+        {/* Center: hovered slice details, else the default label. pointer-events
+            off so the overlay doesn't steal hover from the slices beneath. */}
+        <foreignObject
+          x={0}
+          y={0}
+          width={size}
+          height={size}
+          style={{ pointerEvents: "none" }}
+        >
+          <div className="flex flex-col items-center justify-center h-full text-center px-2">
+            {hovered ? (
+              <>
+                <div className="text-2xl font-bold tabular leading-none">{hovered.value}</div>
+                <div className="text-[10px] text-fg-muted truncate max-w-[88px] mt-0.5">
+                  {hovered.label}
+                </div>
+                <div className="text-[10px] text-fg-muted">
+                  {Math.round((hovered.value / total) * 100)}%
+                </div>
+              </>
+            ) : (
+              centerLabel
+            )}
+          </div>
+        </foreignObject>
       </svg>
-      <div className="w-full sm:flex-1 min-w-0 flex flex-col gap-1.5 text-xs">
-        {data.map((d) => (
-          <div key={d.label} className="flex items-center gap-2">
+      <div className="w-full sm:flex-1 min-w-0 flex flex-col gap-0.5 text-xs">
+        {data.map((d, i) => (
+          <div
+            key={d.label}
+            className="flex items-center gap-2 rounded px-1.5 py-1 -mx-1.5 transition-colors cursor-default"
+            style={{
+              opacity: hover === null || hover === i ? 1 : 0.4,
+              background: hover === i ? "hsl(var(--surface-2))" : undefined,
+            }}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          >
             <span className="size-2.5 rounded-sm flex-shrink-0" style={{ background: d.color }} />
             <span className="flex-1 min-w-0 truncate">{d.label}</span>
             <span className="font-bold tabular flex-shrink-0">{d.value}</span>

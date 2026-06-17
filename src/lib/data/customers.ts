@@ -29,10 +29,11 @@ export interface AdminCustomerDetail {
   activeInstallmentPlans: number;
 }
 
-export async function listCustomers(): Promise<CustomerListRow[]> {
+export async function listCustomers(storeId?: string | null): Promise<CustomerListRow[]> {
   if (!hasDatabase) return [...MOCK_CUSTOMERS];
 
   const rows = await db.customer.findMany({
+    ...(storeId ? { where: { storeId } } : {}),
     orderBy: { createdAt: "desc" },
     take: 200,
     include: {

@@ -265,6 +265,12 @@ export default function AdminNewProductPage() {
         return;
       }
     }
+    // Block saving while an image is still uploading (no R2 key yet) — otherwise
+    // it gets dropped and the product saves with no image.
+    if (images.some((i) => i.progress != null || (!i.key && !i.error))) {
+      toast.error("Please wait for images to finish uploading.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/v1/admin/products", {
@@ -357,7 +363,8 @@ export default function AdminNewProductPage() {
             title="New product"
             subtitle="Add a product to the catalogue. Save as draft to come back later."
             actions={
-              <>
+              // Desktop only — on mobile these move to a bottom action bar.
+              <div className="hidden lg:flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -380,7 +387,7 @@ export default function AdminNewProductPage() {
                 >
                   <Save className="size-3.5" /> Publish
                 </Button>
-              </>
+              </div>
             }
           />
 
@@ -806,6 +813,29 @@ export default function AdminNewProductPage() {
                 </ul>
               </Card>
             </div>
+          </div>
+
+          {/* Mobile: save / publish live at the bottom of the form */}
+          <div className="lg:hidden flex flex-col gap-2 mt-6">
+            <Button onClick={() => save(false)} loading={saving} size="lg" width="full">
+              <Save className="size-4" /> Publish
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => save(true)}
+              loading={saving}
+              size="lg"
+              width="full"
+            >
+              Save as draft
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => router.push("/admin/products")}
+              width="full"
+            >
+              Cancel
+            </Button>
           </div>
         </div>
       </div>

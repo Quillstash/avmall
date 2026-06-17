@@ -14,7 +14,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -70,7 +69,8 @@ export async function POST(
     }
 
     const position = (product.variants[0]?.position ?? -1) + 1;
-    const storeId = await resolveStaffStoreId(session);
+    // New variant's stock lives at the product's own store.
+    const storeId = product.storeId;
 
     const variant = await db.$transaction(async (tx) => {
       const v = await tx.productVariant.create({

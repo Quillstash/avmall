@@ -18,6 +18,7 @@ import {
   Check,
   Printer,
   ShoppingBag,
+  UserPlus,
   X,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
@@ -85,6 +86,8 @@ interface CompletedSale {
   payments: { method: Method; amountKobo: number }[];
   changeKobo: number;
   at: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
 }
 
 export default function AdminPosPage() {
@@ -100,6 +103,11 @@ export default function AdminPosPage() {
   const [payRows, setPayRows] = React.useState<PayRow[]>([]);
   const [placing, setPlacing] = React.useState(false);
   const [completed, setCompleted] = React.useState<CompletedSale | null>(null);
+  // Optional walk-in customer — for partial-sale records + receipt printing.
+  const [showCustomer, setShowCustomer] = React.useState(false);
+  const [custName, setCustName] = React.useState("");
+  const [custPhone, setCustPhone] = React.useState("");
+  const [custEmail, setCustEmail] = React.useState("");
 
   const searchRef = React.useRef<HTMLInputElement>(null);
 
@@ -219,6 +227,10 @@ export default function AdminPosPage() {
     setSearch("");
     setMatches([]);
     setCompleted(null);
+    setShowCustomer(false);
+    setCustName("");
+    setCustPhone("");
+    setCustEmail("");
     setTimeout(() => searchRef.current?.focus(), 0);
   }
 
@@ -262,6 +274,15 @@ export default function AdminPosPage() {
           items: lines.map((l) => ({ productSlug: l.slug, quantity: l.qty })),
           payments,
           manualDiscountKobo: discountKobo,
+          ...(custName.trim() || custPhone.trim()
+            ? {
+                customer: {
+                  ...(custName.trim() && { name: custName.trim() }),
+                  ...(custPhone.trim() && { phone: custPhone.trim() }),
+                  ...(custEmail.trim() && { email: custEmail.trim() }),
+                },
+              }
+            : {}),
         }),
       });
       const json = await res.json();
@@ -314,6 +335,22 @@ export default function AdminPosPage() {
                   <span className="text-xs text-fg-muted">Total</span>
                   <Money kobo={completed.totalKobo} variant="large" />
                 </div>
+                {completed.customerName && (
+                  <div className="mt-2 text-xs text-fg-muted">
+                    {completed.customerName}
+                    {completed.customerPhone ? ` · ${completed.customerPhone}` : ""}
+                  </div>
+                )}
+                {completed.paidKobo < completed.totalKobo && (
+                  <div className="mt-3 inline-flex flex-col items-center rounded-lg bg-warning-bg border border-warning/30 px-5 py-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-warning">
+                      Balance outstanding
+                    </span>
+                    <span className="text-xl font-bold tabular text-warning">
+                      {formatMoney(completed.totalKobo - completed.paidKobo)}
+                    </span>
+                  </div>
+                )}
                 {completed.changeKobo > 0 && (
                   <div className="mt-4 rounded-lg bg-surface border border-border px-5 py-3 inline-flex flex-col items-center">
                     <span className="text-xs font-bold uppercase tracking-wider text-warning">
@@ -363,7 +400,10 @@ export default function AdminPosPage() {
           <ReceiptPrintView
             orderNumber={completed.number}
             placedAt={completed.at}
-            customer={{ name: "Walk-in customer", phone: "" }}
+            customer={{
+              name: completed.customerName ?? "Walk-in customer",
+              phone: completed.customerPhone ?? "",
+            }}
             items={completed.lines}
             totals={{
               subtotalKobo: completed.subtotalKobo,
@@ -604,6 +644,58 @@ export default function AdminPosPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Optional walk-in customer */}
+                {!showCustomer ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomer(true)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-md border border-dashed border-border-strong text-xs font-semibold text-fg-muted hover:border-brand-primary hover:text-brand-primary"
+                  >
+                    <UserPlus className="size-3.5" /> Add customer (optional)
+                  </button>
+                ) : (
+                  <div className="rounded-md border border-border bg-surface-2/40 p-2.5 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+                        Customer
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomer(false);
+                          setCustName("");
+                          setCustPhone("");
+                          setCustEmail("");
+                        }}
+                        className="text-fg-muted hover:text-danger"
+                        aria-label="Remove customer"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                    <Input
+                      value={custName}
+                      onChange={(e) => setCustName(e.target.value)}
+                      placeholder="Name"
+                    />
+                    <Input
+                      value={custPhone}
+                      onChange={(e) => setCustPhone(e.target.value)}
+                      placeholder="Phone (e.g. 0803 000 0000)"
+                      inputMode="tel"
+                    />
+                    <Input
+                      value={custEmail}
+                      onChange={(e) => setCustEmail(e.target.value)}
+                      placeholder="Email (optional)"
+                      type="email"
+                    />
+                    <p className="text-[10px] text-fg-muted">
+                      Recommended for part-payments so the balance is tracked against them.
+                    </p>
                   </div>
                 )}
 

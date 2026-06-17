@@ -2,6 +2,7 @@
 
 import { Bell, Menu } from "lucide-react";
 import { AdminTopBarSearch } from "@/components/admin/topbar-search";
+import { StoreSwitcher } from "@/components/admin/store-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAdminNav } from "@/stores/admin-nav-store";
 
@@ -38,6 +39,7 @@ export function AdminTopBar({ breadcrumbs = [] }: TopBarProps) {
 
       <div className="flex-1" />
 
+      <StoreSwitcher />
       <AdminTopBarSearch />
 
       <ThemeToggle />

@@ -9,6 +9,7 @@ import {
   resolveRevenueRange,
   revenueReportArg,
 } from "@/lib/data/reports";
+import { getActiveAdminStoreId } from "@/lib/store";
 import { formatMoney } from "@/lib/money";
 import { RevenueRangePicker } from "@/components/admin/revenue-range-picker";
 
@@ -30,7 +31,8 @@ function fmtDay(iso: string): string {
 export default async function RevenueReportPage({ searchParams }: PageProps) {
   const resolved = resolveRevenueRange(searchParams);
   const { isCustom, presetRange } = resolved;
-  const data = await getRevenueReport(revenueReportArg(resolved));
+  const storeId = await getActiveAdminStoreId();
+  const data = await getRevenueReport(revenueReportArg(resolved), storeId);
 
   const subtitle = isCustom
     ? `${fmtDay(data.from)} – ${fmtDay(data.to)}`

@@ -75,6 +75,7 @@ export function revenueReportArg(
  */
 export async function getRevenueReport(
   range: { from: Date; to: Date } | number = 30,
+  storeId?: string | null,
 ): Promise<RevenueReport> {
   const now = new Date();
   let from: Date;
@@ -106,6 +107,7 @@ export async function getRevenueReport(
     withRetry(() =>
       db.order.findMany({
         where: {
+          ...(storeId ? { storeId } : {}),
           createdAt: { gte: from, lte: to },
           status: { notIn: ["cancelled"] },
         },
@@ -121,6 +123,7 @@ export async function getRevenueReport(
         where: {
           createdAt: { gte: from, lte: to },
           status: "completed",
+          ...(storeId ? { order: { storeId } } : {}),
         },
         select: { method: true, amountKobo: true },
       }),
@@ -207,7 +210,9 @@ export interface InventoryReport {
   }[];
 }
 
-export async function getInventoryReport(): Promise<InventoryReport> {
+export async function getInventoryReport(
+  storeId?: string | null,
+): Promise<InventoryReport> {
   if (!hasDatabase) {
     return {
       totalSkus: 0,
@@ -222,7 +227,7 @@ export async function getInventoryReport(): Promise<InventoryReport> {
 
   const products = await withRetry(() =>
     db.product.findMany({
-      where: { archivedAt: null, published: true },
+      where: { archivedAt: null, published: true, ...(storeId ? { storeId } : {}) },
       select: {
         slug: true,
         name: true,
@@ -231,7 +236,14 @@ export async function getInventoryReport(): Promise<InventoryReport> {
         saleKobo: true,
         saleActive: true,
         costPriceKobo: true,
-        variants: { select: { storeStock: { select: { onHand: true } } } },
+        variants: {
+          select: {
+            storeStock: {
+              ...(storeId ? { where: { storeId } } : {}),
+              select: { onHand: true },
+            },
+          },
+        },
       },
     }),
   );

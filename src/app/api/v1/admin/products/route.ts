@@ -11,7 +11,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { resolveStaffStoreId } from "@/lib/store";
+import { resolveAdminStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -150,6 +150,13 @@ export async function POST(req: NextRequest) {
           ];
     const variantCreate = variantSpecs.map(({ stock: _stock, ...rest }) => rest);
 
+    // Products are per-store — they're created in (and stocked at) the admin's
+    // active store.
+    const storeId = await resolveAdminStoreId(session);
+    if (!storeId) {
+      throw new ValidationError({ store: "No store available to create the product in" });
+    }
+
     const product = await db.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -159,6 +166,7 @@ export async function POST(req: NextRequest) {
           shortDesc: b.shortDesc,
           longDesc: b.longDesc,
           categoryId: category.id,
+          storeId,
           themeBg: b.themeBg ?? null,
           priceKobo: BigInt(b.priceKobo),
           costPriceKobo: BigInt(b.costPriceKobo),
@@ -203,20 +211,17 @@ export async function POST(req: NextRequest) {
         include: { variants: true },
       });
 
-      // Seed each new variant's opening stock at the operator's store.
-      const storeId = await resolveStaffStoreId(session);
-      if (storeId) {
-        for (const v of created.variants) {
-          const spec = variantSpecs.find((s) => s.sku === v.sku);
-          await tx.storeStock.create({
-            data: {
-              storeId,
-              variantId: v.id,
-              onHand: spec?.stock ?? 0,
-              reserved: 0,
-            },
-          });
-        }
+      // Seed each new variant's opening stock at the product's store.
+      for (const v of created.variants) {
+        const spec = variantSpecs.find((s) => s.sku === v.sku);
+        await tx.storeStock.create({
+          data: {
+            storeId,
+            variantId: v.id,
+            onHand: spec?.stock ?? 0,
+            reserved: 0,
+          },
+        });
       }
 
       await writeAudit(

@@ -13,7 +13,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission, hasPermission } from "@/lib/permissions";
-import { resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import {
@@ -154,10 +153,10 @@ export async function PATCH(
         },
       });
 
-      // Update default-variant stock if asked — per-store, at the operator's
-      // store (upsert so a store without a row yet gets one).
+      // Update default-variant stock if asked — per-store, at the product's
+      // own store (upsert so a store without a row yet gets one).
       if (b.stock !== undefined && product.variants[0]) {
-        const storeId = await resolveStaffStoreId(session);
+        const storeId = product.storeId;
         if (storeId) {
           await tx.storeStock.upsert({
             where: {

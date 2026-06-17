@@ -94,11 +94,19 @@ export async function POST(req: NextRequest) {
 
     const normalizedPhone = normaliseNigerianPhone(body.contact.phone);
 
-    // Find-or-create the customer by phone.
-    let customer = await db.customer.findUnique({ where: { phone: normalizedPhone } });
+    // AI orders draw from the Main store (the storefront default); customers
+    // are per-store.
+    const storeId = await getMainStoreId();
+    if (!storeId) throw new AppError("NO_STORE", "No store available.", 503);
+
+    // Find-or-create the customer by phone within the store.
+    let customer = await db.customer.findFirst({
+      where: { storeId, phone: normalizedPhone },
+    });
     if (!customer) {
       customer = await db.customer.create({
         data: {
+          storeId,
           phone: normalizedPhone,
           email: body.contact.email ?? null,
           name: body.contact.name,
@@ -110,9 +118,6 @@ export async function POST(req: NextRequest) {
     const result = await withIdempotency(idempotencyKey, body, async () => {
       // Hydrate products
       const slugs = Array.from(new Set(body.items.map((i) => i.productSlug)));
-      // AI orders draw from the Main store (the storefront default).
-      const storeId = await getMainStoreId();
-      if (!storeId) throw new AppError("NO_STORE", "No store available.", 503);
 
       const products = await db.product.findMany({
         where: { slug: { in: slugs }, archivedAt: null, published: true },

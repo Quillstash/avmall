@@ -76,6 +76,7 @@ export async function POST(
           name: invitation.name,
           role: invitation.role,
           roleId: invitation.roleId,
+          storeId: invitation.storeId,
           passwordHash,
           active: true,
         },
