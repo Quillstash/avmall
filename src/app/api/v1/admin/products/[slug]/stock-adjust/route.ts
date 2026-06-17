@@ -23,7 +23,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -38,8 +37,6 @@ const bodySchema = z.object({
     .refine((n) => n !== 0, "Delta must be non-zero"),
   reason: z.enum(["restock", "correction", "damage", "return", "other"]),
   note: z.string().max(500).optional(),
-  /** Store to adjust. Defaults to the operator's home store. */
-  storeId: z.string().uuid().optional(),
 });
 
 export async function POST(
@@ -65,11 +62,12 @@ export async function POST(
     // staff from juggling cross-product variant IDs via this endpoint).
     const product = await db.product.findUnique({
       where: { slug },
-      select: { id: true, name: true },
+      select: { id: true, name: true, storeId: true },
     });
     if (!product) throw new NotFoundError(`Product ${slug}`);
 
-    const storeId = body.storeId ?? (await resolveStaffStoreId(session));
+    // Stock always lives at the product's own store (products are per-store).
+    const storeId = product.storeId;
     if (!storeId) {
       throw new AppError("NO_STORE", "No store to adjust stock for.", 400);
     }

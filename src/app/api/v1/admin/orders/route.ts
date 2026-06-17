@@ -30,7 +30,7 @@ import { nextOrderNumber } from "@/lib/order-number";
 import { writeAudit } from "@/lib/audit";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { resolveStaffStoreId } from "@/lib/store";
+import { resolveAdminStoreId } from "@/lib/store";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { emailOnOrderCreated } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
@@ -90,16 +90,25 @@ export async function POST(req: NextRequest) {
     // Phone is optional for walk-ins. When given, normalise and dedupe by
     // phone like /checkout does. When absent, the order has no linked customer
     // (customerId stays null on the Order row).
+    // Staff-created orders are scoped to the admin's active store.
+    const storeId = await resolveAdminStoreId(session);
+    if (!storeId) {
+      throw new AppError("NO_STORE", "No store assigned to this staff member.", 400);
+    }
+
     const rawPhone = body.contact.phone?.trim();
     const normalizedPhone = rawPhone ? normaliseNigerianPhone(rawPhone) : null;
 
     let customer: { id: string } | null = null;
     if (normalizedPhone) {
-      const existing = await db.customer.findUnique({ where: { phone: normalizedPhone } });
+      const existing = await db.customer.findFirst({
+        where: { storeId, phone: normalizedPhone },
+      });
       customer = existing
         ? { id: existing.id }
         : await db.customer.create({
             data: {
+              storeId,
               phone: normalizedPhone,
               email: body.contact.email ?? null,
               name: body.contact.name,
@@ -113,12 +122,6 @@ export async function POST(req: NextRequest) {
     const shipCity = body.shipping.city?.trim() || "Lagos";
     const shipState = body.shipping.state?.trim() || "Lagos";
     const shipPhone = normalizedPhone ?? "Walk-in";
-
-    // Staff-created orders draw from the operator's store.
-    const storeId = await resolveStaffStoreId(session);
-    if (!storeId) {
-      throw new AppError("NO_STORE", "No store assigned to this staff member.", 400);
-    }
 
     // Hydrate products by slug. Mock-data slugs match DB slugs, so the form's
     // mock-driven product picker can submit slugs without resolving UUIDs.

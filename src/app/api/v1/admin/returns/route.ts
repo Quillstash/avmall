@@ -58,6 +58,7 @@ const bodySchema = z.object({
         orderLineId: z.string().uuid("orderLineId must be a UUID"),
         quantity: z.number().int().positive(),
         condition: z.enum(["unopened", "used", "damaged"]),
+        conditionNote: z.string().max(300).optional(),
         restock: z.boolean(),
         refundKobo: z.number().int().nonnegative().optional(),
       }),
@@ -153,6 +154,7 @@ export async function POST(req: NextRequest) {
       variantId: string | null;
       quantity: number;
       condition: "unopened" | "used" | "damaged";
+      conditionNote?: string;
       restock: boolean;
       unitKobo: number;
       refundKobo: number;
@@ -181,6 +183,7 @@ export async function POST(req: NextRequest) {
         variantId: ol.variantId,
         quantity: req.quantity,
         condition: req.condition,
+        ...(req.conditionNote?.trim() && { conditionNote: req.conditionNote.trim() }),
         restock: req.restock,
         unitKobo,
         refundKobo,
@@ -205,7 +208,11 @@ export async function POST(req: NextRequest) {
         let customerId = order.customerId;
         if (!customerId && body.contact && contactPhone) {
           const phone = contactPhone;
-          const existing = await tx.customer.findUnique({ where: { phone } });
+          const custStoreId = order.storeId ?? (await getMainStoreId());
+          if (!custStoreId) throw new ConflictError("Order has no store");
+          const existing = await tx.customer.findFirst({
+            where: { storeId: custStoreId, phone },
+          });
           if (existing?.blacklisted) {
             throw new ConflictError("Customer is blacklisted — escalate to manager");
           }
@@ -213,6 +220,7 @@ export async function POST(req: NextRequest) {
             existing ??
             (await tx.customer.create({
               data: {
+                storeId: custStoreId,
                 phone,
                 name: body.contact.name.trim(),
                 email: body.contact.email ?? null,
@@ -248,6 +256,7 @@ export async function POST(req: NextRequest) {
                 orderLineId: p.orderLineId,
                 quantity: p.quantity,
                 condition: p.condition,
+                ...(p.conditionNote && { conditionNote: p.conditionNote }),
                 restock: p.restock,
                 refundKobo: BigInt(p.refundKobo),
               })),

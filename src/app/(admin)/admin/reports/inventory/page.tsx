@@ -4,12 +4,14 @@ import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Money } from "@/components/ui/money";
 import { getInventoryReport } from "@/lib/data/reports";
+import { getActiveAdminStoreId } from "@/lib/store";
 import { formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryReportPage() {
-  const data = await getInventoryReport();
+  const storeId = await getActiveAdminStoreId();
+  const data = await getInventoryReport(storeId);
   const projectedProfit = data.totalRetailKobo - data.totalCostKobo;
 
   return (

@@ -237,10 +237,10 @@ export async function POST(req: NextRequest) {
                 "customer.phone": "Enter a valid Nigerian phone number",
               });
             }
-            const existing = await tx.customer.findUnique({ where: { phone } });
+            const existing = await tx.customer.findFirst({ where: { storeId, phone } });
             const customer =
               existing ??
-              (await tx.customer.create({ data: { phone, name, email } }));
+              (await tx.customer.create({ data: { storeId, phone, name, email } }));
             customerId = customer.id;
             shipName = customer.name;
             shipPhone = customer.phone;

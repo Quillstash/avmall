@@ -15,7 +15,7 @@ import bcrypt from "bcryptjs";
 import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getServerSession } from "next-auth";
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { env } from "./env";
 import { UnauthorizedError } from "./errors";
 import { permissionsForRole } from "./permissions";
@@ -54,10 +54,12 @@ async function resolvePermissions(
   enumRole: StaffRole,
 ): Promise<string[]> {
   if (roleId) {
-    const role = await db.role.findUnique({
-      where: { id: roleId },
-      select: { permissions: true },
-    });
+    const role = await withRetry(() =>
+      db.role.findUnique({
+        where: { id: roleId },
+        select: { permissions: true },
+      }),
+    );
     if (role) return role.permissions;
   }
   return permissionsForRole(enumRole);
@@ -86,9 +88,11 @@ export const authOptions: AuthOptions = {
         if (!creds?.email || !creds?.password) {
           throw new Error("Email and password required");
         }
-        const user = await db.user.findUnique({
-          where: { email: creds.email.toLowerCase() },
-        });
+        const user = await withRetry(() =>
+          db.user.findUnique({
+            where: { email: creds.email.toLowerCase() },
+          }),
+        );
         if (!user || !user.active) {
           // Same error on both branches so we don't leak account existence.
           throw new Error("Invalid email or password");

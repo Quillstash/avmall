@@ -19,6 +19,7 @@ import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission, enumForSlug } from "@/lib/permissions";
+import { canSwitchStores, resolveAdminStoreId, resolveStaffStoreId } from "@/lib/store";
 import { writeAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import { staffInvitationEmail } from "@/lib/email-templates";
@@ -34,6 +35,8 @@ const bodySchema = z.object({
   email: z.string().email().transform((s) => s.trim().toLowerCase()),
   name: z.string().min(1).max(120),
   roleId: z.string().uuid("Pick a role"),
+  /** Home store for the invitee. Honoured only for full-coverage inviters. */
+  storeId: z.string().uuid().optional(),
 });
 
 function makeToken(): string {
@@ -59,6 +62,27 @@ export async function POST(req: NextRequest) {
     if (!role) throw new NotFoundError("Role");
     const roleEnum = enumForSlug(role.slug);
 
+    // Resolve the invitee's home store. Full-coverage inviters (stores.view_all)
+    // may assign any active store; everyone else is clamped to their own store
+    // — the posted storeId is never trusted for non-coverage staff (§2.5).
+    let storeId: string | null;
+    if (canSwitchStores(session)) {
+      if (parsed.data.storeId) {
+        const store = await db.store.findUnique({
+          where: { id: parsed.data.storeId },
+          select: { id: true, active: true },
+        });
+        if (!store || !store.active) {
+          throw new ValidationError({ storeId: "Pick an active store" });
+        }
+        storeId = store.id;
+      } else {
+        storeId = await resolveAdminStoreId(session);
+      }
+    } else {
+      storeId = await resolveStaffStoreId(session);
+    }
+
     // Refuse if a User with this email already exists. (Staff are unique on
     // email; super-admins can resend a password reset for active staff.)
     const existingUser = await db.user.findUnique({ where: { email } });
@@ -83,7 +107,7 @@ export async function POST(req: NextRequest) {
     const invitation = existing
       ? await db.staffInvitation.update({
           where: { id: existing.id },
-          data: { token, expiresAt, name, role: roleEnum, roleId: role.id, invitedById: session.id },
+          data: { token, expiresAt, name, role: roleEnum, roleId: role.id, storeId, invitedById: session.id },
         })
       : await db.staffInvitation.create({
           data: {
@@ -91,6 +115,7 @@ export async function POST(req: NextRequest) {
             name,
             role: roleEnum,
             roleId: role.id,
+            storeId,
             token,
             expiresAt,
             invitedById: session.id,

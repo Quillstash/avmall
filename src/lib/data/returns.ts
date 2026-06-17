@@ -41,6 +41,7 @@ export interface AdminReturnDetailLine {
   quantity: number;
   unitKobo: number;
   condition: "unopened" | "used" | "damaged";
+  conditionNote: string | null;
   restock: boolean;
   refundKobo: number;
 }
@@ -116,6 +117,7 @@ export async function getAdminReturnByNumber(
       quantity: l.quantity,
       unitKobo: Number(l.orderLine.unitKobo),
       condition: l.condition,
+      conditionNote: l.conditionNote,
       restock: l.restock,
       refundKobo: Number(l.refundKobo),
     })),

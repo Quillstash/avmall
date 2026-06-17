@@ -216,6 +216,26 @@ export function ReturnDetailClient({ ret }: { ret: AdminReturnDetail }) {
                     {ret.internalNote}
                   </p>
                 )}
+                {ret.lines.some((l) => l.conditionNote) && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-1.5">
+                      Item condition
+                    </div>
+                    <ul className="flex flex-col gap-1 text-xs">
+                      {ret.lines
+                        .filter((l) => l.conditionNote)
+                        .map((l) => (
+                          <li key={l.id}>
+                            <span className="font-semibold">{l.name}</span>
+                            <span className="text-fg-muted">
+                              {" "}
+                              ({l.condition}) — {l.conditionNote}
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
               </Card>
 
               <Card title="Photos from customer">

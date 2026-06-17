@@ -48,14 +48,6 @@ import { waLink } from "@/lib/contact-links";
 import { cn } from "@/lib/utils";
 import { type OrderListRow, type OrderSource } from "@/lib/admin-mock-data";
 
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "confirmed", label: "Confirmed" },
-  { value: "processing", label: "Processing" },
-  { value: "shipped", label: "Shipped" },
-  { value: "delivered", label: "Delivered" },
-  { value: "cancelled", label: "Cancelled" },
-];
 const PAYMENT_OPTIONS = [
   { value: "paid", label: "Paid" },
   { value: "partial", label: "Partial" },
@@ -94,9 +86,8 @@ interface Props {
 
 export function OrdersListClient({ orders, totals }: Props) {
   const router = useRouter();
-  const [view, setView] = React.useState<string>("today");
+  const [view, setView] = React.useState<string>("all");
   const [search, setSearch] = React.useState("");
-  const [statusValues, setStatusValues] = React.useState<string[]>([]);
   const [paymentValues, setPaymentValues] = React.useState<string[]>([]);
   const [sourceValues, setSourceValues] = React.useState<string[]>([]);
   const [rowSelection, setRowSelection] = React.useState({});
@@ -108,39 +99,31 @@ export function OrdersListClient({ orders, totals }: Props) {
   const [bulkStatusLoading, setBulkStatusLoading] = React.useState(false);
 
   const filters: FilterConfig[] = [
-    { id: "status", label: "Status", values: statusValues, options: STATUS_OPTIONS, multi: true },
     { id: "payment", label: "Payment", values: paymentValues, options: PAYMENT_OPTIONS, multi: true },
     { id: "source", label: "Source", values: sourceValues, options: SOURCE_OPTIONS, multi: true },
   ];
 
-  // Saved-view counts — computed from the actual orders we received. We only
-  // include views that can be derived without a separate query.
-  const savedViews: SavedView[] = React.useMemo(
-    () => [
-      { id: "today", label: "All", count: orders.length },
-      {
-        id: "awaiting",
-        label: "Awaiting confirm",
-        count: orders.filter((o) => o.status === "pending").length,
-      },
-      {
-        id: "partial",
-        label: "Partially paid",
-        count: orders.filter((o) => o.payment === "partial").length,
-      },
-      {
-        id: "outstanding",
-        label: "Outstanding balance",
-        count: orders.filter((o) => o.outstandingKobo > 0).length,
-      },
-      {
-        id: "whatsapp",
-        label: "WhatsApp source",
-        count: orders.filter((o) => o.source === "whatsapp").length,
-      },
-    ],
-    [orders],
-  );
+  // Order-status quick filters — "All" plus one tab per status, each with a
+  // live count. Selecting one filters the table (see `filtered` below).
+  const savedViews: SavedView[] = React.useMemo(() => {
+    const STATUSES = [
+      { id: "pending", label: "Pending" },
+      { id: "confirmed", label: "Confirmed" },
+      { id: "processing", label: "Processing" },
+      { id: "shipped", label: "Shipped" },
+      { id: "delivered", label: "Delivered" },
+      { id: "cancelled", label: "Cancelled" },
+      { id: "refunded", label: "Refunded" },
+    ];
+    return [
+      { id: "all", label: "All", count: orders.length },
+      ...STATUSES.map((s) => ({
+        id: s.id,
+        label: s.label,
+        count: orders.filter((o) => o.status === s.id).length,
+      })),
+    ];
+  }, [orders]);
 
   const filtered = React.useMemo(() => {
     return orders.filter((o) => {
@@ -153,12 +136,12 @@ export function OrdersListClient({ orders, totals }: Props) {
       ) {
         return false;
       }
-      if (statusValues.length > 0 && !statusValues.includes(o.status)) return false;
+      if (view !== "all" && o.status !== view) return false;
       if (paymentValues.length > 0 && !paymentValues.includes(o.payment)) return false;
       if (sourceValues.length > 0 && !sourceValues.includes(o.source)) return false;
       return true;
     });
-  }, [orders, search, statusValues, paymentValues, sourceValues]);
+  }, [orders, search, view, paymentValues, sourceValues]);
 
   const selectedCount = Object.values(rowSelection).filter(Boolean).length;
   const selectedNumbers = React.useMemo(
@@ -465,14 +448,13 @@ export function OrdersListClient({ orders, totals }: Props) {
             searchPlaceholder="Order #, customer, phone…"
             filters={filters}
             onFilterChange={(id, values) => {
-              if (id === "status") setStatusValues(values);
               if (id === "payment") setPaymentValues(values);
               if (id === "source") setSourceValues(values);
             }}
             onClear={() => {
-              setStatusValues([]);
               setPaymentValues([]);
               setSourceValues([]);
+              setView("all");
             }}
             className="mb-4"
           />

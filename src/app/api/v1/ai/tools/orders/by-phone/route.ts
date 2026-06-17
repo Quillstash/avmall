@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
+import { getMainStoreId } from "@/lib/store";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
@@ -36,10 +37,13 @@ export async function GET(req: NextRequest) {
       20,
     );
 
-    const customer = await db.customer.findUnique({
-      where: { phone },
-      select: { id: true, name: true, blacklisted: true },
-    });
+    const storeId = await getMainStoreId();
+    const customer = storeId
+      ? await db.customer.findFirst({
+          where: { storeId, phone },
+          select: { id: true, name: true, blacklisted: true },
+        })
+      : null;
     if (!customer) {
       return NextResponse.json(
         apiSuccess({ phone, customerFound: false, orders: [] }),

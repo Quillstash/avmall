@@ -26,14 +26,19 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
     const [text, setText] = React.useState(() =>
       valueKobo != null ? (valueKobo / 100).toLocaleString("en-NG") : "",
     );
+    const [focused, setFocused] = React.useState(false);
 
+    // Sync the displayed text from valueKobo — but NOT while the user is typing
+    // (typing round-trips through the parent, and re-formatting mid-keystroke
+    // clobbers the input and jumps the cursor). On blur we re-format.
     React.useEffect(() => {
+      if (focused) return;
       if (valueKobo == null) {
         setText("");
       } else {
         setText((valueKobo / 100).toLocaleString("en-NG"));
       }
-    }, [valueKobo]);
+    }, [valueKobo, focused]);
 
     function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
       const raw = e.target.value;
@@ -50,6 +55,7 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
     }
 
     function handleBlur() {
+      setFocused(false);
       if (valueKobo != null) {
         setText((valueKobo / 100).toLocaleString("en-NG"));
       }
@@ -79,6 +85,7 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
           disabled={disabled}
           aria-invalid={invalid || undefined}
           onChange={handleChange}
+          onFocus={() => setFocused(true)}
           onBlur={handleBlur}
           className="flex-1 bg-transparent px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none tabular text-right"
         />

@@ -37,6 +37,9 @@ model Store {
   stock        StoreStock[]
   orders       Order[]
   reservations StockReservation[]
+  products     Product[]
+  customers    Customer[]
+  invitations  StaffInvitation[]
 
   @@map("stores")
 }
@@ -127,8 +130,11 @@ model User {
 
 model Customer {
   id            String    @id @default(uuid()) @db.Uuid
-  /// E.164 — always stored with +234 prefix. See lib/phone.ts.
-  phone         String    @unique
+  /// Owning store — customers are isolated per store.
+  storeId       String    @map("store_id") @db.Uuid
+  /// E.164 — always stored with +234 prefix. See lib/phone.ts. Unique per
+  /// store (the same person can exist independently in two stores).
+  phone         String
   email         String?
   name          String
   segments      String[]  @default([])
@@ -137,12 +143,15 @@ model Customer {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
+  store         Store     @relation(fields: [storeId], references: [id])
   addresses     CustomerAddress[]
   orders        Order[]
   returns       Return[]
   conversations AiConversation[]
   otpCodes      OtpCode[]
 
+  @@unique([storeId, phone])
+  @@index([storeId])
   @@index([phone])
   @@index([email])
   @@map("customers")
@@ -192,6 +201,8 @@ model Product {
   shortDesc       String    @map("short_desc")
   longDesc        String    @default("") @map("long_desc")
   categoryId      String    @map("category_id") @db.Uuid
+  /// Owning store — products are isolated per store.
+  storeId         String    @map("store_id") @db.Uuid
   /// Display tone hex / gradient for the imagery backdrop.
   themeBg         String?   @map("theme_bg")
   /// Money — kobo. Use BigInt to support items > ~21M Naira.
@@ -228,6 +239,7 @@ model Product {
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   category        Category         @relation(fields: [categoryId], references: [id])
+  store           Store            @relation(fields: [storeId], references: [id])
   variants        ProductVariant[]
   images          ProductImage[]
   bulkTiers       BulkTier[]
@@ -236,6 +248,7 @@ model Product {
   stockNotifications StockNotification[]
 
   @@index([categoryId])
+  @@index([storeId])
   @@index([archivedAt])
   @@index([slug])
   @@map("products")
@@ -584,6 +597,8 @@ model ReturnLine {
   orderLineId     String          @map("order_line_id") @db.Uuid
   quantity        Int
   condition       ReturnCondition
+  /// Free-text condition stated by staff (optional), alongside the category.
+  conditionNote   String?         @map("condition_note")
   /// Damaged items default to false (write off).
   restock         Boolean         @default(false)
   refundKobo      BigInt          @map("refund_kobo")
@@ -839,6 +854,9 @@ model StaffInvitation {
   name          String
   role          StaffRole
   roleId        String?   @map("role_id") @db.Uuid
+  /// Home store the invitee is assigned to. null = HQ / all-stores (resolves
+  /// to Main). A specific store pins non-coverage roles to that store.
+  storeId       String?   @map("store_id") @db.Uuid
   /// Long opaque secret in the invite link. Hashed at rest would be safer
   /// but the field's already protected by HTTPS + single-use semantics.
   token         String    @unique
@@ -849,9 +867,11 @@ model StaffInvitation {
 
   invitedBy     User?     @relation("StaffInvitedBy", fields: [invitedById], references: [id])
   assignedRole  Role?     @relation(fields: [roleId], references: [id])
+  store         Store?    @relation(fields: [storeId], references: [id])
 
   @@index([email])
   @@index([expiresAt])
+  @@index([storeId])
   @@map("staff_invitations")
 }
 

@@ -201,14 +201,17 @@ export function ShippingClient({
                             )}
                           </div>
                         </td>
-                        <td className="px-3.5 py-3 text-right">
+                        <td data-label="Actions" className="px-3.5 py-3 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
-                                className="p-1.5 text-fg-muted hover:text-fg rounded-md hover:bg-surface"
+                                className="inline-flex items-center gap-1 rounded-md text-fg-muted hover:text-fg hover:bg-surface px-2 py-1.5 border border-border-strong lg:border-0 lg:p-1.5"
                                 aria-label="Row actions"
                                 disabled={deletingId === z.id}
                               >
+                                <span className="lg:hidden text-xs font-semibold text-fg">
+                                  Manage
+                                </span>
                                 <MoreHorizontal className="size-4" />
                               </button>
                             </DropdownMenuTrigger>

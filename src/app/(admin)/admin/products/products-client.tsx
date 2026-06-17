@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Trash2,
   Archive,
+  ArchiveRestore,
   Copy,
   Eye,
 } from "lucide-react";
@@ -82,11 +83,14 @@ export function ProductsListClient({ products }: Props) {
         { value: "low_stock", label: "Low stock" },
         { value: "out_of_stock", label: "Out of stock" },
         { value: "preorder", label: "Pre-order" },
+        { value: "archived", label: "Archived" },
       ],
     },
   ];
 
   const filtered = React.useMemo(() => {
+    const archivedSelected = statusValues.includes("archived");
+    const stockFilters = statusValues.filter((s) => s !== "archived");
     return products.filter((p) => {
       if (
         search &&
@@ -97,10 +101,14 @@ export function ProductsListClient({ products }: Props) {
       )
         return false;
       if (categoryValues.length > 0 && !categoryValues.includes(p.category)) return false;
-      if (statusValues.length > 0 && !statusValues.includes(statusFor(p))) return false;
+      // Archived products stay out of the active list unless explicitly shown.
+      if (p.archived && !archivedSelected) return false;
+      // "Archived" selected on its own → show only archived products.
+      if (!p.archived && archivedSelected && stockFilters.length === 0) return false;
+      if (stockFilters.length > 0 && !stockFilters.includes(statusFor(p))) return false;
       return true;
     });
-  }, [search, categoryValues, statusValues]);
+  }, [search, categoryValues, statusValues, products]);
 
   const selectedCount = Object.values(rowSelection).filter(Boolean).length;
   const selectedSlugs = React.useMemo(
@@ -152,8 +160,13 @@ export function ProductsListClient({ products }: Props) {
             />
           </div>
           <div className="min-w-0">
-            <div className="font-semibold truncate hover:text-brand-primary">
+            <div className="font-semibold truncate hover:text-brand-primary inline-flex items-center gap-1.5">
               {row.original.name}
+              {row.original.archived && (
+                <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-surface-2 text-fg-muted">
+                  Archived
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-fg-muted">
               {row.original.brand} · {row.original.variants.length}{" "}
@@ -260,25 +273,47 @@ export function ProductsListClient({ products }: Props) {
                 <Copy className="size-3.5" /> Duplicate
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={async () => {
-                  const res = await fetch(
-                    `/api/v1/admin/products/${row.original.slug}/archive`,
-                    { method: "POST" },
-                  );
-                  if (res.status === 404 || res.status === 503) {
-                    toast.success("Archived (local)");
-                  } else if (res.ok) {
-                    toast.success("Archived");
-                    router.refresh();
-                  } else {
-                    const p = await res.json();
-                    toast.error(p.error?.message ?? "Failed");
-                  }
-                }}
-              >
-                <Archive className="size-3.5" /> Archive
-              </DropdownMenuItem>
+              {row.original.archived ? (
+                <DropdownMenuItem
+                  onClick={async () => {
+                    const res = await fetch(
+                      `/api/v1/admin/products/${row.original.slug}/archive`,
+                      { method: "DELETE" },
+                    );
+                    if (res.status === 404 || res.status === 503) {
+                      toast.success("Unarchived (local)");
+                    } else if (res.ok) {
+                      toast.success("Unarchived");
+                      router.refresh();
+                    } else {
+                      const p = await res.json();
+                      toast.error(p.error?.message ?? "Failed");
+                    }
+                  }}
+                >
+                  <ArchiveRestore className="size-3.5" /> Unarchive
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={async () => {
+                    const res = await fetch(
+                      `/api/v1/admin/products/${row.original.slug}/archive`,
+                      { method: "POST" },
+                    );
+                    if (res.status === 404 || res.status === 503) {
+                      toast.success("Archived (local)");
+                    } else if (res.ok) {
+                      toast.success("Archived");
+                      router.refresh();
+                    } else {
+                      const p = await res.json();
+                      toast.error(p.error?.message ?? "Failed");
+                    }
+                  }}
+                >
+                  <Archive className="size-3.5" /> Archive
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 destructive
                 onClick={async () => {

@@ -18,6 +18,7 @@ import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
 import { LineChart, DonutChart } from "@/components/ui/charts";
 import { getDashboard, type DashboardData } from "@/lib/data/dashboard";
+import { getActiveAdminStoreId } from "@/lib/store";
 import {
   getRevenueReport,
   resolveRevenueRange,
@@ -46,9 +47,10 @@ export default async function AdminDashboardPage({
   searchParams: { range?: string; from?: string; to?: string };
 }) {
   const resolved = resolveRevenueRange(searchParams);
+  const storeId = await getActiveAdminStoreId();
   const [data, revenue] = await Promise.all([
-    getDashboard(),
-    getRevenueReport(revenueReportArg(resolved)),
+    getDashboard(revenueReportArg(resolved), storeId),
+    getRevenueReport(revenueReportArg(resolved), storeId),
   ]);
   const revenueLabel = resolved.isCustom
     ? `${fmtDay(revenue.from)} – ${fmtDay(revenue.to)}`
@@ -151,7 +153,7 @@ export default async function AdminDashboardPage({
             >
               <RevenueChart series={revenue.byDay} label={revenueLabel} />
             </Card>
-            <Card title="Orders by status">
+            <Card title={`Orders by status · ${revenueLabel}`}>
               <Donut data={data.ordersByStatus} />
             </Card>
           </div>
@@ -366,6 +368,7 @@ const STATUS_COLORS: Record<string, string> = {
   shipped: "hsl(190 90% 48%)",
   delivered: "hsl(var(--brand-accent))",
   cancelled: "hsl(var(--fg-muted))",
+  refunded: "hsl(0 72% 60%)",
 };
 
 function Donut({ data }: { data: DashboardData["ordersByStatus"] }) {

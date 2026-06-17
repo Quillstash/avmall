@@ -178,6 +178,7 @@ async function main() {
         brand: p.brand,
         shortDesc: p.short,
         categoryId: cat.id,
+        storeId: mainStore.id,
         themeBg: p.bg,
         priceKobo: BigInt(p.price),
         costPriceKobo: BigInt(p.cost),

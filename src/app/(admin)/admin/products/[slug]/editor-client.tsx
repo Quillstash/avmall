@@ -112,7 +112,13 @@ export function ProductEditorClient({ product, audit }: EditorClientProps) {
             }
             actions={
               <>
-                <Button variant="ghost" size="sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    window.open(`/product/${product.slug}`, "_blank", "noopener")
+                  }
+                >
                   <Eye className="size-3.5" /> Preview
                 </Button>
                 <Button
@@ -146,6 +152,16 @@ export function ProductEditorClient({ product, audit }: EditorClientProps) {
                   size="sm"
                   loading={saving}
                   onClick={async () => {
+                    // Don't save while an image is still uploading — otherwise
+                    // the in-flight image (no key yet) is silently dropped.
+                    if (
+                      images.some(
+                        (i) => i.progress != null || (!i.key && !i.error),
+                      )
+                    ) {
+                      toast.error("Please wait for images to finish uploading.");
+                      return;
+                    }
                     setSaving(true);
                     try {
                       const res = await fetch(

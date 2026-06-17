@@ -94,13 +94,38 @@ const EMPTY: DashboardData = {
   recentOrders: [],
 };
 
-export async function getDashboard(): Promise<DashboardData> {
+/** Canonical order-status order for the "Orders by status" breakdown — every
+ *  status is shown (zero-filled) so the legend is always complete. */
+const ALL_ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
+] as const;
+
+export async function getDashboard(
+  statusRange?: { from: Date; to: Date } | number,
+  storeId?: string | null,
+): Promise<DashboardData> {
   if (!hasDatabase) return EMPTY;
+
+  // Scope every metric to the admin's active store.
+  const storeFilter = storeId ? { storeId } : {};
 
   const todayStart = startOfLagosDay(0);
   const yesterdayStart = startOfLagosDay(1);
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = startOfLagosDay(30);
+
+  // The "Orders by status" breakdown is scoped to the dashboard's selected
+  // timeframe (same control as the revenue chart). A number = last N days.
+  const statusWindow =
+    typeof statusRange === "number"
+      ? { from: startOfLagosDay(statusRange), to: todayEnd }
+      : (statusRange ?? null);
 
   const [
     todayOrders,
@@ -117,6 +142,7 @@ export async function getDashboard(): Promise<DashboardData> {
     withRetry(() =>
       db.order.findMany({
         where: {
+          ...storeFilter,
           createdAt: { gte: todayStart, lt: todayEnd },
           status: { notIn: ["cancelled"] },
         },
@@ -126,6 +152,7 @@ export async function getDashboard(): Promise<DashboardData> {
     withRetry(() =>
       db.order.findMany({
         where: {
+          ...storeFilter,
           createdAt: { gte: yesterdayStart, lt: todayStart },
           status: { notIn: ["cancelled"] },
         },
@@ -134,25 +161,33 @@ export async function getDashboard(): Promise<DashboardData> {
     ),
     withRetry(() =>
       db.order.findMany({
-        where: { paymentStatus: "partial" },
+        where: { ...storeFilter, paymentStatus: "partial" },
         select: { totalKobo: true, paidKobo: true },
       }),
     ),
-    withRetry(() => db.order.count({ where: { status: "pending" } })),
+    withRetry(() => db.order.count({ where: { ...storeFilter, status: "pending" } })),
     withRetry(() =>
       db.return.count({
-        where: { status: { in: ["requested", "approved", "in_transit"] } },
+        where: {
+          status: { in: ["requested", "approved", "in_transit"] },
+          ...(storeId ? { order: { storeId } } : {}),
+        },
       }),
     ),
-    // Low stock = a product whose total on-hand (across variants) is ≤ 5.
-    // Approximated as the count of products that have ANY variant with
-    // onHand ≤ 5 and isn't archived/unpublished.
+    // Low stock = a product (in this store) with any variant at ≤ 5 on-hand.
     withRetry(() =>
       db.product.count({
         where: {
+          ...storeFilter,
           archivedAt: null,
           published: true,
-          variants: { some: { storeStock: { some: { onHand: { lte: 5 } } } } },
+          variants: {
+            some: {
+              storeStock: {
+                some: { onHand: { lte: 5 }, ...(storeId ? { storeId } : {}) },
+              },
+            },
+          },
         },
       }),
     ),
@@ -167,6 +202,7 @@ export async function getDashboard(): Promise<DashboardData> {
     withRetry(() =>
       db.order.findMany({
         where: {
+          ...storeFilter,
           createdAt: { gte: thirtyDaysAgo },
           status: { notIn: ["cancelled"] },
         },
@@ -178,9 +214,19 @@ export async function getDashboard(): Promise<DashboardData> {
       db.order.groupBy({
         by: ["status"],
         _count: { _all: true },
+        ...(statusWindow || storeId
+          ? {
+              where: {
+                ...storeFilter,
+                ...(statusWindow
+                  ? { createdAt: { gte: statusWindow.from, lt: statusWindow.to } }
+                  : {}),
+              },
+            }
+          : {}),
       }),
     ),
-    listAdminOrders(),
+    listAdminOrders(storeId),
   ]);
 
   const todayRevenueKobo = todayOrders.reduce(
@@ -249,9 +295,9 @@ export async function getDashboard(): Promise<DashboardData> {
       date,
       revenueKobo,
     })),
-    ordersByStatus: statusGroupRows.map((r) => ({
-      status: r.status,
-      count: r._count._all,
+    ordersByStatus: ALL_ORDER_STATUSES.map((status) => ({
+      status,
+      count: statusGroupRows.find((r) => r.status === status)?._count._all ?? 0,
     })),
     recentOrders: recent.slice(0, 6),
   };

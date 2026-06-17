@@ -1,13 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import {
-  Phone,
-  MessageCircle,
-  Mail,
-  ShieldAlert,
-  MoreHorizontal,
-  CreditCard,
-} from "lucide-react";
+import { Phone, Mail, ShieldAlert, CreditCard } from "lucide-react";
+import { CustomerActions } from "@/components/admin/customer-actions";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -71,20 +65,13 @@ export default async function AdminCustomerDetailPage({ params }: PageProps) {
               </span>
             }
             actions={
-              <>
-                <Button variant="ghost" size="sm">
-                  <Phone className="size-3.5" /> Call
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <MessageCircle className="size-3.5" /> WhatsApp
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Mail className="size-3.5" /> Email
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </>
+              <CustomerActions
+                id={customer.id}
+                name={customer.name}
+                phone={customer.phone}
+                email={customer.email}
+                blacklisted={customer.blacklisted}
+              />
             }
           />
 

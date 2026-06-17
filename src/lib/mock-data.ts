@@ -62,6 +62,8 @@ export type Product = {
   option1Name?: string;
   option2Name?: string;
   published?: boolean;
+  /** Soft-deleted — hidden from the storefront + the active admin list. */
+  archived?: boolean;
   featured?: boolean;
   negotiate?: boolean;
   /** Per-product negotiation cap. Both null = fall back to AiSettings global. */

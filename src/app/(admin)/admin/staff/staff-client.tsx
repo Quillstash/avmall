@@ -52,6 +52,8 @@ interface StaffClientProps {
   initialStaff: StaffMember[];
   initialInvitations: StaffInvitationView[];
   initialRoles: RoleView[];
+  stores: { id: string; name: string }[];
+  defaultStoreId: string | null;
 }
 
 const ROLE_TONE: Record<StaffRole, "brand" | "info" | "success" | "warning" | "neutral"> = {
@@ -76,11 +78,18 @@ export function StaffClient({
   initialStaff,
   initialInvitations,
   initialRoles,
+  stores,
+  defaultStoreId,
 }: StaffClientProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const canManageRoles = session?.user
     ? hasPermission({ permissions: session.user.permissions }, "roles.manage")
+    : false;
+  // Full-coverage staff (stores.view_all) choose which store to invite into;
+  // everyone else invites into their own store (enforced server-side too).
+  const canChooseStore = session?.user
+    ? hasPermission({ permissions: session.user.permissions }, "stores.view_all")
     : false;
   const [staff, setStaff] = React.useState<StaffMember[]>(initialStaff);
   const [inviteOpen, setInviteOpen] = React.useState(false);
@@ -369,6 +378,9 @@ export function StaffClient({
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         roles={initialRoles}
+        stores={stores}
+        defaultStoreId={defaultStoreId}
+        canChooseStore={canChooseStore}
         onInvited={() => router.refresh()}
       />
 
@@ -469,26 +481,39 @@ function InviteDialog({
   onOpenChange,
   onInvited,
   roles,
+  stores,
+  defaultStoreId,
+  canChooseStore,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
   onInvited: () => void;
   roles: RoleView[];
+  stores: { id: string; name: string }[];
+  defaultStoreId: string | null;
+  canChooseStore: boolean;
 }) {
   const defaultRoleId = roles.find((r) => r.slug === "sales")?.id ?? roles[0]?.id ?? "";
+  const initialStoreId = defaultStoreId ?? stores[0]?.id ?? "";
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [roleId, setRoleId] = React.useState<string>(defaultRoleId);
+  const [storeId, setStoreId] = React.useState<string>(initialStoreId);
   const [submitting, setSubmitting] = React.useState(false);
+  // Show the picker only when this inviter can assign across stores and there's
+  // more than one to choose from. Otherwise the server pins to their own store.
+  const showStorePicker = canChooseStore && stores.length > 1;
 
   React.useEffect(() => {
     if (open && !roleId) setRoleId(defaultRoleId);
-  }, [open, roleId, defaultRoleId]);
+    if (open && !storeId) setStoreId(initialStoreId);
+  }, [open, roleId, defaultRoleId, storeId, initialStoreId]);
 
   function reset() {
     setName("");
     setEmail("");
     setRoleId(defaultRoleId);
+    setStoreId(initialStoreId);
   }
 
   async function submit(e: React.FormEvent) {
@@ -500,7 +525,12 @@ function InviteDialog({
       const res = await fetch("/api/v1/admin/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), roleId }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          roleId,
+          ...(showStorePicker && storeId ? { storeId } : {}),
+        }),
       });
       const json = await res.json();
       if (!res.ok) { toast.error(json?.error?.message ?? "Could not send invitation"); return; }
@@ -546,6 +576,20 @@ function InviteDialog({
                 ))}
               </Select>
             </Field>
+            {showStorePicker && (
+              <Field id="invite-store" label="Store">
+                <Select id="invite-store" value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1 text-xs text-fg-muted">
+                  Sales, inventory &amp; support staff see only this store. Managers can switch between all stores.
+                </p>
+              </Field>
+            )}
           </div>
           <DialogFooter className="mt-5">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>

@@ -55,45 +55,49 @@ export function CustomersClient({ customers }: CustomersClientProps) {
   const [segmentValues, setSegmentValues] = React.useState<string[]>([]);
   const [blacklistTarget, setBlacklistTarget] = React.useState<CustomerListRow | null>(null);
   const [tagTarget, setTagTarget] = React.useState<CustomerListRow | null>(null);
+  const [addOpen, setAddOpen] = React.useState(false);
 
   const blacklistedCount = customers.filter((c) => c.blacklisted).length;
-  const vipCount = customers.filter((c) => c.segments.includes("VIP")).length;
-  const wholesaleCount = customers.filter((c) =>
-    c.segments.includes("Wholesale"),
-  ).length;
-  const lagosCount = customers.filter((c) => c.segments.includes("Lagos")).length;
+  // The quick-filter tabs follow the real tags present on customers (no
+  // hardcoded placeholders), plus All and Blacklisted.
+  const tags = React.useMemo(
+    () =>
+      [...new Set(customers.flatMap((c) => c.segments))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [customers],
+  );
 
   const savedViews: SavedView[] = [
     { id: "all", label: "All", count: customers.length },
-    { id: "vip", label: "VIP", count: vipCount },
-    { id: "wholesale", label: "Wholesale", count: wholesaleCount },
-    { id: "lagos", label: "Lagos", count: lagosCount },
+    ...tags.map((t) => ({
+      id: t,
+      label: t,
+      count: customers.filter((c) => c.segments.includes(t)).length,
+    })),
     { id: "blacklist", label: "Blacklisted", count: blacklistedCount },
   ];
 
-  const filters: FilterConfig[] = [
-    {
-      id: "segment",
-      label: "Segment",
-      values: segmentValues,
-      options: [
-        { value: "VIP", label: "VIP" },
-        { value: "Wholesale", label: "Wholesale" },
-        { value: "Lagos", label: "Lagos" },
-        { value: "Anambra", label: "Anambra" },
-        { value: "Kano", label: "Kano" },
-        { value: "FCT", label: "FCT" },
-      ],
-      multi: true,
-    },
-  ];
+  const filters: FilterConfig[] =
+    tags.length > 0
+      ? [
+          {
+            id: "segment",
+            label: "Tag",
+            values: segmentValues,
+            options: tags.map((t) => ({ value: t, label: t })),
+            multi: true,
+          },
+        ]
+      : [];
 
   const filtered = React.useMemo(() => {
     return customers.filter((c) => {
-      if (view === "blacklist" && !c.blacklisted) return false;
-      if (view === "vip" && !c.segments.includes("VIP")) return false;
-      if (view === "wholesale" && !c.segments.includes("Wholesale")) return false;
-      if (view === "lagos" && !c.segments.includes("Lagos")) return false;
+      if (view === "blacklist") {
+        if (!c.blacklisted) return false;
+      } else if (view !== "all" && !c.segments.includes(view)) {
+        return false;
+      }
       if (
         search &&
         ![c.name, c.phone, c.email ?? ""]
@@ -277,7 +281,7 @@ export function CustomersClient({ customers }: CustomersClientProps) {
                     <Download className="size-3.5" /> Export CSV
                   </Button>
                 </a>
-                <Button size="sm">
+                <Button size="sm" onClick={() => setAddOpen(true)}>
                   <Plus className="size-3.5" /> Add customer
                 </Button>
               </>
@@ -366,7 +370,120 @@ export function CustomersClient({ customers }: CustomersClientProps) {
           }}
         />
       )}
+
+      <AddCustomerDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={(id) => router.push(`/admin/customers/${id}`)}
+      />
     </>
+  );
+}
+
+function AddCustomerDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onCreated: (id: string) => void;
+}) {
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open) {
+      setName("");
+      setPhone("");
+      setEmail("");
+    }
+  }, [open]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim()) {
+      toast.error("Name and phone are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/v1/admin/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          ...(email.trim() && { email: email.trim() }),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not add customer");
+        return;
+      }
+      toast.success("Customer added");
+      onOpenChange(false);
+      onCreated(json.data.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add customer</DialogTitle>
+          <DialogDescription>
+            Phone is normalised to +234 and must be unique. Tags can be added afterwards.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-3 mt-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-fg-muted">Name</span>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Full name"
+              autoFocus
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-fg-muted">Phone</span>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="0803 000 0000"
+              inputMode="tel"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-fg-muted">
+              Email <span className="font-normal text-fg-subtle">(optional)</span>
+            </span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@email.com"
+            />
+          </label>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={saving}>
+              Add customer
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

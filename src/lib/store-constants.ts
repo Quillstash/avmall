@@ -3,3 +3,8 @@
  *  own module so client components can import it without pulling server-only
  *  code from `@/lib/store`. */
 export const STORE_COOKIE = "avmall_store";
+
+/** Cookie holding the *admin's* active store slug. Only honoured for staff
+ *  with the `stores.view_all` permission (full coverage); everyone else is
+ *  server-clamped to their assigned store regardless of this cookie. */
+export const ADMIN_STORE_COOKIE = "avmall_admin_store";

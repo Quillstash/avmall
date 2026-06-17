@@ -108,6 +108,7 @@ function productFromDb(p: DbProductWith): Product {
     ...(p.option1Name && { option1Name: p.option1Name }),
     ...(p.option2Name && { option2Name: p.option2Name }),
     published: p.published,
+    archived: !!p.archivedAt,
     featured: p.featured,
     negotiate: p.negotiate,
     ...(p.negotiateFloorKobo != null && { negotiateFloor: Number(p.negotiateFloorKobo) }),
@@ -128,7 +129,9 @@ function productFromDb(p: DbProductWith): Product {
 function defaultImageFor(slug: string): string {
   const m = MOCK_PRODUCTS.find((p) => p.slug === slug);
   if (m) return m.imageUrl;
-  return `https://picsum.photos/seed/${encodeURIComponent(slug)}/800/800`;
+  // Real products with no uploaded image get a neutral branded placeholder —
+  // never a random stock photo (which looks like a wrong product image).
+  return "/product-placeholder.png";
 }
 
 function gallerySlugLookup(slug: string): string[] | undefined {
@@ -239,6 +242,7 @@ export async function listProducts(opts?: {
   }
 
   const where = {
+    ...(opts?.storeId && { storeId: opts.storeId }),
     ...(!opts?.includeUnpublished && { archivedAt: null, published: true }),
     ...(opts?.category && { category: { slug: opts.category } }),
     ...(q && q.length >= 2 && {
@@ -273,13 +277,9 @@ export async function listProducts(opts?: {
     }),
   );
 
-  // Store-scoped view: hide products not stocked at the selected store (a
-  // product is "in" a store when it has at least one store_stock row there).
-  const visible = opts?.storeId
-    ? products.filter((p) => p.variants.some((v) => v.storeStock.length > 0))
-    : products;
-
-  return visible.map((p) => finalize(p as DbProductWith));
+  // Products are isolated per store via Product.storeId (filtered above), so
+  // the result is already store-scoped.
+  return products.map((p) => finalize(p as DbProductWith));
 }
 
 export async function getProductBySlug(

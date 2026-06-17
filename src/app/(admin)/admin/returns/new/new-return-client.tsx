@@ -54,6 +54,7 @@ interface DraftLine {
   selected: boolean;
   quantity: number;
   condition: "unopened" | "used" | "damaged";
+  conditionNote?: string;
   restock: boolean;
   refundKobo: number;
 }
@@ -232,6 +233,7 @@ export function NewReturnClient({
             orderLineId: d.orderLineId,
             quantity: d.quantity,
             condition: d.condition,
+            ...(d.conditionNote?.trim() && { conditionNote: d.conditionNote.trim() }),
             restock: d.restock,
             refundKobo: d.refundKobo,
           })),
@@ -250,7 +252,7 @@ export function NewReturnClient({
       }
       const number = json?.data?.return?.number;
       toast.success(`Return ${number} created`);
-      router.push(`/admin/returns/${json.data.return.id}`);
+      router.push(`/admin/returns/${number}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Network error");
     } finally {
@@ -548,6 +550,22 @@ export function NewReturnClient({
                                     : "Increments on-hand stock"}
                                 </span>
                               </label>
+                            </Field>
+                            <Field
+                              id={`condnote-${i}`}
+                              label="Condition note"
+                              optional
+                              hint="Describe the condition in your own words"
+                              className="col-span-2 lg:col-span-4"
+                            >
+                              <Input
+                                id={`condnote-${i}`}
+                                value={draft.conditionNote ?? ""}
+                                onChange={(e) =>
+                                  patch(i, { conditionNote: e.target.value })
+                                }
+                                placeholder="e.g. Screen has a scratch on the top-left corner"
+                              />
                             </Field>
                           </div>
                         )}

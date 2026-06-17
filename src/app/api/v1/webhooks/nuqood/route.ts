@@ -190,12 +190,20 @@ export async function POST(req: NextRequest) {
 
       const quote = computeQuote({ lines: inputLines, ...(coupon && { coupon }), shippingKobo, freeShippingEligible });
 
-      // Find or create customer
+      // Bank-transfer checkouts don't yet carry a store, so these fulfil from
+      // the Main store. (PendingCheckout.storeId is a TODO.) Customers are
+      // per-store, so resolve the store before the find-or-create.
+      const storeId = await getMainStoreId();
+      if (!storeId) throw new Error("No store available to fulfil order");
+
+      // Find or create customer (within the store)
       const normalizedPhone = normaliseNigerianPhone(contact.phone);
-      let customer = await tx.customer.findUnique({ where: { phone: normalizedPhone } });
+      let customer = await tx.customer.findFirst({
+        where: { storeId, phone: normalizedPhone },
+      });
       if (!customer) {
         customer = await tx.customer.create({
-          data: { phone: normalizedPhone, email: contact.email ?? null, name: contact.name },
+          data: { storeId, phone: normalizedPhone, email: contact.email ?? null, name: contact.name },
         });
       } else if (contact.email && !customer.email) {
         customer = await tx.customer.update({
@@ -208,10 +216,7 @@ export async function POST(req: NextRequest) {
         throw new Error(`Customer ${customer.id} is blacklisted`);
       }
 
-      // Reserve stock. Bank-transfer checkouts don't yet carry a store, so
-      // these fulfil from the Main store. (PendingCheckout.storeId is a TODO.)
-      const storeId = await getMainStoreId();
-      if (!storeId) throw new Error("No store available to fulfil order");
+      // Reserve stock.
       await reserveStock(
         tx,
         storeId,

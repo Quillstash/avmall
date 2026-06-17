@@ -20,6 +20,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
+import { getStorefrontStoreId } from "./store";
 import { env } from "./env";
 import { normaliseNigerianPhone, isValidNigerianPhone } from "./phone";
 import { UnauthorizedError, ValidationError, RateLimitedError } from "./errors";
@@ -131,14 +132,21 @@ export async function verifyOtpAndStartSession(
     data: { consumedAt: new Date() },
   });
 
-  // Find-or-create the customer (idempotent for repeat logins).
+  // Find-or-create the customer within the storefront's active store
+  // (customers are per-store).
+  const storeId = await getStorefrontStoreId();
+  if (!storeId) throw new UnauthorizedError("No store available");
   let customer = await db.customer.findFirst({
-    where: kind === "phone" ? { phone: value } : { email: value },
+    where: {
+      storeId,
+      ...(kind === "phone" ? { phone: value } : { email: value }),
+    },
   });
   let isNew = false;
   if (!customer) {
     customer = await db.customer.create({
       data: {
+        storeId,
         phone: kind === "phone" ? value : `+pending-${Date.now()}`,
         email: kind === "email" ? value : null,
         name: kind === "email" ? value.split("@")[0]! : "Customer",

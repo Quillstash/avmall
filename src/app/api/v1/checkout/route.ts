@@ -89,11 +89,12 @@ export async function POST(req: NextRequest) {
 
     let customer = session
       ? await db.customer.findUnique({ where: { id: session.customerId } })
-      : await db.customer.findUnique({ where: { phone: normalizedPhone } });
+      : await db.customer.findFirst({ where: { storeId, phone: normalizedPhone } });
 
     if (!customer) {
       customer = await db.customer.create({
         data: {
+          storeId,
           phone: normalizedPhone,
           email: parsed.data.contact.email ?? null,
           name: parsed.data.contact.name,

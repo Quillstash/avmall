@@ -111,12 +111,13 @@ function mapDbPaymentStatusToView(s: string): PaymentStatus {
 
 // ─── Admin list ───────────────────────────────────────────────────────────
 
-export async function listAdminOrders(): Promise<OrderListRow[]> {
+export async function listAdminOrders(storeId?: string | null): Promise<OrderListRow[]> {
   if (!hasDatabase) {
     return [...MOCK_ORDERS_LIST];
   }
 
   const rows = await db.order.findMany({
+    ...(storeId ? { where: { storeId } } : {}),
     orderBy: { createdAt: "desc" },
     take: 200,
     include: {
