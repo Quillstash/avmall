@@ -10,6 +10,7 @@ import {
   Archive,
   Package as PackageIcon,
   Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
@@ -18,7 +19,8 @@ import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
 import { LineChart, DonutChart } from "@/components/ui/charts";
 import { getDashboard, type DashboardData } from "@/lib/data/dashboard";
-import { getActiveAdminStoreId } from "@/lib/store";
+import { getActiveAdminStore } from "@/lib/store";
+import { storefrontPathForStore } from "@/lib/store-constants";
 import {
   getRevenueReport,
   resolveRevenueRange,
@@ -47,7 +49,9 @@ export default async function AdminDashboardPage({
   searchParams: { range?: string; from?: string; to?: string };
 }) {
   const resolved = resolveRevenueRange(searchParams);
-  const storeId = await getActiveAdminStoreId();
+  const activeStore = await getActiveAdminStore();
+  const storeId = activeStore?.id ?? null;
+  const storefrontHref = activeStore ? storefrontPathForStore(activeStore) : "/";
   const [data, revenue] = await Promise.all([
     getDashboard(revenueReportArg(resolved), storeId),
     getRevenueReport(revenueReportArg(resolved), storeId),
@@ -78,6 +82,20 @@ export default async function AdminDashboardPage({
             }
             actions={
               <>
+                <a
+                  href={storefrontHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={
+                    activeStore
+                      ? `Open the ${activeStore.name} storefront`
+                      : "Open the storefront"
+                  }
+                >
+                  <Button variant="secondary" size="sm">
+                    <ExternalLink className="size-3.5" /> View storefront
+                  </Button>
+                </a>
                 <Button variant="secondary" size="sm">
                   <Download className="size-3.5" /> Export
                 </Button>

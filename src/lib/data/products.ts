@@ -207,6 +207,77 @@ export const getCategoryBySlug = cache(
   },
 );
 
+/** A category that actually has products in a given store — name, live count,
+ *  and a representative image. Drives the storefront nav + homepage grid so
+ *  each store shows only its own categories. */
+export type StoreCategory = {
+  slug: string;
+  name: string;
+  count: number;
+  imageUrl: string;
+};
+
+/**
+ * Categories that have at least one published product in `storeId` (or across
+ * all stores when omitted), each with its in-store product count and a
+ * representative image. Unlike `listCategories`, this never returns categories
+ * the store doesn't stock — so a sub-store's nav doesn't link to empty pages.
+ */
+export const listStoreCategories = cache(
+  async (storeId?: string): Promise<StoreCategory[]> => {
+    if (!hasDatabase) {
+      return [...MOCK_CATEGORIES].map((c) => ({
+        slug: c.id,
+        name: c.name,
+        count: c.count ?? 0,
+        imageUrl: "/product-placeholder.png",
+      }));
+    }
+
+    const productWhere = {
+      archivedAt: null,
+      published: true,
+      ...(storeId ? { storeId } : {}),
+    };
+
+    const cats = await withRetry(() =>
+      db.category.findMany({
+        where: { products: { some: productWhere } },
+        orderBy: { position: "asc" },
+        include: {
+          _count: { select: { products: { where: productWhere } } },
+          products: {
+            where: productWhere,
+            orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+            take: 1,
+            select: {
+              slug: true,
+              images: {
+                orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
+                take: 1,
+                select: { key: true },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    return cats.map((c) => {
+      const sample = c.products[0];
+      const imageUrl =
+        (sample?.images[0] ? publicUrlForKey(sample.images[0].key) : null) ??
+        (sample ? defaultImageFor(sample.slug) : "/product-placeholder.png");
+      return {
+        slug: c.slug,
+        name: c.name,
+        count: c._count.products,
+        imageUrl,
+      };
+    });
+  },
+);
+
 // ─── Products ─────────────────────────────────────────────────────────────
 
 export async function listProducts(opts?: {

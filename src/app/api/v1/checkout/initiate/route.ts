@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
-import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { computeQuote, resolveCartStoreId, type QuoteInputLine } from "@/lib/cart-quote";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { createDynamicAccount, nuqoodConfigured, parseTimeLeft } from "@/lib/nuqood";
 import { SITE } from "@/lib/site";
@@ -75,6 +75,10 @@ export async function POST(req: NextRequest) {
     const body = parsed.data;
 
     const normalizedPhone = normaliseNigerianPhone(body.contact.phone);
+
+    // The order's store is derived from the cart's products (products are
+    // per-store), so the Nuqood webhook fulfils on the correct store.
+    const storeId = await resolveCartStoreId(db, body.items.map((i) => i.productId));
 
     // ── 1. Hydrate products for quote ──────────────────────────────────────
     const productIds = Array.from(new Set(body.items.map((i) => i.productId)));
@@ -158,6 +162,7 @@ export async function POST(req: NextRequest) {
 
     const session = await db.pendingCheckout.create({
       data: {
+        storeId,
         nuqoodRef: account.ref,
         bankNumber: account.number,
         bankName: account.bank,

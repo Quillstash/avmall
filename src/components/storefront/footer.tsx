@@ -5,16 +5,6 @@ import { SITE } from "@/lib/site";
 
 const COLUMNS: { heading: string; items: { label: string; href: string }[] }[] = [
   {
-    heading: "Shop",
-    items: [
-      { label: "Phones & Tablets", href: "/category/phones" },
-      { label: "Audio", href: "/category/audio" },
-      { label: "Power", href: "/category/power" },
-      { label: "Fans", href: "/category/fans" },
-      { label: "Home & Kitchen", href: "/category/home" },
-    ],
-  },
-  {
     heading: "Company",
     items: [
       { label: "About", href: "/about" },
@@ -50,7 +40,25 @@ const SOCIAL: { platform: SocialPlatform; label: string; href: string }[] = [
   { platform: "tiktok", label: "TikTok", href: SITE.social.tiktok },
 ];
 
-export function StorefrontFooter() {
+export function StorefrontFooter({
+  categories = [],
+}: {
+  /** Store categories for the "Shop" column — fetched per store. */
+  categories?: { slug: string; name: string }[];
+}) {
+  // Prepend a per-store "Shop" column; the rest are static site links.
+  const columns =
+    categories.length > 0
+      ? [
+          {
+            heading: "Shop",
+            items: categories
+              .slice(0, 6)
+              .map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
+          },
+          ...COLUMNS,
+        ]
+      : COLUMNS;
   return (
     <footer className="mt-12 border-t border-border bg-surface">
       <div className="mx-auto max-w-7xl px-5 py-10 grid grid-cols-2 md:grid-cols-5 gap-8">
@@ -84,7 +92,7 @@ export function StorefrontFooter() {
             ))}
           </div>
         </div>
-        {COLUMNS.map((col) => (
+        {columns.map((col) => (
           <div key={col.heading}>
             <div className="text-[11px] font-bold uppercase tracking-wider mb-3">{col.heading}</div>
             <div className="flex flex-col gap-2 text-sm text-fg-muted">

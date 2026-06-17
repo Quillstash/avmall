@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/storefront/product-card";
 import { NewsletterSignup } from "@/components/storefront/newsletter-signup";
-import { listProducts } from "@/lib/data/products";
+import { listProducts, listStoreCategories } from "@/lib/data/products";
 import { getStorefrontStoreId } from "@/lib/store";
 import { SITE } from "@/lib/site";
 
@@ -27,46 +27,50 @@ const TRUST_ITEMS = [
   { t: "Negotiate on WhatsApp", s: "For bulk orders, with our AI" },
 ];
 
-const CATEGORY_VISUALS = [
-  {
-    id: "phones",
-    name: "Phones & Tablets",
-    count: 22,
-    image:
-      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/b3ea24c913fe86987703aae05401eb1fb0ea9201.jpeg",
-  },
-  {
-    id: "audio",
-    name: "Audio",
-    count: 26,
-    image:
-      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/b648d085c3de78cd526b13a44047d59723b88d18.jpeg",
-  },
-  {
-    id: "power",
-    name: "Power",
-    count: 25,
-    image:
-      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/27756b025a9c2d6488d67a8ac2991262b7099557.jpeg",
-  },
-  {
-    id: "fans",
-    name: "Fans",
-    count: 24,
-    image:
-      "https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/73d90ad2510d39de57a57f3797abdcc5dc2e3c82.jpeg",
-  },
-];
-
 export default async function HomePage() {
   const storeId = await getStorefrontStoreId();
-  const all = await listProducts({
-    limit: 8,
-    featuredFirst: true,
-    ...(storeId ? { storeId } : {}),
-  });
+  const [all, categories] = await Promise.all([
+    listProducts({
+      limit: 8,
+      featuredFirst: true,
+      ...(storeId ? { storeId } : {}),
+    }),
+    listStoreCategories(storeId ?? undefined),
+  ]);
   const newArrivals = all.slice(0, 4);
-  const bestsellers = all.slice(4, 8).length === 4 ? all.slice(4, 8) : all.slice(0, 4);
+  // Only show a separate bestsellers row when there are enough products that it
+  // wouldn't just repeat the new-arrivals grid.
+  const bestsellers = all.length > 4 ? all.slice(4, 8) : [];
+  const featured = all[0] ?? null;
+  // Total published products in this store = sum of its category counts.
+  const productCount = categories.reduce((sum, c) => sum + c.count, 0);
+  // Where the "shop" CTAs point — the store's first category, else search.
+  const browseHref = categories[0] ? `/category/${categories[0].slug}` : "/search";
+
+  // A store with nothing published yet: show a friendly placeholder instead of
+  // empty marketing grids.
+  if (all.length === 0) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-24 text-center">
+        <h1 className="font-display text-3xl font-semibold tracking-tight mb-3">
+          This store is just getting started
+        </h1>
+        <p className="text-fg-muted mb-7">
+          There are no products listed here yet. Chat with us on WhatsApp and
+          we&apos;ll help you find what you need.
+        </p>
+        <a
+          href={`https://wa.me/${SITE.whatsappNumber.replace(/\D/g, "")}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button size="lg">
+            <MessageCircle className="size-4" /> Chat with us
+          </Button>
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -86,7 +90,7 @@ export default async function HomePage() {
               POS or cash.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/category/phones">
+              <Link href={browseHref}>
                 <Button size="lg">Shop the catalogue</Button>
               </Link>
               <Button size="lg" variant="secondary" className="bg-transparent">
@@ -95,7 +99,7 @@ export default async function HomePage() {
             </div>
             <div className="mt-7 flex flex-wrap gap-7 text-sm text-fg-muted">
               {[
-                "120+ products in stock",
+                `${productCount} ${productCount === 1 ? "product" : "products"} in stock`,
                 "Same-day Lagos",
                 "14-day returns",
               ].map((s) => (
@@ -107,38 +111,42 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="relative bg-[#0a3322] flex items-end p-8 lg:p-10 text-white min-h-[280px] lg:min-h-0">
-            <Image
-              src="https://dodptt9f4zk9h.cloudfront.net/stores/114586/products/27756b025a9c2d6488d67a8ac2991262b7099557.jpeg"
-              alt="Featured Oraimo power bank"
-              fill
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              className="object-cover"
-              priority
-            />
-            {/* Bottom-anchored darkening gradient so the text below stays readable
-                without dimming the product itself. */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a3322]/95 via-[#0a3322]/55 to-transparent" />
-            <div className="absolute top-6 right-6 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[11px] font-bold uppercase tracking-widest">
-              Featured
+          {featured && (
+            <div className="relative bg-[#0a3322] flex items-end p-8 lg:p-10 text-white min-h-[280px] lg:min-h-0">
+              <Image
+                src={featured.imageUrl}
+                alt={featured.name}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+                priority
+              />
+              {/* Bottom-anchored darkening gradient so the text below stays
+                  readable without dimming the product itself. */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0a3322]/95 via-[#0a3322]/55 to-transparent" />
+              <div className="absolute top-6 right-6 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[11px] font-bold uppercase tracking-widest">
+                Featured
+              </div>
+              <div className="relative max-w-sm">
+                <div className="text-[11px] font-bold uppercase tracking-widest opacity-85 mb-2">
+                  {featured.brand}
+                </div>
+                <div className="font-display text-2xl lg:text-3xl font-semibold leading-tight mb-2.5">
+                  {featured.name}
+                </div>
+                {featured.short && (
+                  <div className="text-sm opacity-90 mb-5 leading-relaxed line-clamp-2">
+                    {featured.short}
+                  </div>
+                )}
+                <Link href={`/product/${featured.slug}`}>
+                  <Button className="bg-white text-zinc-900 hover:bg-white/90">
+                    Shop the drop <ChevronRight className="size-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="relative max-w-sm">
-              <div className="text-[11px] font-bold uppercase tracking-widest opacity-85 mb-2">
-                Oraimo
-              </div>
-              <div className="font-display text-2xl lg:text-3xl font-semibold leading-tight mb-2.5">
-                50,000mAh laptop-grade power bank
-              </div>
-              <div className="text-sm opacity-90 mb-5 leading-relaxed">
-                Multi-day backup for phones, lamps, and small fans. In stock today.
-              </div>
-              <Link href="/product/oraimo-50000mah-powerbank">
-                <Button className="bg-white text-zinc-900 hover:bg-white/90">
-                  Shop the drop <ChevronRight className="size-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Trust strip */}
@@ -152,48 +160,50 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
-        <SectionHead eyebrow="Browse" title="By the room you're in" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {CATEGORY_VISUALS.map((c) => (
-            <Link
-              key={c.id}
-              href={`/category/${c.id}`}
-              className="group relative aspect-[4/5] lg:aspect-square overflow-hidden rounded-lg"
-            >
-              <Image
-                src={c.image}
-                alt={c.name}
-                fill
-                sizes="(min-width: 1024px) 25vw, 50vw"
-                className="object-cover transition-transform duration-page ease-out-expo group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-fg/70 via-fg/20 to-transparent" />
-              <div className="absolute inset-0 p-5 lg:p-6 flex flex-col justify-between text-white">
-                <div className="text-[10px] lg:text-[11px] font-bold uppercase tracking-widest opacity-85">
-                  {c.count} products
-                </div>
-                <div>
-                  <div className="font-display text-xl lg:text-2xl font-semibold leading-tight">
-                    {c.name}
+      {/* Categories — fetched per store, so each store shows only its own */}
+      {categories.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
+          <SectionHead eyebrow="Browse" title="Shop by category" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {categories.slice(0, 8).map((c) => (
+              <Link
+                key={c.slug}
+                href={`/category/${c.slug}`}
+                className="group relative aspect-[4/5] lg:aspect-square overflow-hidden rounded-lg"
+              >
+                <Image
+                  src={c.imageUrl}
+                  alt={c.name}
+                  fill
+                  sizes="(min-width: 1024px) 25vw, 50vw"
+                  className="object-cover transition-transform duration-page ease-out-expo group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-fg/70 via-fg/20 to-transparent" />
+                <div className="absolute inset-0 p-5 lg:p-6 flex flex-col justify-between text-white">
+                  <div className="text-[10px] lg:text-[11px] font-bold uppercase tracking-widest opacity-85">
+                    {c.count} {c.count === 1 ? "product" : "products"}
                   </div>
-                  <div className="text-sm opacity-85 mt-1 inline-flex items-center gap-1">
-                    Shop now <ChevronRight className="size-3" />
+                  <div>
+                    <div className="font-display text-xl lg:text-2xl font-semibold leading-tight">
+                      {c.name}
+                    </div>
+                    <div className="text-sm opacity-85 mt-1 inline-flex items-center gap-1">
+                      Shop now <ChevronRight className="size-3" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* New arrivals */}
       <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
         <SectionHead
           eyebrow="Just dropped"
           title="New arrivals"
-          rightLink={{ label: "Browse phones", href: "/category/phones" }}
+          rightLink={{ label: "Browse all", href: browseHref }}
         />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
           {newArrivals.map((p, i) => (
@@ -230,19 +240,21 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Bestsellers */}
-      <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
-        <SectionHead
-          eyebrow="What everyone's buying"
-          title="Bestsellers this week"
-          rightLink={{ label: "View all", href: "/category/home" }}
-        />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
-          {bestsellers.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
-      </section>
+      {/* Bestsellers — only when there are enough products to fill a fresh row */}
+      {bestsellers.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
+          <SectionHead
+            eyebrow="What everyone's buying"
+            title="Bestsellers this week"
+            rightLink={{ label: "View all", href: browseHref }}
+          />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
+            {bestsellers.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Trust band (mobile-friendly summary) */}
       <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">

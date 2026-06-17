@@ -12,9 +12,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
-import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { computeQuote, resolveCartStoreId, type QuoteInputLine } from "@/lib/cart-quote";
 import { reserveStock } from "@/lib/stock";
-import { resolveStorefrontStoreId, STORE_COOKIE } from "@/lib/store";
 import { withIdempotency } from "@/lib/idempotency";
 import { nextOrderNumber } from "@/lib/order-number";
 import { writeAudit } from "@/lib/audit";
@@ -75,14 +74,10 @@ export async function POST(req: NextRequest) {
     }
     const body = parsed.data;
 
-    // Which store the order draws stock from — explicit, else the storefront
-    // cookie's store slug, else the Main store.
-    const storeId =
-      body.storeId ??
-      (await resolveStorefrontStoreId(req.cookies.get(STORE_COOKIE)?.value ?? null));
-    if (!storeId) {
-      throw new AppError("NO_STORE", "No store available for this order.", 400);
-    }
+    // Which store the order draws stock from — derived from the cart's
+    // products (products are per-store), so attribution never depends on an
+    // ambient cookie. Throws on an empty cart or one that mixes stores.
+    const storeId = await resolveCartStoreId(db, body.items.map((i) => i.productId));
 
     const session = await getCustomerSession();
     const normalizedPhone = normaliseNigerianPhone(parsed.data.contact.phone);

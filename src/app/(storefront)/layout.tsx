@@ -4,6 +4,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { PaymentRecovery } from "@/components/storefront/payment-recovery";
 import { SITE } from "@/lib/site";
 import { listActiveStores, getStorefrontStore } from "@/lib/store";
+import { listStoreCategories } from "@/lib/data/products";
+
+// The layout reads the active store (cookie/header) to render per-store nav +
+// footer categories, so it must render dynamically — never statically cached,
+// or a stale store's nav can be served against a different store's page
+// (causing a hydration mismatch).
+export const dynamic = "force-dynamic";
 
 // Organisation JSON-LD — Google reads this once for the whole site.
 // Lives on the storefront layout so it appears on every customer-facing page.
@@ -43,6 +50,8 @@ export default async function StorefrontLayout({ children }: { children: React.R
     listActiveStores(),
     getStorefrontStore(),
   ]);
+  // Nav categories are fetched per store — each store shows only its own.
+  const categories = await listStoreCategories(current?.id ?? undefined);
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -50,10 +59,15 @@ export default async function StorefrontLayout({ children }: { children: React.R
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_SCHEMA) }}
       />
-      <TopNav stores={stores} currentStoreSlug={current?.slug ?? null} />
+      <TopNav
+        key={current?.slug ?? "main"}
+        stores={stores}
+        currentStoreSlug={current?.slug ?? null}
+        categories={categories}
+      />
       <PaymentRecovery />
       <main className="flex-1">{children}</main>
-      <StorefrontFooter />
+      <StorefrontFooter key={`footer-${current?.slug ?? "main"}`} categories={categories} />
       <Toaster />
       {/* D-Zero AI chat widget. The init queue lets calls fire before the embed
           script finishes loading. Allowed origins live in the D-Zero dashboard. */}

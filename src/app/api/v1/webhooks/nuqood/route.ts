@@ -190,10 +190,11 @@ export async function POST(req: NextRequest) {
 
       const quote = computeQuote({ lines: inputLines, ...(coupon && { coupon }), shippingKobo, freeShippingEligible });
 
-      // Bank-transfer checkouts don't yet carry a store, so these fulfil from
-      // the Main store. (PendingCheckout.storeId is a TODO.) Customers are
-      // per-store, so resolve the store before the find-or-create.
-      const storeId = await getMainStoreId();
+      // Fulfil on the store the checkout was started for (derived from the
+      // cart's products at initiate). Legacy sessions without a store fall
+      // back to Main. Customers are per-store, so this must be resolved before
+      // the find-or-create below.
+      const storeId = session.storeId ?? (await getMainStoreId());
       if (!storeId) throw new Error("No store available to fulfil order");
 
       // Find or create customer (within the store)

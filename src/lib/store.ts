@@ -5,9 +5,13 @@
  */
 
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { db, withRetry } from "./db";
-import { STORE_COOKIE, ADMIN_STORE_COOKIE } from "./store-constants";
+import {
+  STORE_COOKIE,
+  ADMIN_STORE_COOKIE,
+  STORE_SLUG_HEADER,
+} from "./store-constants";
 import { hasPermission } from "./permissions";
 
 export { STORE_COOKIE, ADMIN_STORE_COOKIE };
@@ -110,7 +114,12 @@ export async function resolveStorefrontStoreId(
  * per-store stock.)
  */
 export async function getStorefrontStore() {
-  const slug = cookies().get(STORE_COOKIE)?.value ?? null;
+  // On a /s/<slug> request the middleware tags the slug as a header so the
+  // first load resolves correctly; thereafter the cookie carries it.
+  const slug =
+    headers().get(STORE_SLUG_HEADER) ??
+    cookies().get(STORE_COOKIE)?.value ??
+    null;
   if (slug) {
     const s = await getStoreBySlug(slug);
     if (s && s.active) return s;
@@ -135,6 +144,21 @@ export async function getActiveAdminStoreId(): Promise<string | null> {
     | undefined;
   if (!user?.id) return null;
   return resolveAdminStoreId(user);
+}
+
+/**
+ * The active admin store as a row (id + slug + isMain), for building the
+ * "view storefront" link. Returns null when there's no session.
+ */
+export async function getActiveAdminStore() {
+  const id = await getActiveAdminStoreId();
+  if (!id) return null;
+  return withRetry(() =>
+    db.store.findUnique({
+      where: { id },
+      select: { id: true, name: true, slug: true, isMain: true },
+    }),
+  );
 }
 
 /** Active stores for the storefront switcher (lightweight). */

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { MapPin, ChevronDown, Check, Loader2 } from "lucide-react";
 import { STORE_COOKIE } from "@/lib/store-constants";
 import {
@@ -33,7 +32,6 @@ export function StoreSwitcher({
   currentSlug: string | null;
   className?: string;
 }) {
-  const router = useRouter();
   const [pending, setPending] = React.useState(false);
 
   if (stores.length === 0) return null;
@@ -51,9 +49,14 @@ export function StoreSwitcher({
 
   function select(slug: string) {
     if (slug === current.slug) return;
+    const store = stores.find((s) => s.slug === slug);
     document.cookie = `${STORE_COOKIE}=${encodeURIComponent(slug)}; path=/; max-age=31536000; samesite=lax`;
     setPending(true);
-    router.refresh();
+    // Full navigation to the store's URL (main = "/", sub-store = "/s/<slug>"),
+    // NOT a soft refresh. A fresh load means the new store's nav is hydrated
+    // from scratch — the old store's nav is never reconciled against it, which
+    // is what caused the "Server: X / Client: Y" hydration mismatch.
+    window.location.assign(store?.isMain ? "/" : `/s/${slug}`);
   }
 
   return (

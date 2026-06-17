@@ -40,6 +40,7 @@ model Store {
   products     Product[]
   customers    Customer[]
   invitations  StaffInvitation[]
+  pendingCheckouts PendingCheckout[]
 
   @@map("stores")
 }
@@ -962,6 +963,9 @@ model SiteSettings {
 
 model PendingCheckout {
   id          String   @id @default(uuid()) @db.Uuid
+  /// Store the order will be created in once payment lands. Derived from the
+  /// cart's products at initiate. null (legacy rows) falls back to Main.
+  storeId     String?  @map("store_id") @db.Uuid
   /// Nuqood `ref` from get_dynamic_account — matches webhook transaction_reference.
   nuqoodRef   String   @unique @map("nuqood_ref")
   /// PalmPay virtual account number assigned by Nuqood.
@@ -983,9 +987,12 @@ model PendingCheckout {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  store       Store?   @relation(fields: [storeId], references: [id])
+
   @@index([nuqoodRef])
   @@index([bankNumber])
   @@index([expiresAt])
+  @@index([storeId])
   @@map("pending_checkouts")
 }
 

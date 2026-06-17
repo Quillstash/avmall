@@ -191,6 +191,34 @@ export interface QuoteFromIdsResult {
   shippingZone?: { name: string; etaDays: string };
 }
 
+/**
+ * The store an order belongs to, derived from the products in the cart.
+ * Products are per-store, so a product id uniquely identifies its store — this
+ * is the authoritative source of truth for order/payment attribution (more
+ * reliable than an ambient cookie). Throws if the cart is empty or mixes
+ * products from different stores (orders can't span stores).
+ */
+export async function resolveCartStoreId(
+  db: PrismaClient,
+  productIds: string[],
+): Promise<string> {
+  const ids = Array.from(new Set(productIds));
+  const rows = await db.product.findMany({
+    where: { id: { in: ids } },
+    select: { storeId: true },
+  });
+  const stores = new Set(rows.map((r) => r.storeId));
+  if (stores.size === 0) throw new NotFoundError("Products");
+  if (stores.size > 1) {
+    throw new AppError(
+      "MIXED_STORES",
+      "These items belong to different stores. Please check out one store at a time.",
+      422,
+    );
+  }
+  return [...stores][0]!;
+}
+
 export async function quoteFromProductIds(
   db: PrismaClient,
   input: QuoteFromIdsInput,

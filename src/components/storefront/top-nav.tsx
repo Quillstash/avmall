@@ -5,27 +5,23 @@ import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Search, Menu, User, MessageCircle, X } from "lucide-react";
 import { useCart } from "@/stores/cart-store";
-import { CATEGORIES } from "@/lib/mock-data";
 import { SITE } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { NavSearch } from "@/components/storefront/nav-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StoreSwitcher, type StoreOption } from "@/components/storefront/store-switcher";
 
-const NAV_LINKS = [
-  { href: "/category/phones", label: "Phones & Tablets" },
-  { href: "/category/audio", label: "Audio" },
-  { href: "/category/power", label: "Power" },
-  { href: "/category/fans", label: "Fans" },
-  { href: "/category/home", label: "Home & Kitchen" },
-];
+/** A nav category, fetched per store by the storefront layout. */
+export type NavCategory = { slug: string; name: string; count: number };
 
 export function TopNav({
   stores = [],
   currentStoreSlug = null,
+  categories = [],
 }: {
   stores?: StoreOption[];
   currentStoreSlug?: string | null;
+  categories?: NavCategory[];
 }) {
   const lines = useCart((s) => s.lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
@@ -80,11 +76,15 @@ export function TopNav({
             <span>mall</span>
           </Link>
 
-          {/* Desktop nav */}
+          {/* Desktop nav — categories fetched per store */}
           <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
-            {NAV_LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className="hover:text-brand-primary transition-colors">
-                {l.label}
+            {categories.map((c) => (
+              <Link
+                key={c.slug}
+                href={`/category/${c.slug}`}
+                className="hover:text-brand-primary transition-colors whitespace-nowrap"
+              >
+                {c.name}
               </Link>
             ))}
             <Link href="/journal" className="hover:text-brand-primary transition-colors">
@@ -137,7 +137,11 @@ export function TopNav({
       </header>
 
       {/* Mobile drawer */}
-      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <MobileDrawer
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        categories={categories}
+      />
 
       {/* Mobile search overlay */}
       {mobileSearchOpen && (
@@ -147,7 +151,15 @@ export function TopNav({
   );
 }
 
-function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function MobileDrawer({
+  open,
+  onClose,
+  categories,
+}: {
+  open: boolean;
+  onClose: () => void;
+  categories: NavCategory[];
+}) {
   return (
     <>
       <div
@@ -186,10 +198,13 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
           <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">
             Shop
           </div>
-          {CATEGORIES.map((c) => (
+          {categories.length === 0 && (
+            <div className="py-3 text-sm text-fg-muted">No categories yet.</div>
+          )}
+          {categories.map((c) => (
             <Link
-              key={c.id}
-              href={`/category/${c.id}`}
+              key={c.slug}
+              href={`/category/${c.slug}`}
               onClick={onClose}
               className="flex items-center justify-between py-3 text-base font-medium hover:text-brand-primary border-b border-border"
             >
