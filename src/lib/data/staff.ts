@@ -6,10 +6,7 @@
 import "server-only";
 
 import { db, hasDatabase, withRetry } from "@/lib/db";
-import {
-  STAFF as MOCK_STAFF,
-  type StaffMember,
-} from "@/lib/admin-mock-data";
+import { type StaffMember } from "@/lib/admin-mock-data";
 
 export type { StaffMember };
 
@@ -33,7 +30,7 @@ function timeAgo(d: Date | null): string {
 
 export async function listStaff(): Promise<StaffMember[]> {
   if (!hasDatabase) {
-    return [...MOCK_STAFF];
+    return [];
   }
   const users = await withRetry(() =>
     db.user.findMany({

@@ -8,15 +8,6 @@ export async function GET() {
     const session = await getCustomerSession();
     if (!session) return NextResponse.json(apiSuccess({ customer: null }));
 
-    if (session.customerId === "mock-customer") {
-      return NextResponse.json(
-        apiSuccess({
-          customer: { id: "mock-customer", name: "Tolu Adeniyi", phone: session.phone },
-          mock: true,
-        }),
-      );
-    }
-
     const customer = await db.customer.findUnique({
       where: { id: session.customerId },
       select: { id: true, name: true, phone: true, email: true, blacklisted: true },

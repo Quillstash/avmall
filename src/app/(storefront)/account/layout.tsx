@@ -1,6 +1,6 @@
 import { AccountSidebar } from "@/components/storefront/account-sidebar";
 import { getCustomerSession } from "@/lib/customer-session";
-import { db, hasDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { formatNigerianPhone } from "@/lib/phone";
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
@@ -8,12 +8,8 @@ export default async function AccountLayout({ children }: { children: React.Reac
   let customer: { name: string; phone: string } | null = null;
 
   if (session) {
-    if (session.customerId === "mock-customer" || !hasDatabase) {
-      customer = { name: "Tolu Adeniyi", phone: formatNigerianPhone(session.phone) };
-    } else {
-      const c = await db.customer.findUnique({ where: { id: session.customerId } });
-      if (c) customer = { name: c.name, phone: formatNigerianPhone(c.phone) };
-    }
+    const c = await db.customer.findUnique({ where: { id: session.customerId } });
+    if (c) customer = { name: c.name, phone: formatNigerianPhone(c.phone) };
   }
 
   return (

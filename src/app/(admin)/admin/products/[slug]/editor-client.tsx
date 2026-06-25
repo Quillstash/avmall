@@ -20,7 +20,7 @@ import { CodeInput } from "@/components/ui/code-input";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toaster";
 import { useRouter } from "next/navigation";
-import { CATEGORIES, type BulkTier, type Product } from "@/lib/mock-data";
+import { type BulkTier, type Category, type Product } from "@/lib/mock-data";
 import type { ProductAuditSummary } from "@/lib/data/products";
 import { ProfitDisplay } from "@/components/admin/profit-display";
 import { StockAdjust } from "@/components/admin/stock-adjust";
@@ -29,9 +29,10 @@ import { applyPercentageDiscount } from "@/lib/money";
 interface EditorClientProps {
   product: Product;
   audit: ProductAuditSummary;
+  categories: Category[];
 }
 
-export function ProductEditorClient({ product, audit }: EditorClientProps) {
+export function ProductEditorClient({ product, audit, categories }: EditorClientProps) {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
   const [archiving, setArchiving] = React.useState(false);
@@ -248,7 +249,7 @@ export function ProductEditorClient({ product, audit }: EditorClientProps) {
                         setCategory(e.target.value as typeof category)
                       }
                     >
-                      {CATEGORIES.map((c) => (
+                      {categories.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>

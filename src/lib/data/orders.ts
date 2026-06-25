@@ -1,35 +1,20 @@
 /**
- * Order data layer. Falls back to mock data when DB is not configured.
+ * Order data layer. Returns empty results when the DB is not configured.
  */
 
 import "server-only";
 
 import { db, hasDatabase } from "@/lib/db";
-import {
-  ORDERS_LIST as MOCK_ORDERS_LIST,
-  ORDER_DETAIL_ITEMS as MOCK_DETAIL_ITEMS,
-  ORDER_PAYMENTS as MOCK_PAYMENTS,
-  type OrderListRow,
-} from "@/lib/admin-mock-data";
-import { PRODUCTS } from "@/lib/mock-data";
+import { type OrderListRow } from "@/lib/admin-mock-data";
 import type {
   OrderStatus,
   PaymentStatus,
 } from "@/components/ui/status-pill";
 
-/** Best-effort image lookup for order line items. Phase 5 will read
- *  ProductImage rows tied to R2 keys; for now we map by SKU prefix to the
- *  seeded demo set so order lines always have a thumbnail. */
+/** Image for an order line item. Neutral branded placeholder until
+ *  ProductImage R2 keys are wired into order lines. */
 function lineImageFor(skuOrSlug: string): string {
-  const fromSlug = PRODUCTS.find((p) => p.slug === skuOrSlug);
-  if (fromSlug) return fromSlug.imageUrl;
-  const upper = skuOrSlug.toUpperCase();
-  const fromBrand = PRODUCTS.find((p) =>
-    upper.startsWith(p.brand.slice(0, 3).toUpperCase()),
-  );
-  if (fromBrand) return fromBrand.imageUrl;
-  // Deterministic placeholder when nothing matches.
-  return `https://picsum.photos/seed/${encodeURIComponent(skuOrSlug)}/200/200`;
+  return "/product-placeholder.png";
 }
 
 export type { OrderListRow };
@@ -113,7 +98,7 @@ function mapDbPaymentStatusToView(s: string): PaymentStatus {
 
 export async function listAdminOrders(storeId?: string | null): Promise<OrderListRow[]> {
   if (!hasDatabase) {
-    return [...MOCK_ORDERS_LIST];
+    return [];
   }
 
   const rows = await db.order.findMany({
@@ -171,9 +156,7 @@ function formatTimestamp(d: Date): string {
 
 export async function getAdminOrder(number: string): Promise<OrderDetail | null> {
   if (!hasDatabase) {
-    // Synthesise a detail object from the mock fixtures so the admin order
-    // detail page can still render in design-only mode.
-    return mockOrderDetail(number);
+    return null;
   }
 
   const o = await db.order.findUnique({
@@ -273,73 +256,6 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
   };
 }
 
-function mockOrderDetail(number: string): OrderDetail {
-  const subtotal = MOCK_DETAIL_ITEMS.reduce((a, i) => a + i.unitKobo * i.qty, 0);
-  const bulkDiscount = MOCK_DETAIL_ITEMS.reduce((a, i) => a + i.discountKobo, 0);
-  const coupon = 500000;
-  const shipping = 350000;
-  const total = subtotal - bulkDiscount - coupon + shipping;
-  const paid = MOCK_PAYMENTS.filter((p) => p.status === "completed").reduce(
-    (a, p) => a + p.amountKobo,
-    0,
-  );
-  return {
-    id: "mock-order",
-    number,
-    status: "processing",
-    paymentStatus: "partial",
-    source: "whatsapp",
-    createdAt: new Date(),
-    customer: {
-      id: "c1",
-      name: "Tolu Adeniyi",
-      phone: "+234 803 421 7790",
-      blacklisted: false,
-    },
-    shipping: {
-      name: "Tolu Adeniyi",
-      phone: "+234 803 421 7790",
-      line1: "14 Bourdillon Road, Apt 3B",
-      line2: null,
-      city: "Ikoyi",
-      state: "Lagos",
-    },
-    totals: {
-      subtotalKobo: subtotal,
-      bulkDiscountKobo: bulkDiscount,
-      couponDiscountKobo: coupon,
-      manualDiscountKobo: 0,
-      shippingKobo: shipping,
-      totalKobo: total,
-      paidKobo: paid,
-      outstandingKobo: total - paid,
-    },
-    appliedCouponCode: "JANUARY10",
-    lines: MOCK_DETAIL_ITEMS.map((i) => ({
-      id: String(i.id),
-      name: i.name,
-      variant: i.variant,
-      sku: i.sku,
-      quantity: i.qty,
-      unitKobo: i.unitKobo,
-      bulkDiscountKobo: i.discountKobo,
-      bulkTierLabel: i.tier ?? null,
-      imageUrl: i.imageUrl,
-    })),
-    payments: MOCK_PAYMENTS.map((p, i) => ({
-      id: String(i),
-      method: p.method,
-      amountKobo: p.amountKobo,
-      reference: p.txRef === "—" ? null : p.txRef,
-      status: p.status,
-      by: p.by,
-      createdAt: new Date(),
-    })),
-    notes: [],
-    installmentPlan: null,
-  };
-}
-
 // ─── Customer-facing ─────────────────────────────────────────────────────
 
 export interface CustomerOrderSummary {
@@ -352,12 +268,7 @@ export interface CustomerOrderSummary {
 
 export async function listCustomerOrders(customerId: string): Promise<CustomerOrderSummary[]> {
   if (!hasDatabase) {
-    return [
-      { number: "AVM-2841", date: "Tue 14 Jan", totalKobo: 6294000, status: "confirmed", items: 3 },
-      { number: "AVM-2811", date: "8 Jan", totalKobo: 18900000, status: "delivered", items: 6 },
-      { number: "AVM-2790", date: "2 Jan", totalKobo: 8400000, status: "delivered", items: 2 },
-      { number: "AVM-2754", date: "24 Dec", totalKobo: 14200000, status: "refunded", items: 4 },
-    ];
+    return [];
   }
   const rows = await db.order.findMany({
     where: { customerId },

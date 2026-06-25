@@ -1,7 +1,6 @@
 /**
- * Product data layer. Reads from the DB when DATABASE_URL is set, otherwise
- * falls back to the in-memory mock data so the storefront keeps working
- * during design iterations.
+ * Product data layer. Reads from the DB when DATABASE_URL is set; otherwise
+ * returns empty results (no fabricated data).
  *
  * All callers consume the same `Product` view type from mock-data.ts — DB
  * shapes are converted via `productFromDb()`.
@@ -12,8 +11,6 @@ import "server-only";
 import { cache } from "react";
 import { db, hasDatabase, withRetry } from "@/lib/db";
 import {
-  PRODUCTS as MOCK_PRODUCTS,
-  CATEGORIES as MOCK_CATEGORIES,
   type Product,
   type ProductCategoryId,
   type Category,
@@ -59,8 +56,7 @@ function publicUrlForKey(key: string): string | null {
 function productFromDb(p: DbProductWith): Product {
   // Image resolution priority:
   //   1. ProductImage rows on R2 (primary first, then by position)
-  //   2. Legacy CloudFront URL from the seeded mock catalogue
-  //   3. Deterministic picsum placeholder for fresh test products
+  //   2. Neutral branded placeholder when no image is uploaded
   const sortedImages = [...(p.images ?? [])].sort((a, b) => {
     if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
     return a.position - b.position;
@@ -121,22 +117,11 @@ function productFromDb(p: DbProductWith): Product {
 
 
 /**
- * Reuse the Unsplash URL stored in mock-data for the same slug. Phase 5 will
- * read R2 image keys off ProductImage rows; for now we lean on the demo set
- * with a deterministic picsum.photos fallback for products created via
- * /admin/products/new (which won't match any mock slug).
+ * Neutral branded placeholder for products with no uploaded R2 image. Real
+ * images come from ProductImage rows resolved in `productFromDb`.
  */
 function defaultImageFor(slug: string): string {
-  const m = MOCK_PRODUCTS.find((p) => p.slug === slug);
-  if (m) return m.imageUrl;
-  // Real products with no uploaded image get a neutral branded placeholder —
-  // never a random stock photo (which looks like a wrong product image).
   return "/product-placeholder.png";
-}
-
-function gallerySlugLookup(slug: string): string[] | undefined {
-  const m = MOCK_PRODUCTS.find((p) => p.slug === slug);
-  return m?.gallery;
 }
 
 /**
@@ -144,16 +129,11 @@ function gallerySlugLookup(slug: string): string[] | undefined {
  * `product.category` access keeps working. Prisma gives us a relation, not a
  * scalar slug — we look it up via the include + categoryById map.
  */
-/** Sets the category slug + mock gallery on the converted product. Category
- *  is now loaded via Prisma `include`, so no follow-up query needed. */
+/** Sets the category slug on the converted product. Category is loaded via
+ *  Prisma `include`, so no follow-up query needed. */
 function finalize(p: DbProductWith): Product {
   const view = productFromDb(p);
   view.category = p.category.slug as ProductCategoryId;
-  // Only fall back to the mock gallery when there's no R2 gallery already.
-  if (!view.gallery) {
-    const gallery = gallerySlugLookup(view.slug);
-    if (gallery) view.gallery = gallery;
-  }
   return view;
 }
 
@@ -164,7 +144,7 @@ function finalize(p: DbProductWith): Product {
  * React `cache` so two callers in the same request share the result.
  */
 export const listCategories = cache(async (): Promise<Category[]> => {
-  if (!hasDatabase) return [...MOCK_CATEGORIES];
+  if (!hasDatabase) return [];
 
   const cats = await withRetry(() =>
     db.category.findMany({
@@ -186,7 +166,7 @@ export const listCategories = cache(async (): Promise<Category[]> => {
 export const getCategoryBySlug = cache(
   async (slug: string): Promise<Category | null> => {
     if (!hasDatabase) {
-      return MOCK_CATEGORIES.find((c) => c.id === slug) ?? null;
+      return null;
     }
     const cat = await withRetry(() =>
       db.category.findUnique({
@@ -226,12 +206,7 @@ export type StoreCategory = {
 export const listStoreCategories = cache(
   async (storeId?: string): Promise<StoreCategory[]> => {
     if (!hasDatabase) {
-      return [...MOCK_CATEGORIES].map((c) => ({
-        slug: c.id,
-        name: c.name,
-        count: c.count ?? 0,
-        imageUrl: "/product-placeholder.png",
-      }));
+      return [];
     }
 
     const productWhere = {
@@ -298,18 +273,7 @@ export async function listProducts(opts?: {
   const q = opts?.search?.trim().toLowerCase();
 
   if (!hasDatabase) {
-    let list = [...MOCK_PRODUCTS];
-    if (opts?.category) list = list.filter((p) => p.category === opts.category);
-    if (q && q.length >= 2) {
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.slug.toLowerCase().includes(q),
-      );
-    }
-    if (opts?.limit != null) list = list.slice(0, opts.limit);
-    return list;
+    return [];
   }
 
   const where = {
@@ -358,7 +322,7 @@ export async function getProductBySlug(
   storeId?: string,
 ): Promise<Product | null> {
   if (!hasDatabase) {
-    return MOCK_PRODUCTS.find((p) => p.slug === slug) ?? null;
+    return null;
   }
   const p = await withRetry(() =>
     db.product.findUnique({
@@ -416,25 +380,7 @@ export async function searchProducts(
   if (q.length < 2) return [];
 
   if (!hasDatabase) {
-    return MOCK_PRODUCTS.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.brand.toLowerCase().includes(q) ||
-        p.slug.toLowerCase().includes(q),
-    )
-      .slice(0, limit)
-      .map((p) => ({
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        brand: p.brand,
-        imageUrl: p.imageUrl,
-        priceKobo: p.price,
-        saleKobo: p.sale ?? null,
-        saleActive: p.saleActive ?? false,
-        category: p.category,
-        stock: p.variants.reduce((a, v) => a + v.stock, 0),
-      }));
+    return [];
   }
 
   const rows = await withRetry(() =>
@@ -494,8 +440,8 @@ export async function searchProducts(
 
 /**
  * Audit-panel summary for a single product. Pulls real creator + last editor
- * from AuditLog, and a 30-day units-sold count from OrderLine. Falls back to
- * empty data in mock mode.
+ * from AuditLog, and a 30-day units-sold count from OrderLine. Returns empty
+ * data when the DB isn't configured.
  */
 export interface ProductAuditSummary {
   createdAt: Date;
@@ -519,8 +465,8 @@ export async function getProductAuditSummary(
 
   if (!hasDatabase) return empty;
 
-  // Bail out cleanly for mock product IDs that don't pass the UUID guard at
-  // the DB layer (legacy "p4308826" style IDs leak through from mock data).
+  // Bail out cleanly for non-UUID product IDs that wouldn't pass the UUID
+  // guard at the DB layer.
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
     return empty;
   }
@@ -576,7 +522,7 @@ export async function getProductAuditSummary(
 /** Used at build time by `generateStaticParams` on `/product/[slug]`. */
 export async function listAllProductSlugs(): Promise<string[]> {
   if (!hasDatabase) {
-    return MOCK_PRODUCTS.map((p) => p.slug);
+    return [];
   }
   const rows = await withRetry(() =>
     db.product.findMany({

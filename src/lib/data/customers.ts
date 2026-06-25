@@ -5,10 +5,7 @@
 import "server-only";
 
 import { db, hasDatabase } from "@/lib/db";
-import {
-  CUSTOMERS as MOCK_CUSTOMERS,
-  type CustomerListRow,
-} from "@/lib/admin-mock-data";
+import { type CustomerListRow } from "@/lib/admin-mock-data";
 
 export type { CustomerListRow };
 
@@ -30,7 +27,7 @@ export interface AdminCustomerDetail {
 }
 
 export async function listCustomers(storeId?: string | null): Promise<CustomerListRow[]> {
-  if (!hasDatabase) return [...MOCK_CUSTOMERS];
+  if (!hasDatabase) return [];
 
   const rows = await db.customer.findMany({
     ...(storeId ? { where: { storeId } } : {}),
@@ -65,28 +62,9 @@ export async function listCustomers(storeId?: string | null): Promise<CustomerLi
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function getCustomer(id: string): Promise<AdminCustomerDetail | null> {
-  // Mock fallback: no DB OR the id isn't a UUID (the customers list page still
-  // renders the mock catalogue, so we may receive ids like "c1" here until the
-  // seed creates real customer rows).
-  if (!hasDatabase || !UUID_REGEX.test(id)) {
-    const m = MOCK_CUSTOMERS.find((c) => c.id === id);
-    if (!m) return null;
-    return {
-      id: m.id,
-      name: m.name,
-      phone: m.phone,
-      email: m.email ?? null,
-      segments: m.segments,
-      blacklisted: !!m.blacklisted,
-      blacklistReason: m.blacklisted ? "Repeated chargebacks" : null,
-      lifetimeKobo: m.lifetimeKobo,
-      ordersCount: m.orders,
-      lastOrderAt: null,
-      createdAt: new Date(),
-      installmentOutstandingKobo: 0,
-      activeInstallmentPlans: 0,
-    };
-  }
+  if (!hasDatabase) return null;
+  // Guard against non-UUID slugs hitting Prisma (which would throw).
+  if (!UUID_REGEX.test(id)) return null;
   const c = await db.customer.findUnique({
     where: { id },
     include: {

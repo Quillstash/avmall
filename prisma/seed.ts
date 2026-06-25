@@ -15,7 +15,7 @@
 
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { PRODUCTS, CATEGORIES } from "../src/lib/mock-data";
+import { PRODUCTS, CATEGORIES } from "./seed-data/catalogue";
 
 const db = new PrismaClient();
 

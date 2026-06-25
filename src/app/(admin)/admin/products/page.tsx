@@ -1,4 +1,4 @@
-import { listProducts } from "@/lib/data/products";
+import { listProducts, listCategories } from "@/lib/data/products";
 import { getActiveAdminStoreId } from "@/lib/store";
 import { ProductsListClient } from "./products-client";
 
@@ -11,5 +11,6 @@ export default async function AdminProductsListPage() {
     includeUnpublished: true,
     ...(storeId ? { storeId } : {}),
   });
-  return <ProductsListClient products={products} />;
+  const categories = await listCategories();
+  return <ProductsListClient products={products} categories={categories} />;
 }
