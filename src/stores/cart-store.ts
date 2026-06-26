@@ -12,7 +12,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { PRODUCTS, type Product, type ProductVariant } from "@/lib/mock-data";
+import { type Product, type ProductVariant } from "@/lib/mock-data";
 import { applyPercentageDiscount } from "@/lib/money";
 
 export interface CartLineSnapshot {
@@ -163,16 +163,11 @@ export const useCart = create<CartState>()(
  */
 export function resolveCart(lines: CartLine[]): ResolvedCartLine[] {
   return lines.flatMap((line) => {
-    let snap = line.snapshot;
+    const snap = line.snapshot;
 
-    if (!snap) {
-      // Legacy path: try the mock catalogue. Will return [] for DB UUIDs.
-      const product = PRODUCTS.find((p) => p.id === line.productId);
-      if (!product) return [];
-      const variant = product.variants.find((v) => v.id === line.variantId);
-      if (!variant) return [];
-      snap = snapshotFor(product, variant);
-    }
+    // Lines without a snapshot can't resolve against the DB (no catalogue
+    // fallback) — drop them.
+    if (!snap) return [];
 
     const lineSubtotalKobo = snap.unitKobo * line.qty;
 

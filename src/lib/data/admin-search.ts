@@ -1,17 +1,12 @@
 /**
  * Cross-entity admin search. Returns small grouped result sets for the global
- * top-bar dropdown. DB-backed with mock fallback so the admin works in
- * design-only mode.
+ * top-bar dropdown. DB-backed; returns empty results when the DB isn't
+ * configured.
  */
 
 import "server-only";
 
 import { db, hasDatabase, withRetry } from "@/lib/db";
-import {
-  ORDERS_LIST as MOCK_ORDERS,
-  CUSTOMERS as MOCK_CUSTOMERS,
-} from "@/lib/admin-mock-data";
-import { PRODUCTS as MOCK_PRODUCTS } from "@/lib/mock-data";
 
 export interface AdminSearchHit {
   type: "order" | "product" | "customer";
@@ -43,7 +38,7 @@ export async function searchAdminEntities(
   if (q.length < 2) return EMPTY;
 
   if (!hasDatabase) {
-    return mockSearch(q, perGroupLimit);
+    return EMPTY;
   }
 
   const [orders, products, customers] = await Promise.all([
@@ -129,59 +124,5 @@ export async function searchAdminEntities(
     products: productHits,
     customers: customerHits,
     totalCount: orderHits.length + productHits.length + customerHits.length,
-  };
-}
-
-function mockSearch(q: string, perGroupLimit: number): AdminSearchResults {
-  const orders: AdminSearchHit[] = MOCK_ORDERS.filter(
-    (o) =>
-      o.number.toLowerCase().includes(q) ||
-      o.customerName.toLowerCase().includes(q) ||
-      o.customerPhone.includes(q),
-  )
-    .slice(0, perGroupLimit)
-    .map((o) => ({
-      type: "order",
-      href: `/admin/orders/${o.number}`,
-      primary: o.number,
-      secondary: o.customerName,
-      meta: o.status,
-    }));
-
-  const products: AdminSearchHit[] = MOCK_PRODUCTS.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.brand.toLowerCase().includes(q) ||
-      p.slug.toLowerCase().includes(q),
-  )
-    .slice(0, perGroupLimit)
-    .map((p) => ({
-      type: "product",
-      href: `/admin/products/${p.slug}`,
-      primary: p.name,
-      secondary: p.brand,
-      meta: "Live",
-    }));
-
-  const customers: AdminSearchHit[] = MOCK_CUSTOMERS.filter(
-    (c) =>
-      c.name.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      (c.email?.toLowerCase().includes(q) ?? false),
-  )
-    .slice(0, perGroupLimit)
-    .map((c) => ({
-      type: "customer",
-      href: `/admin/customers/${c.id}`,
-      primary: c.name,
-      secondary: c.phone,
-      ...(c.email && { meta: c.email }),
-    }));
-
-  return {
-    orders,
-    products,
-    customers,
-    totalCount: orders.length + products.length + customers.length,
   };
 }

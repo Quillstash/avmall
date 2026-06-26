@@ -19,7 +19,6 @@ import {
   Check,
   XCircle,
   Copy,
-  ChevronDown,
   Pencil,
   Trash2,
   Send,
@@ -55,6 +54,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { NumberInput } from "@/components/ui/number-input";
+import { Select } from "@/components/ui/select";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PaymentLedger } from "@/components/admin/payment-ledger";
 import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
@@ -69,6 +69,33 @@ interface PageProps {
   params: { number: string };
   order: OrderDetail;
 }
+
+// How each order source is labelled + described in the header pill. Driven by
+// the real `order.source` rather than assuming every order came from WhatsApp.
+const SOURCE_META: Record<string, { label: string; tip: string }> = {
+  web: { label: "Web", tip: "Placed by the customer on the storefront" },
+  whatsapp: { label: "WhatsApp", tip: "Originated from a WhatsApp conversation" },
+  phone: { label: "Phone", tip: "Taken over the phone by a staff member" },
+  walkin: { label: "Walk-in", tip: "Created at the register / in-store" },
+  ai: { label: "AI agent", tip: "Created by the AI agent" },
+};
+
+// Forward order flow. Ranks mirror the status API, which rejects backward
+// moves — so the status modal only offers statuses further along than the
+// current one. Cancel/refund have their own dedicated actions.
+const STATUS_FLOW: { value: string; label: string }[] = [
+  { value: "confirmed", label: "Confirmed" },
+  { value: "processing", label: "Processing" },
+  { value: "shipped", label: "Shipped" },
+  { value: "delivered", label: "Delivered" },
+];
+const STATUS_RANK: Record<string, number> = {
+  pending: 0,
+  confirmed: 1,
+  processing: 2,
+  shipped: 3,
+  delivered: 4,
+};
 
 export function OrderDetailClient({ params, order }: PageProps) {
   const { data: session } = useSession();
@@ -141,6 +168,27 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const [recordOpen, setRecordOpen] = React.useState(false);
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [actionLoading, setActionLoading] = React.useState(false);
+
+  // Status update modal — opened from the header and the timeline card.
+  const currentRank = STATUS_RANK[order.status] ?? 0;
+  const nextStatuses = STATUS_FLOW.filter(
+    (s) => (STATUS_RANK[s.value] ?? 0) > currentRank,
+  );
+  const canUpdateStatus =
+    order.status !== "cancelled" && order.status !== "delivered";
+  const [statusOpen, setStatusOpen] = React.useState(false);
+  const [statusChoice, setStatusChoice] = React.useState("");
+  React.useEffect(() => {
+    if (statusOpen) setStatusChoice(nextStatuses[0]?.value ?? "");
+    // Re-seed the default each time the modal opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusOpen]);
+
+  async function submitStatus() {
+    if (!statusChoice) return;
+    await changeStatus(statusChoice);
+    setStatusOpen(false);
+  }
 
   // Line-item editing
   type LineItem = (typeof orderItems)[number];
@@ -493,53 +541,47 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 </h1>
                 <OrderStatusPill status={order.status} />
                 <PaymentStatusPill status={order.paymentStatus} />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-surface-2 border border-border font-medium cursor-help">
-                      <MessageCircle className="size-3" /> WhatsApp source
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Order originated from WhatsApp conversation with Ada</TooltipContent>
-                </Tooltip>
+                {(() => {
+                  const meta = SOURCE_META[order.source] ?? {
+                    label: order.source,
+                    tip: "Order source",
+                  };
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-surface-2 border border-border font-medium cursor-help capitalize">
+                          {order.source === "whatsapp" && (
+                            <MessageCircle className="size-3" />
+                          )}
+                          {meta.label} source
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{meta.tip}</TooltipContent>
+                    </Tooltip>
+                  );
+                })()}
               </div>
               <div className="text-sm text-fg-muted">
                 Placed {placedAt} · {orderItems.length} item{orderItems.length === 1 ? "" : "s"}
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {/* Status changer — only show for non-terminal statuses */}
-              {order.status !== "cancelled" && order.status !== "delivered" && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" size="sm" disabled={actionLoading}>
-                      {actionLoading
-                        ? <Loader2 className="size-3.5 animate-spin" />
-                        : <Truck className="size-3.5" />
-                      }
-                      Update status <ChevronDown className="size-3 ml-0.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {order.status !== "confirmed" && (
-                      <DropdownMenuItem onClick={() => changeStatus("confirmed")}>
-                        <Check className="size-3.5 text-brand-primary" /> Confirm order
-                      </DropdownMenuItem>
-                    )}
-                    {order.status !== "processing" && (
-                      <DropdownMenuItem onClick={() => changeStatus("processing")}>
-                        <Plus className="size-3.5 text-status-processing" /> Mark processing
-                      </DropdownMenuItem>
-                    )}
-                    {order.status !== "shipped" && (
-                      <DropdownMenuItem onClick={() => changeStatus("shipped")}>
-                        <Truck className="size-3.5 text-status-shipped" /> Mark shipped
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => changeStatus("delivered")}>
-                      <Check className="size-3.5 text-success" /> Mark delivered
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {/* Status changer — opens the shared status modal. Only shown for
+                  non-terminal statuses. */}
+              {canUpdateStatus && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={actionLoading}
+                  onClick={() => setStatusOpen(true)}
+                >
+                  {actionLoading ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Truck className="size-3.5" />
+                  )}
+                  Update status
+                </Button>
               )}
               <Button
                 variant="ghost"
@@ -775,9 +817,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
                       label={
                         <span>
                           Shipping{" "}
-                          <span className="text-[10px] text-fg-muted font-medium">
-                            · Lagos zone
-                          </span>
+                          {shipping > 0 && (
+                            <span className="text-[10px] text-fg-muted font-medium">
+                              · {order.shipping.state} zone
+                            </span>
+                          )}
                         </span>
                       }
                       value={formatMoney(shipping)}
@@ -908,7 +952,26 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 />
               </Card>
 
-              <Card title="Status timeline">
+              <Card
+                title="Status timeline"
+                action={
+                  canUpdateStatus ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={actionLoading}
+                      onClick={() => setStatusOpen(true)}
+                    >
+                      {actionLoading ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Truck className="size-3.5" />
+                      )}
+                      Update status
+                    </Button>
+                  ) : undefined
+                }
+              >
                 <Timeline events={timeline} />
               </Card>
 
@@ -1037,6 +1100,70 @@ export function OrderDetailClient({ params, order }: PageProps) {
         outstandingKobo={Math.max(0, outstanding)}
         onSubmit={recordPayment}
       />
+
+      {/* Status update modal — shared by the header + timeline buttons. */}
+      <Dialog
+        open={statusOpen}
+        onOpenChange={(o) => !actionLoading && setStatusOpen(o)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Update order status</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-fg-muted">Current</span>
+              <OrderStatusPill status={order.status} />
+            </div>
+            {nextStatuses.length === 0 ? (
+              <p className="text-sm text-fg-muted">
+                This order is {order.status} — there is no further status to
+                move it to.
+              </p>
+            ) : (
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">
+                  Move to
+                </div>
+                <Select
+                  value={statusChoice}
+                  onChange={(e) => setStatusChoice(e.target.value)}
+                >
+                  {nextStatuses.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            {isPartiallyPaid &&
+              (statusChoice === "shipped" || statusChoice === "delivered") && (
+                <div className="text-xs text-warning bg-warning-bg p-2.5 rounded-md">
+                  This order isn&apos;t paid in full — {formatMoney(outstanding)}{" "}
+                  is still outstanding. Fulfilment policy normally requires full
+                  payment before shipping.
+                </div>
+              )}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setStatusOpen(false)}
+              disabled={actionLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitStatus}
+              disabled={!statusChoice || actionLoading}
+            >
+              {actionLoading && <Loader2 className="size-4 animate-spin" />}
+              Update status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
 
       {/* Print-only receipt — hidden on screen, becomes the sole visible

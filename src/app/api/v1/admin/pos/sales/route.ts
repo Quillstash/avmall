@@ -7,7 +7,9 @@
  * pays and carries the goods out the door. So in one transaction we
  *   1. reserve stock (SELECT FOR UPDATE availability check), then
  *   2. consume it right away — on_hand is decremented now,
- *   3. create the order as source `walkin`, status `delivered`, no customer,
+ *   3. create the order as source `walkin`. A sale settled in full is
+ *      `delivered`; a part-payment leaves a balance owed, so it starts
+ *      `pending` and staff advance it manually as the customer pays/collects.
  *   4. record the (possibly split) cash / POS / transfer payments.
  *
  * There is no shipping (in-store pickup) and no linked customer — walk-ins
@@ -189,12 +191,20 @@ export async function POST(req: NextRequest) {
     const finalPayments = payments.filter((p) => p.amountKobo > 0);
     const paidKobo = finalPayments.reduce((a, p) => a + p.amountKobo, 0);
 
-    const paymentStatus =
-      paidKobo >= quote.totalKobo
-        ? ("paid" as const)
-        : paidKobo > 0
-          ? ("partial" as const)
-          : ("unpaid" as const);
+    const fullyPaid = paidKobo >= quote.totalKobo;
+    const paymentStatus = fullyPaid
+      ? ("paid" as const)
+      : paidKobo > 0
+        ? ("partial" as const)
+        : ("unpaid" as const);
+
+    // A register sale is only "delivered" (goods out the door, nothing owed)
+    // when it's settled in full. A part-payment leaves a balance, so the order
+    // starts as "pending" and staff advance it manually from the order page as
+    // the customer pays off / collects. Stock is still consumed now either way
+    // (the item is committed to this sale), so a later manual move to shipped
+    // finds no active reservations to double-count.
+    const status = fullyPaid ? ("delivered" as const) : ("pending" as const);
 
     const order = await db.$transaction(
       async (tx) => {
@@ -254,7 +264,7 @@ export async function POST(req: NextRequest) {
             number: orderNumber,
             customerId,
             storeId,
-            status: "delivered",
+            status,
             paymentStatus,
             source: "walkin",
             shipName,
@@ -271,7 +281,7 @@ export async function POST(req: NextRequest) {
             totalKobo: BigInt(quote.totalKobo),
             paidKobo: BigInt(paidKobo),
             createdById: session.id,
-            deliveredAt: now,
+            deliveredAt: fullyPaid ? now : null,
             customerNote: body.note ?? null,
             lines: {
               create: quote.lines.map((l) => {
@@ -326,6 +336,7 @@ export async function POST(req: NextRequest) {
             entityId: created.id,
             after: {
               number: created.number,
+              status,
               totalKobo: quote.totalKobo,
               paidKobo,
               paymentStatus,

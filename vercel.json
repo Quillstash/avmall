@@ -1,1 +1,5 @@
-{}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "pnpm exec prisma migrate deploy && pnpm run build"
+}

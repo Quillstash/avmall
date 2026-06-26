@@ -3,13 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Search, Menu, User, MessageCircle, X } from "lucide-react";
+import { ShoppingBag, Search, Menu, User, MessageCircle, X, MapPin, Check } from "lucide-react";
 import { useCart } from "@/stores/cart-store";
 import { SITE } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { NavSearch } from "@/components/storefront/nav-search";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { StoreSwitcher, type StoreOption } from "@/components/storefront/store-switcher";
+import {
+  StoreSwitcher,
+  gotoStore,
+  type StoreOption,
+} from "@/components/storefront/store-switcher";
 
 /** A nav category, fetched per store by the storefront layout. */
 export type NavCategory = { slug: string; name: string; count: number };
@@ -141,6 +145,8 @@ export function TopNav({
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
         categories={categories}
+        stores={stores}
+        currentStoreSlug={currentStoreSlug}
       />
 
       {/* Mobile search overlay */}
@@ -155,10 +161,14 @@ function MobileDrawer({
   open,
   onClose,
   categories,
+  stores,
+  currentStoreSlug,
 }: {
   open: boolean;
   onClose: () => void;
   categories: NavCategory[];
+  stores: StoreOption[];
+  currentStoreSlug: string | null;
 }) {
   return (
     <>
@@ -195,9 +205,59 @@ function MobileDrawer({
           </button>
         </div>
         <nav className="flex-1 overflow-y-auto p-5 flex flex-col gap-1">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">
-            Shop
-          </div>
+          {/* Stores — switch between the main store and sub-stores. Only shown
+              when there's more than one to move between. */}
+          {stores.length > 1 && (
+            <>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">
+                Stores
+              </div>
+              {stores.map((s) => {
+                const isCurrent = s.slug === currentStoreSlug;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      if (isCurrent) {
+                        onClose();
+                        return;
+                      }
+                      gotoStore(s);
+                    }}
+                    aria-current={isCurrent ? "true" : undefined}
+                    className="flex items-center gap-2.5 py-3 text-left text-base font-medium hover:text-brand-primary border-b border-border"
+                  >
+                    <MapPin className="size-4 flex-shrink-0 text-fg-muted" />
+                    <span className="flex-1 min-w-0">
+                      {s.name}
+                      {s.isMain && (
+                        <span className="ml-1.5 text-[11px] font-semibold text-fg-muted">
+                          · Main
+                        </span>
+                      )}
+                      {(s.city || s.state) && (
+                        <span className="block text-[11px] font-normal text-fg-muted">
+                          {[s.city, s.state].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                    </span>
+                    {isCurrent && (
+                      <Check className="size-4 flex-shrink-0 text-brand-primary" />
+                    )}
+                  </button>
+                );
+              })}
+              <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2 mt-6">
+                Shop
+              </div>
+            </>
+          )}
+          {stores.length <= 1 && (
+            <div className="text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-2">
+              Shop
+            </div>
+          )}
           {categories.length === 0 && (
             <div className="py-3 text-sm text-fg-muted">No categories yet.</div>
           )}

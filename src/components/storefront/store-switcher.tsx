@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { MapPin, ChevronDown, Check, Loader2 } from "lucide-react";
-import { STORE_COOKIE } from "@/lib/store-constants";
+import { STORE_COOKIE, storefrontPathForStore } from "@/lib/store-constants";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -17,6 +17,21 @@ export interface StoreOption {
   city: string | null;
   state: string | null;
   isMain: boolean;
+}
+
+/**
+ * Navigate to a store's storefront. Persists the choice in the store cookie
+ * first, then does a FULL navigation (main = "/", sub-store = "/s/<slug>").
+ *
+ * The cookie write is what makes switching back to Main work: the middleware
+ * only sets the cookie on /s/<slug> requests, so a bare "/" load would
+ * otherwise keep reading the previous sub-store's slug. A full navigation (not
+ * a soft route change) also avoids reconciling one store's nav against another
+ * — the source of an earlier hydration mismatch.
+ */
+export function gotoStore(store: { slug: string; isMain: boolean }) {
+  document.cookie = `${STORE_COOKIE}=${encodeURIComponent(store.slug)}; path=/; max-age=31536000; samesite=lax`;
+  window.location.assign(storefrontPathForStore(store));
 }
 
 /**
@@ -50,13 +65,9 @@ export function StoreSwitcher({
   function select(slug: string) {
     if (slug === current.slug) return;
     const store = stores.find((s) => s.slug === slug);
-    document.cookie = `${STORE_COOKIE}=${encodeURIComponent(slug)}; path=/; max-age=31536000; samesite=lax`;
+    if (!store) return;
     setPending(true);
-    // Full navigation to the store's URL (main = "/", sub-store = "/s/<slug>"),
-    // NOT a soft refresh. A fresh load means the new store's nav is hydrated
-    // from scratch — the old store's nav is never reconciled against it, which
-    // is what caused the "Server: X / Client: Y" hydration mismatch.
-    window.location.assign(store?.isMain ? "/" : `/s/${slug}`);
+    gotoStore(store);
   }
 
   return (

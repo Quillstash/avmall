@@ -18,7 +18,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { CodeInput } from "@/components/ui/code-input";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toaster";
-import { CATEGORIES, type BulkTier } from "@/lib/mock-data";
+import { type BulkTier } from "@/lib/mock-data";
 import { Money } from "@/components/ui/money";
 import { ProfitDisplay } from "@/components/admin/profit-display";
 import {
@@ -45,9 +45,7 @@ export default function AdminNewProductPage() {
   const [name, setName] = React.useState("");
   const [brand, setBrand] = React.useState("");
   const [category, setCategory] = React.useState<string>("home");
-  const [categories, setCategories] = React.useState<{ slug: string; name: string }[]>(
-    () => CATEGORIES.map((c) => ({ slug: c.id, name: c.name })),
-  );
+  const [categories, setCategories] = React.useState<{ slug: string; name: string }[]>([]);
   const [addingCat, setAddingCat] = React.useState(false);
   const [newCatName, setNewCatName] = React.useState("");
   const [catSaving, setCatSaving] = React.useState(false);

@@ -32,7 +32,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toaster";
-import { CATEGORIES, type Product } from "@/lib/mock-data";
+import { type Category, type Product } from "@/lib/mock-data";
 
 function statusFor(p: Product): StockStatus {
   if (p.preorder) return "preorder";
@@ -43,9 +43,10 @@ function statusFor(p: Product): StockStatus {
 
 interface Props {
   products: Product[];
+  categories: Category[];
 }
 
-export function ProductsListClient({ products }: Props) {
+export function ProductsListClient({ products, categories }: Props) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [categoryValues, setCategoryValues] = React.useState<string[]>([]);
@@ -71,7 +72,7 @@ export function ProductsListClient({ products }: Props) {
       label: "Category",
       values: categoryValues,
       multi: true,
-      options: CATEGORIES.map((c) => ({ value: c.id, label: c.name })),
+      options: categories.map((c) => ({ value: c.id, label: c.name })),
     },
     {
       id: "status",
@@ -364,7 +365,11 @@ export function ProductsListClient({ products }: Props) {
           />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-3.5">
-            <StockCard label="Total products" value={String(products.length)} sub="across 5 categories" />
+            <StockCard
+              label="Total products"
+              value={String(products.length)}
+              sub={`across ${categories.length} categor${categories.length === 1 ? "y" : "ies"}`}
+            />
             <StockCard label="Low stock" value={String(lowStock)} sub="below threshold" tone="warning" />
             <StockCard label="Out of stock" value={String(outOfStock)} sub="needs reorder" tone="danger" />
             <StockCard label="Pre-order" value={String(preorders)} sub="awaiting batches" tone="info" />

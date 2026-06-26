@@ -1,12 +1,11 @@
 /**
- * Shipping zone data layer. Reads zones + fallback rate from the DB; falls back
- * to admin-mock-data when DATABASE_URL isn't set so the admin still renders.
+ * Shipping zone data layer. Reads zones + fallback rate from the DB; returns
+ * empty results when DATABASE_URL isn't set so the admin still renders.
  */
 
 import "server-only";
 
 import { db, hasDatabase, withRetry } from "@/lib/db";
-import { SHIPPING_ZONES as MOCK_ZONES, type ShippingZone as MockZone } from "@/lib/admin-mock-data";
 
 /** View shape used by the admin shipping page — matches the legacy mock so
  *  the existing UI keeps rendering with no further changes. */
@@ -40,15 +39,7 @@ function annotateOverlaps(zones: ShippingZoneView[]): ShippingZoneView[] {
 
 export async function listShippingZones(): Promise<ShippingZoneView[]> {
   if (!hasDatabase) {
-    return annotateOverlaps((MOCK_ZONES as MockZone[]).map((z) => ({
-      id: z.id,
-      name: z.name,
-      states: z.states,
-      baseRateKobo: z.baseRateKobo,
-      freeOverKobo: z.freeOverKobo,
-      etaDays: z.etaDays,
-      active: z.active,
-    })));
+    return annotateOverlaps([]);
   }
   const rows = await withRetry(() =>
     db.shippingZone.findMany({
@@ -68,9 +59,7 @@ export async function listShippingZones(): Promise<ShippingZoneView[]> {
 }
 
 export async function getFallbackShipping(): Promise<FallbackShippingView | null> {
-  if (!hasDatabase) {
-    return { enabled: true, flatRateKobo: 900_000, etaDays: "5–7 days" };
-  }
+  if (!hasDatabase) return null;
   const row = await withRetry(() => db.fallbackShipping.findFirst());
   if (!row) return null;
   return {

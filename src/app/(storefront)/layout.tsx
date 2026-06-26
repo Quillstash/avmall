@@ -67,7 +67,12 @@ export default async function StorefrontLayout({ children }: { children: React.R
       />
       <PaymentRecovery />
       <main className="flex-1">{children}</main>
-      <StorefrontFooter key={`footer-${current?.slug ?? "main"}`} categories={categories} />
+      <StorefrontFooter
+        key={`footer-${current?.slug ?? "main"}`}
+        categories={categories}
+        stores={stores}
+        currentStoreSlug={current?.slug ?? null}
+      />
       <Toaster />
       {/* D-Zero AI chat widget. The init queue lets calls fire before the embed
           script finishes loading. Allowed origins live in the D-Zero dashboard. */}

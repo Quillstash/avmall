@@ -249,7 +249,7 @@ export default function AdminCreateOrderPage() {
         ]}
       />
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-[1400px] mx-auto">
+        <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
           <PageHeader
             title="Create order"
             subtitle="Manual order — walk-in, phone, or staff-created"
@@ -343,7 +343,7 @@ export default function AdminCreateOrderPage() {
                     {resolved.map((l, i) => (
                       <div
                         key={l.slug}
-                        className="flex items-center gap-3 py-3 border-t border-border first:border-t-0"
+                        className="flex flex-wrap items-center gap-x-3 gap-y-2.5 py-3 border-t border-border first:border-t-0"
                       >
                         <div className="relative size-12 rounded-md flex-shrink-0 overflow-hidden bg-surface-2">
                           <Image
@@ -363,47 +363,56 @@ export default function AdminCreateOrderPage() {
                             </span>
                           </div>
                         </div>
-                        <div className="inline-flex items-center border border-border-strong rounded-md">
-                          <button
-                            onClick={() =>
-                              setLines((prev) => {
-                                const next = [...prev];
-                                next[i] = { ...next[i]!, qty: Math.max(1, next[i]!.qty - 1) };
-                                return next;
-                              })
-                            }
-                            className="size-8 flex items-center justify-center hover:bg-surface-2"
-                            aria-label="Decrease"
-                          >
-                            <Minus className="size-3.5" />
-                          </button>
-                          <span className="w-10 text-center text-sm font-semibold tabular">
-                            {l.qty}
-                          </span>
-                          <button
-                            onClick={() =>
-                              setLines((prev) => {
-                                const next = [...prev];
-                                next[i] = { ...next[i]!, qty: next[i]!.qty + 1 };
-                                return next;
-                              })
-                            }
-                            className="size-8 flex items-center justify-center hover:bg-surface-2"
-                            aria-label="Increase"
-                          >
-                            <Plus className="size-3.5" />
-                          </button>
+                        {/* Controls wrap to their own full-width row on mobile, sit
+                            inline on tablet/desktop. */}
+                        <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+                          <div className="inline-flex items-center border border-border-strong rounded-md">
+                            <button
+                              onClick={() =>
+                                setLines((prev) => {
+                                  const next = [...prev];
+                                  next[i] = { ...next[i]!, qty: Math.max(1, next[i]!.qty - 1) };
+                                  return next;
+                                })
+                              }
+                              className="size-8 flex items-center justify-center hover:bg-surface-2"
+                              aria-label="Decrease"
+                            >
+                              <Minus className="size-3.5" />
+                            </button>
+                            <span className="w-10 text-center text-sm font-semibold tabular">
+                              {l.qty}
+                            </span>
+                            <button
+                              onClick={() =>
+                                setLines((prev) => {
+                                  const next = [...prev];
+                                  next[i] = { ...next[i]!, qty: next[i]!.qty + 1 };
+                                  return next;
+                                })
+                              }
+                              className="size-8 flex items-center justify-center hover:bg-surface-2"
+                              aria-label="Increase"
+                            >
+                              <Plus className="size-3.5" />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Money
+                              kobo={l.totalKobo}
+                              className="font-bold text-sm text-right sm:w-24"
+                            />
+                            <button
+                              onClick={() =>
+                                setLines((prev) => prev.filter((_, idx) => idx !== i))
+                              }
+                              className="p-1.5 text-fg-muted hover:text-danger"
+                              aria-label="Remove"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
                         </div>
-                        <Money kobo={l.totalKobo} className="font-bold text-sm w-24 text-right" />
-                        <button
-                          onClick={() =>
-                            setLines((prev) => prev.filter((_, idx) => idx !== i))
-                          }
-                          className="p-1.5 text-fg-muted hover:text-danger"
-                          aria-label="Remove"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
                       </div>
                     ))}
                   </div>

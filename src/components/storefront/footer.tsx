@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { SocialIcon, type SocialPlatform } from "@/components/ui/social-icon";
 import { SITE } from "@/lib/site";
+import { FooterStores } from "@/components/storefront/footer-stores";
+import type { StoreOption } from "@/components/storefront/store-switcher";
 
 const COLUMNS: { heading: string; items: { label: string; href: string }[] }[] = [
   {
@@ -42,9 +44,14 @@ const SOCIAL: { platform: SocialPlatform; label: string; href: string }[] = [
 
 export function StorefrontFooter({
   categories = [],
+  stores = [],
+  currentStoreSlug = null,
 }: {
   /** Store categories for the "Shop" column — fetched per store. */
   categories?: { slug: string; name: string }[];
+  /** Active stores for the "Our stores" column. */
+  stores?: StoreOption[];
+  currentStoreSlug?: string | null;
 }) {
   // Prepend a per-store "Shop" column; the rest are static site links.
   const columns =
@@ -104,6 +111,7 @@ export function StorefrontFooter({
             </div>
           </div>
         ))}
+        <FooterStores stores={stores} currentSlug={currentStoreSlug} />
       </div>
       <div className="border-t border-border">
         <div className="mx-auto max-w-7xl px-5 py-4 flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-fg-muted">

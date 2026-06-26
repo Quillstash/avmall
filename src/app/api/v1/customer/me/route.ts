@@ -10,7 +10,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { getCustomerSession } from "@/lib/customer-session";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
-import { UnauthorizedError, ValidationError } from "@/lib/errors";
+import { AppError, UnauthorizedError, ValidationError } from "@/lib/errors";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -22,16 +22,11 @@ export async function GET() {
     const session = await getCustomerSession();
     if (!session) throw new UnauthorizedError();
 
-    if (!hasDatabase || session.customerId === "mock-customer") {
-      return NextResponse.json(
-        apiSuccess({
-          customer: {
-            id: "mock-customer",
-            name: "Tolu Adeniyi",
-            phone: session.phone,
-            email: null,
-          },
-        }),
+    if (!hasDatabase) {
+      throw new AppError(
+        "DB_NOT_CONFIGURED",
+        "Customer profiles require DATABASE_URL.",
+        503,
       );
     }
 
@@ -59,9 +54,12 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    if (!hasDatabase || session.customerId === "mock-customer") {
-      // Mock mode — pretend it worked so the page can show a success toast.
-      return NextResponse.json(apiSuccess({ customer: { ...parsed.data } }));
+    if (!hasDatabase) {
+      throw new AppError(
+        "DB_NOT_CONFIGURED",
+        "Customer profiles require DATABASE_URL.",
+        503,
+      );
     }
 
     const before = await db.customer.findUnique({

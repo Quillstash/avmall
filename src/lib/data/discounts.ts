@@ -6,10 +6,7 @@
 import "server-only";
 
 import { db, hasDatabase, withRetry } from "@/lib/db";
-import {
-  DISCOUNTS as MOCK_DISCOUNTS,
-  type Discount,
-} from "@/lib/admin-mock-data";
+import { type Discount } from "@/lib/admin-mock-data";
 
 export type { Discount };
 
@@ -39,7 +36,7 @@ function formatValidity(from: Date | null, until: Date | null): string {
 
 export async function listDiscounts(): Promise<Discount[]> {
   if (!hasDatabase) {
-    return [...MOCK_DISCOUNTS];
+    return [];
   }
   const rows = await withRetry(() =>
     db.discount.findMany({ orderBy: { createdAt: "desc" } }),

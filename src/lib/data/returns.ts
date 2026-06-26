@@ -6,10 +6,7 @@ import "server-only";
 
 import type { ReturnStatus, ReturnRefundMethod } from "@prisma/client";
 import { db, hasDatabase, withRetry } from "@/lib/db";
-import {
-  RETURNS as MOCK_RETURNS,
-  type ReturnListRow,
-} from "@/lib/admin-mock-data";
+import { type ReturnListRow } from "@/lib/admin-mock-data";
 
 export type { ReturnListRow };
 
@@ -126,7 +123,7 @@ export async function getAdminReturnByNumber(
 
 export async function listAdminReturns(): Promise<ReturnListRow[]> {
   if (!hasDatabase) {
-    return [...MOCK_RETURNS];
+    return [];
   }
 
   const rows = await withRetry(() =>
