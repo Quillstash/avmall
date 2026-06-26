@@ -2,7 +2,6 @@
   "name": "avmall-ecommerce",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.31.0",
   "scripts": {
     "dev": "next dev",
     "dev:fresh": "rm -rf .next && next dev",

@@ -1,10 +1,47 @@
 # Deploying Avmall
 
 This is a **Next.js server app** (SSR, API routes, middleware, Prisma + Postgres).
-It needs a Node.js runtime — it **cannot** run on Hostinger shared/Business Web
-Hosting (that's PHP/WordPress hosting). The plan below runs the app on **Vercel**
-and points your **Hostinger domain** at it. Hostinger keeps doing what it's good
-at (domain registration + email); Vercel runs the app.
+It needs a **Node.js runtime** — it can't run as static files or PHP.
+
+Two viable hosts:
+- **Hostinger's "Deploy Node.js Web App"** feature (it lists Next.js as supported) — see
+  the Hostinger section just below.
+- **Vercel** (made by the Next.js team) — steps 0–7 further down. Either way you can
+  keep using Hostinger for the **domain + email**.
+
+Whichever you pick, the app still needs: a **Postgres database** (Neon), the **env
+vars**, migrations run, and a one-time **seed**.
+
+---
+
+## Deploying on Hostinger (use npm, NOT pnpm)
+
+Hostinger's builder launches **pnpm via corepack**, and the corepack on their Node 20
+image has a bug that crashes the install with
+`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` before anything installs. The fix is to build
+with **npm** instead — this repo's dependencies are standard registry versions, so npm
+installs them cleanly. (The `packageManager: "pnpm@..."` field that triggered corepack
+has been removed for this reason.)
+
+In the Hostinger Node.js app settings, set:
+
+| Command | Value |
+|---|---|
+| Install | `npm install` |
+| Build | `npm run build` |
+| Start | `npm start` |
+
+If Hostinger still auto-detects pnpm (because the upload contains `pnpm-lock.yaml`),
+**exclude `pnpm-lock.yaml` from the uploaded files** so it falls back to npm.
+
+**When uploading files, exclude:** `node_modules/`, `.next/`, `.git/`,
+`pnpm-lock.yaml`, and **`.env.local`** (never upload secrets — set env vars in
+Hostinger's panel instead).
+
+Caveat: `next build` is memory-hungry. If the build runs out of memory on the shared
+box, build locally (`npm run build`) and upload the finished app, or move to Vercel.
+
+After it builds: set the env vars (see step 3), then run the **seed** once (step 5).
 
 ---
 
@@ -104,8 +141,8 @@ and an admin login. Run the seed **once** from your computer, pointed at the
 **production** database:
 
 ```bash
-# from the project folder, using the SAME values you put in Vercel
-DATABASE_URL="<prod pooled url>" DIRECT_URL="<prod direct url>" pnpm prisma db seed
+# from the project folder, using the SAME values you put in your host's panel
+DATABASE_URL="<prod pooled url>" DIRECT_URL="<prod direct url>" npx prisma db seed
 ```
 
 This creates the Main store, categories, shipping zones, the demo product
