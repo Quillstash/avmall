@@ -10,7 +10,11 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { STORE_COOKIE, STORE_SLUG_HEADER } from "@/lib/store-constants";
+import {
+  STORE_COOKIE,
+  STORE_SLUG_HEADER,
+  STORE_FORCE_MAIN_HEADER,
+} from "@/lib/store-constants";
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -38,6 +42,18 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // The bare homepage is ALWAYS the Main store — never a sticky sub-store.
+  // Tag this request force-main so the server ignores any leftover sub-store
+  // cookie, and drop that cookie so subsequent un-prefixed navigation stays on
+  // Main too. To browse a sub-store, use its /s/<slug> link or the switcher.
+  if (pathname === "/") {
+    const headers = new Headers(req.headers);
+    headers.set(STORE_FORCE_MAIN_HEADER, "1");
+    const res = NextResponse.next({ request: { headers } });
+    res.cookies.delete({ name: STORE_COOKIE, path: "/" });
+    return res;
+  }
+
   if (!pathname.startsWith("/admin")) {
     return NextResponse.next();
   }
@@ -58,5 +74,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/s/:path*"],
+  matcher: ["/", "/admin/:path*", "/s/:path*"],
 };

@@ -13,6 +13,11 @@ export const ADMIN_STORE_COOKIE = "avmall_admin_store";
  *  the page resolves the right store on first load (before the cookie exists). */
 export const STORE_SLUG_HEADER = "x-store-slug";
 
+/** Request header the middleware tags onto the bare homepage ("/") so the
+ *  server resolves the Main store even when a leftover sub-store cookie is
+ *  still set. The main URL is always the main store. */
+export const STORE_FORCE_MAIN_HEADER = "x-store-force-main";
+
 /** The public storefront path for a store: the main store owns the bare URL,
  *  every sub-store lives under `/s/<slug>`. Pure + edge/client-safe. */
 export function storefrontPathForStore(store: {
