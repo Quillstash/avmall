@@ -10,6 +10,7 @@ import "server-only";
 
 import { cache } from "react";
 import { db, hasDatabase, withRetry } from "@/lib/db";
+import { SEED_PRODUCT_IMAGE_BY_SLUG } from "@/lib/seed-product-images";
 import {
   type Product,
   type ProductCategoryId,
@@ -117,11 +118,13 @@ function productFromDb(p: DbProductWith): Product {
 
 
 /**
- * Neutral branded placeholder for products with no uploaded R2 image. Real
- * images come from ProductImage rows resolved in `productFromDb`.
+ * Image for a product with no R2 ProductImage row. Seeded demo products resolve
+ * their image by slug from the CloudFront export (until Phase 5 moves imagery to
+ * R2); everything else falls back to the neutral branded placeholder. Real
+ * uploaded images come from ProductImage rows resolved in `productFromDb`.
  */
 function defaultImageFor(slug: string): string {
-  return "/product-placeholder.png";
+  return SEED_PRODUCT_IMAGE_BY_SLUG[slug] ?? "/product-placeholder.png";
 }
 
 /**

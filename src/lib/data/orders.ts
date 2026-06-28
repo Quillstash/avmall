@@ -6,15 +6,17 @@ import "server-only";
 
 import { db, hasDatabase } from "@/lib/db";
 import { type OrderListRow } from "@/lib/admin-mock-data";
+import { SEED_PRODUCT_IMAGE_BY_SLUG } from "@/lib/seed-product-images";
 import type {
   OrderStatus,
   PaymentStatus,
 } from "@/components/ui/status-pill";
 
-/** Image for an order line item. Neutral branded placeholder until
- *  ProductImage R2 keys are wired into order lines. */
+/** Image for an order line item. Seeded products resolve by slug from the
+ *  CloudFront export (Phase 5 moves imagery to R2); otherwise a neutral
+ *  branded placeholder. */
 function lineImageFor(skuOrSlug: string): string {
-  return "/product-placeholder.png";
+  return SEED_PRODUCT_IMAGE_BY_SLUG[skuOrSlug] ?? "/product-placeholder.png";
 }
 
 export type { OrderListRow };
