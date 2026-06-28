@@ -41,6 +41,8 @@ model Store {
   customers    Customer[]
   invitations  StaffInvitation[]
   pendingCheckouts PendingCheckout[]
+  expenses     Expense[]
+  expenseTypes ExpenseType[]
 
   @@map("stores")
 }
@@ -121,6 +123,7 @@ model User {
   auditLogs         AuditLog[]
   invitationsSent   StaffInvitation[] @relation("StaffInvitedBy")
   passwordResets    PasswordReset[]
+  expensesCreated   Expense[]         @relation("ExpenseCreatedBy")
 
   @@index([storeId])
   @@index([roleId])
@@ -1008,4 +1011,47 @@ model IdempotencyKey {
 
   @@index([createdAt])
   @@map("idempotency_keys")
+}
+
+// ─── Expenses ──────────────────────────────────────────────────────────────
+// Operating expenses (rent, salaries, utilities…) subtracted from gross profit
+// to get net profit. Store-scoped, like the rest of the financials.
+
+/// A user-managed expense category. Staff add their own from the Expenses tab.
+model ExpenseType {
+  id         String    @id @default(uuid()) @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  name       String
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  store      Store     @relation(fields: [storeId], references: [id])
+  expenses   Expense[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@map("expense_types")
+}
+
+model Expense {
+  id          String      @id @default(uuid()) @db.Uuid
+  storeId     String      @map("store_id") @db.Uuid
+  typeId      String      @map("type_id") @db.Uuid
+  amountKobo  BigInt      @map("amount_kobo")
+  /// Date the expense was incurred (day granularity; stored UTC).
+  date        DateTime    @db.Timestamptz
+  note        String?
+  createdById String?     @map("created_by_id") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  store       Store       @relation(fields: [storeId], references: [id])
+  type        ExpenseType @relation(fields: [typeId], references: [id])
+  createdBy   User?       @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  @@index([storeId])
+  @@index([typeId])
+  @@index([date])
+  @@map("expenses")
 }

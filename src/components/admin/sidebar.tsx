@@ -15,6 +15,7 @@ import {
   Archive,
   Flag,
   BarChart3,
+  Receipt,
   Sparkles,
   Settings,
   Truck,
@@ -43,6 +44,7 @@ const NAV: NavItem[] = [
   { href: "/admin/discounts", label: "Discounts", icon: Flag },
   { href: "/admin/shipping", label: "Shipping", icon: Truck },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+  { href: "/admin/expenses", label: "Expenses", icon: Receipt },
   { href: "/admin/ai", label: "AI agent", icon: Sparkles },
 ];
 

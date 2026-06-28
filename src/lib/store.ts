@@ -11,6 +11,7 @@ import {
   STORE_COOKIE,
   ADMIN_STORE_COOKIE,
   STORE_SLUG_HEADER,
+  STORE_FORCE_MAIN_HEADER,
 } from "./store-constants";
 import { hasPermission } from "./permissions";
 
@@ -114,10 +115,14 @@ export async function resolveStorefrontStoreId(
  * per-store stock.)
  */
 export async function getStorefrontStore() {
+  const h = headers();
+  // The bare homepage "/" is tagged force-main by middleware, so a leftover
+  // sub-store cookie never hijacks the main URL.
+  if (h.get(STORE_FORCE_MAIN_HEADER)) return getMainStore();
   // On a /s/<slug> request the middleware tags the slug as a header so the
   // first load resolves correctly; thereafter the cookie carries it.
   const slug =
-    headers().get(STORE_SLUG_HEADER) ??
+    h.get(STORE_SLUG_HEADER) ??
     cookies().get(STORE_COOKIE)?.value ??
     null;
   if (slug) {

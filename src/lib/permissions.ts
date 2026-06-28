@@ -65,7 +65,12 @@ export type PermissionKey =
   // Settings
   | "settings.view"
   | "settings.edit"
-  | "billing.view";
+  | "billing.view"
+  // Expenses
+  | "expenses.view"
+  | "expenses.create"
+  | "expenses.edit"
+  | "expenses.delete";
 
 /**
  * Static role → permission map. Source of truth seeded into the DB and
@@ -87,6 +92,7 @@ const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<PermissionKey>> = {
     "reports.view", "reports.export",
     "ai.view", "ai.settings", "ai.handoff",
     "settings.view", "settings.edit", "billing.view",
+    "expenses.view", "expenses.create", "expenses.edit", "expenses.delete",
   ]),
   manager: new Set<PermissionKey>([
     "orders.view", "orders.create", "orders.edit", "orders.cancel",
@@ -103,6 +109,7 @@ const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<PermissionKey>> = {
     "reports.view", "reports.export",
     "ai.view", "ai.settings", "ai.handoff",
     "settings.view", "settings.edit",
+    "expenses.view", "expenses.create", "expenses.edit", "expenses.delete",
   ]),
   sales: new Set<PermissionKey>([
     "orders.view", "orders.create", "orders.edit",
@@ -279,6 +286,15 @@ export const PERMISSION_CATALOG: PermissionCatalogGroup[] = [
       { key: "settings.view", label: "View settings" },
       { key: "settings.edit", label: "Edit settings" },
       { key: "billing.view", label: "View billing" },
+    ],
+  },
+  {
+    group: "Expenses",
+    perms: [
+      { key: "expenses.view", label: "View expenses" },
+      { key: "expenses.create", label: "Add expenses" },
+      { key: "expenses.edit", label: "Edit expenses" },
+      { key: "expenses.delete", label: "Delete expenses" },
     ],
   },
 ];
