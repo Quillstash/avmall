@@ -11,6 +11,15 @@ export class InvalidPhoneError extends Error {
   }
 }
 
+/** Prefix for the synthetic phone given to email-only signups that have no
+ *  real number yet (the phone column is required + unique). Never shown. */
+export const PENDING_PHONE_PREFIX = "+pending-";
+
+/** True for an email-signup placeholder phone (no real number set yet). */
+export function isPlaceholderPhone(phone: string | null | undefined): boolean {
+  return !!phone && phone.startsWith(PENDING_PHONE_PREFIX);
+}
+
 export function normaliseNigerianPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
 

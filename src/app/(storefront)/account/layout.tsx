@@ -2,7 +2,7 @@ import { AccountSidebar } from "@/components/storefront/account-sidebar";
 import { VerifyEmailBanner } from "@/components/storefront/verify-email-banner";
 import { getCustomerSession } from "@/lib/customer-session";
 import { db } from "@/lib/db";
-import { formatNigerianPhone } from "@/lib/phone";
+import { formatNigerianPhone, isPlaceholderPhone } from "@/lib/phone";
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const session = await getCustomerSession();
@@ -12,7 +12,10 @@ export default async function AccountLayout({ children }: { children: React.Reac
   if (session) {
     const c = await db.customer.findUnique({ where: { id: session.customerId } });
     if (c) {
-      customer = { name: c.name, phone: formatNigerianPhone(c.phone) };
+      customer = {
+        name: c.name,
+        phone: isPlaceholderPhone(c.phone) ? "" : formatNigerianPhone(c.phone),
+      };
       if (c.email && !c.emailVerified) unverifiedEmail = c.email;
     }
   }

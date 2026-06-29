@@ -22,7 +22,11 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { getStorefrontStoreId } from "./store";
 import { env } from "./env";
-import { normaliseNigerianPhone, isValidNigerianPhone } from "./phone";
+import {
+  normaliseNigerianPhone,
+  isValidNigerianPhone,
+  PENDING_PHONE_PREFIX,
+} from "./phone";
 import { AppError, UnauthorizedError, ValidationError, RateLimitedError } from "./errors";
 
 const COOKIE_NAME = "av_session";
@@ -156,7 +160,7 @@ export async function verifyOtpAndStartSession(
     customer = await db.customer.create({
       data: {
         storeId,
-        phone: kind === "phone" ? value : `+pending-${Date.now()}`,
+        phone: kind === "phone" ? value : `${PENDING_PHONE_PREFIX}${Date.now()}`,
         email: kind === "email" ? value : null,
         name: kind === "email" ? value.split("@")[0]! : "Customer",
       },
@@ -219,7 +223,7 @@ export async function signupWithPassword(
       email,
       // Placeholder until the customer adds a real number (phone is the other
       // unique key); mirrors the OTP-by-email path.
-      phone: `+pending-${Date.now()}`,
+      phone: `${PENDING_PHONE_PREFIX}${Date.now()}`,
       name: trimmedName || email.split("@")[0]!,
       passwordHash,
     },

@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { isPlaceholderPhone } from "@/lib/phone";
 import { toast } from "@/components/ui/toaster";
 
 export default function ProfilePage() {
   const router = useRouter();
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
+  const [initialPhone, setInitialPhone] = React.useState("");
+  // Locked once a real (verified) number exists; email signups can add one.
+  const [phoneLocked, setPhoneLocked] = React.useState(true);
   const [email, setEmail] = React.useState("");
   const [initialEmail, setInitialEmail] = React.useState("");
   const [initialName, setInitialName] = React.useState("");
@@ -43,10 +47,20 @@ export default function ProfilePage() {
           setEmail(c.email ?? "");
           setInitialEmail(c.email ?? "");
           setHasPassword(!!c.hasPassword);
-          // Phone is verified and immutable from this form; we display its
-          // national portion only.
-          const local = String(c.phone ?? "").replace(/^\+234/, "");
-          setPhone(local);
+          // Email signups carry a placeholder phone — show an empty, editable
+          // field so they can add a real number. A real phone is verified and
+          // shown read-only.
+          const rawPhone = String(c.phone ?? "");
+          if (isPlaceholderPhone(rawPhone)) {
+            setPhone("");
+            setInitialPhone("");
+            setPhoneLocked(false);
+          } else {
+            const local = rawPhone.replace(/^\+234/, "");
+            setPhone(local);
+            setInitialPhone(local);
+            setPhoneLocked(true);
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -67,6 +81,7 @@ export default function ProfilePage() {
         body: JSON.stringify({
           ...(name !== initialName && { name }),
           ...(email !== initialEmail && { email: email || null }),
+          ...(!phoneLocked && phone.trim() && phone !== initialPhone && { phone }),
         }),
       });
       if (res.status === 401) {
@@ -78,6 +93,11 @@ export default function ProfilePage() {
       toast.success("Profile updated");
       setInitialName(name);
       setInitialEmail(email);
+      // A freshly-added number is now the account's verified phone — lock it.
+      if (!phoneLocked && phone.trim()) {
+        setInitialPhone(phone);
+        setPhoneLocked(true);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save");
     } finally {
@@ -88,6 +108,7 @@ export default function ProfilePage() {
   function cancel() {
     setName(initialName);
     setEmail(initialEmail);
+    setPhone(initialPhone);
   }
 
   async function savePassword(e: React.FormEvent) {
@@ -119,7 +140,10 @@ export default function ProfilePage() {
     }
   }
 
-  const dirty = name !== initialName || email !== initialEmail;
+  const dirty =
+    name !== initialName ||
+    email !== initialEmail ||
+    (!phoneLocked && phone !== initialPhone);
 
   return (
     <div>
@@ -137,8 +161,24 @@ export default function ProfilePage() {
             disabled={loading}
           />
         </Field>
-        <Field id="phone" label="Phone number" hint="Verified · used for OTP login">
-          <PhoneInput id="phone" value={phone} disabled readOnly />
+        <Field
+          id="phone"
+          label="Phone number"
+          hint={
+            phoneLocked
+              ? "Verified · used for OTP login"
+              : "For delivery updates — adding it sets it as your number"
+          }
+          {...(phoneLocked ? {} : { optional: true })}
+        >
+          <PhoneInput
+            id="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={phoneLocked || loading}
+            readOnly={phoneLocked}
+            placeholder={phoneLocked ? undefined : "803 000 0000"}
+          />
         </Field>
         <Field id="email" label="Email" optional>
           <Input
