@@ -140,6 +140,8 @@ model Customer {
   /// store (the same person can exist independently in two stores).
   phone         String
   email         String?
+  /// bcrypt hash for email+password sign-in. Null for OTP-only customers.
+  passwordHash  String?   @map("password_hash")
   name          String
   segments      String[]  @default([])
   blacklisted   Boolean   @default(false)
@@ -155,6 +157,9 @@ model Customer {
   otpCodes      OtpCode[]
 
   @@unique([storeId, phone])
+  /// Email is the login key for password sign-in — unique per store. Multiple
+  /// NULLs are allowed (phone-only customers), so OTP-only signups are fine.
+  @@unique([storeId, email])
   @@index([storeId])
   @@index([phone])
   @@index([email])

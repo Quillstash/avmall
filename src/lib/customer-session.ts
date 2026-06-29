@@ -23,7 +23,7 @@ import { db } from "./db";
 import { getStorefrontStoreId } from "./store";
 import { env } from "./env";
 import { normaliseNigerianPhone, isValidNigerianPhone } from "./phone";
-import { UnauthorizedError, ValidationError, RateLimitedError } from "./errors";
+import { AppError, UnauthorizedError, ValidationError, RateLimitedError } from "./errors";
 
 const COOKIE_NAME = "av_session";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -158,6 +158,88 @@ export async function verifyOtpAndStartSession(
   await setCustomerSession({ customerId: customer.id, phone: customer.phone });
 
   return { customerId: customer.id, isNew };
+}
+
+const PASSWORD_MIN = 8;
+
+/**
+ * Create (or password-enable) a customer with email + password, then start a
+ * session. If the email already has a password it's a conflict — sign in
+ * instead. An OTP-only customer with this email gets the password linked,
+ * keeping their existing orders/data.
+ */
+export async function signupWithPassword(
+  rawEmail: string,
+  password: string,
+  name?: string,
+): Promise<{ customerId: string }> {
+  const email = rawEmail.trim().toLowerCase();
+  if (!email.includes("@")) {
+    throw new ValidationError({ email: "Enter a valid email address" });
+  }
+  if (password.length < PASSWORD_MIN) {
+    throw new ValidationError({ password: `Use at least ${PASSWORD_MIN} characters` });
+  }
+
+  const storeId = await getStorefrontStoreId();
+  if (!storeId) throw new UnauthorizedError("No store available");
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const trimmedName = name?.trim();
+
+  const existing = await db.customer.findFirst({ where: { storeId, email } });
+  if (existing) {
+    if (existing.passwordHash) {
+      throw new AppError(
+        "EMAIL_EXISTS",
+        "An account with this email already exists — please sign in.",
+        409,
+      );
+    }
+    const updated = await db.customer.update({
+      where: { id: existing.id },
+      data: { passwordHash, ...(trimmedName && { name: trimmedName }) },
+    });
+    await setCustomerSession({ customerId: updated.id, phone: updated.phone });
+    return { customerId: updated.id };
+  }
+
+  const customer = await db.customer.create({
+    data: {
+      storeId,
+      email,
+      // Placeholder until the customer adds a real number (phone is the other
+      // unique key); mirrors the OTP-by-email path.
+      phone: `+pending-${Date.now()}`,
+      name: trimmedName || email.split("@")[0]!,
+      passwordHash,
+    },
+  });
+  await setCustomerSession({ customerId: customer.id, phone: customer.phone });
+  return { customerId: customer.id };
+}
+
+/** Verify an email + password and start a session. */
+export async function loginWithPassword(
+  rawEmail: string,
+  password: string,
+): Promise<{ customerId: string }> {
+  const email = rawEmail.trim().toLowerCase();
+  const storeId = await getStorefrontStoreId();
+  if (!storeId) throw new UnauthorizedError("No store available");
+
+  const customer = await db.customer.findFirst({ where: { storeId, email } });
+  // Identical message for "no such email" and "wrong password" so we never
+  // leak which emails have accounts.
+  if (
+    !customer?.passwordHash ||
+    !(await bcrypt.compare(password, customer.passwordHash))
+  ) {
+    throw new UnauthorizedError("Incorrect email or password");
+  }
+
+  await setCustomerSession({ customerId: customer.id, phone: customer.phone });
+  return { customerId: customer.id };
 }
 
 export async function setCustomerSession(payload: CustomerSessionPayload): Promise<void> {
