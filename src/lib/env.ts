@@ -62,6 +62,10 @@ const envSchema = z.object({
 
   // Notifications (Phase 5)
   RESEND_API_KEY: z.string().optional(),
+  /** Verified Resend sender, e.g. `Avmall <orders@avmall.ng>`. Falls back to
+   *  Resend's shared onboarding@resend.dev (which only delivers to your own
+   *  Resend account email) until a domain is verified. */
+  EMAIL_FROM: z.string().optional(),
   TERMII_API_KEY: z.string().optional(),
   AFRICAS_TALKING_API_KEY: z.string().optional(),
   AFRICAS_TALKING_USERNAME: z.string().optional(),
@@ -112,6 +116,7 @@ export const env = envSchema.parse({
   AI_AGENT_TOKEN: blank(process.env.AI_AGENT_TOKEN),
   CRON_SECRET: blank(process.env.CRON_SECRET),
   RESEND_API_KEY: blank(process.env.RESEND_API_KEY),
+  EMAIL_FROM: blank(process.env.EMAIL_FROM),
   TERMII_API_KEY: blank(process.env.TERMII_API_KEY),
   AFRICAS_TALKING_API_KEY: blank(process.env.AFRICAS_TALKING_API_KEY),
   AFRICAS_TALKING_USERNAME: blank(process.env.AFRICAS_TALKING_USERNAME),

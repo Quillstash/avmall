@@ -32,10 +32,11 @@ function client(): Resend {
 /** Default "from" — points at the configured Resend sender. Override per-send
  *  when needed (e.g. invitations might come "from Funmi at Avmall"). */
 function defaultFrom(): string {
-  // Once you've verified avmall.ng on Resend, swap this to the real domain
-  // (no@avmall.ng / hello@avmall.ng / etc.). Until then, Resend supplies a
-  // shared `onboarding@resend.dev` sender that works without verification.
-  return `${SITE.legalName} <onboarding@resend.dev>`;
+  // Once you've verified a domain on Resend, set EMAIL_FROM (e.g.
+  // `Avmall <orders@avmall.ng>`) — required to email anyone other than your own
+  // Resend account address. Until then, Resend's shared `onboarding@resend.dev`
+  // sender works, but ONLY delivers to the email that owns the Resend account.
+  return env.EMAIL_FROM || `${SITE.legalName} <onboarding@resend.dev>`;
 }
 
 export interface SendEmailInput {
