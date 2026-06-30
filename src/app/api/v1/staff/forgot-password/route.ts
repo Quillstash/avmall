@@ -14,6 +14,7 @@ import { sendEmail } from "@/lib/email";
 import { staffPasswordResetEmail } from "@/lib/email-templates";
 import { writeAudit } from "@/lib/audit";
 import { SITE } from "@/lib/site";
+import { appUrl } from "@/lib/app-url";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
       data: { userId: user.id, token, expiresAt },
     });
 
-    const resetUrl = `${SITE.url}/reset-password/${token}`;
+    const resetUrl = appUrl(`/reset-password/${token}`);
     const { subject, html, text } = staffPasswordResetEmail({
       recipientName: user.name,
       resetUrl,

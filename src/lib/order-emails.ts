@@ -21,10 +21,11 @@ import {
   orderCancelledEmail,
 } from "@/lib/email-templates";
 import { SITE } from "@/lib/site";
+import { appUrl } from "@/lib/app-url";
 import { formatMoney } from "@/lib/money";
 
 function trackingUrl(orderNumber: string): string {
-  return `${SITE.url}/orders/${orderNumber}`;
+  return appUrl(`/orders/${orderNumber}`);
 }
 
 /** Installment-balance reminder. Returns true only if an email was sent

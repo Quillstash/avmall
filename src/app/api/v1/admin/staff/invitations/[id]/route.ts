@@ -14,6 +14,7 @@ import { writeAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import { staffInvitationEmail } from "@/lib/email-templates";
 import { SITE } from "@/lib/site";
+import { appUrl } from "@/lib/app-url";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 
@@ -42,7 +43,7 @@ export async function POST(
       data: { token, expiresAt },
     });
 
-    const acceptUrl = `${SITE.url}/accept-invite/${token}`;
+    const acceptUrl = appUrl(`/accept-invite/${token}`);
     const { subject, html, text } = staffInvitationEmail({
       recipientName: inv.name,
       inviterName: session.name ?? "An admin",
