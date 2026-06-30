@@ -8,6 +8,7 @@
 
 import "server-only";
 
+import { Prisma } from "@prisma/client";
 import { db, hasDatabase, withRetry } from "@/lib/db";
 import { listAdminOrders, type OrderListRow } from "@/lib/data/orders";
 
@@ -300,5 +301,154 @@ export async function getDashboard(
       count: statusGroupRows.find((r) => r.status === status)?._count._all ?? 0,
     })),
     recentOrders: recent.slice(0, 6),
+  };
+}
+
+// ─── Business Overview (Bumpa-style) ────────────────────────────────────────
+
+export interface ChannelStat {
+  source: string;
+  label: string;
+  count: number;
+  revenueKobo: number;
+}
+
+export interface BusinessOverview {
+  ordersCount: number;
+  productsSold: number;
+  newCustomers: number;
+  totalSalesKobo: number;
+  /** Amount actually collected (sum of paidKobo). */
+  settledKobo: number;
+  /** Outstanding balance across the range (total − paid). */
+  owedKobo: number;
+  /** Sales from walk-in + phone orders. */
+  offlineSalesKobo: number;
+  onlineSalesKobo: number;
+  monthly: { label: string; onlineKobo: number; offlineKobo: number }[];
+  channels: ChannelStat[];
+}
+
+/** Walk-in and phone orders count as offline; everything else is online. */
+const OFFLINE_SOURCES = new Set(["walkin", "phone"]);
+const SOURCE_LABELS: Record<string, string> = {
+  web: "Website",
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  walkin: "Walk-in",
+  ai: "AI agent",
+};
+
+const EMPTY_OVERVIEW: BusinessOverview = {
+  ordersCount: 0,
+  productsSold: 0,
+  newCustomers: 0,
+  totalSalesKobo: 0,
+  settledKobo: 0,
+  owedKobo: 0,
+  offlineSalesKobo: 0,
+  onlineSalesKobo: 0,
+  monthly: [],
+  channels: [],
+};
+
+export async function getBusinessOverview(
+  range: { from: Date; to: Date } | number,
+  storeId?: string | null,
+): Promise<BusinessOverview> {
+  if (!hasDatabase) return EMPTY_OVERVIEW;
+  const storeFilter = storeId ? { storeId } : {};
+  const win =
+    typeof range === "number"
+      ? { from: startOfLagosDay(range), to: new Date() }
+      : range;
+
+  const orderWhere: Prisma.OrderWhereInput = {
+    ...storeFilter,
+    createdAt: { gte: win.from, lt: win.to },
+    status: { notIn: ["cancelled"] },
+  };
+
+  const [orders, soldAgg, newCustomers] = await Promise.all([
+    withRetry(() =>
+      db.order.findMany({
+        where: orderWhere,
+        select: { totalKobo: true, paidKobo: true, source: true, createdAt: true },
+      }),
+    ),
+    withRetry(() =>
+      db.orderLine.aggregate({ _sum: { quantity: true }, where: { order: orderWhere } }),
+    ),
+    withRetry(() =>
+      db.customer.count({ where: { createdAt: { gte: win.from, lt: win.to } } }),
+    ),
+  ]);
+
+  const monthKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Lagos",
+    year: "numeric",
+    month: "2-digit",
+  });
+  const monthLabel = new Intl.DateTimeFormat("en-NG", {
+    timeZone: "Africa/Lagos",
+    month: "short",
+  });
+
+  // Pre-seed every month spanned by the window so the bar chart shows empty
+  // months too (Jan…Dec for a full-year range).
+  const monthly = new Map<string, { label: string; onlineKobo: number; offlineKobo: number }>();
+  let cursor = new Date(Date.UTC(win.from.getUTCFullYear(), win.from.getUTCMonth(), 1));
+  for (let guard = 0; cursor < win.to && guard < 36; guard++) {
+    monthly.set(monthKey.format(cursor), {
+      label: monthLabel.format(cursor),
+      onlineKobo: 0,
+      offlineKobo: 0,
+    });
+    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+  }
+
+  let totalSalesKobo = 0,
+    settledKobo = 0,
+    owedKobo = 0,
+    offlineSalesKobo = 0;
+  const channelMap = new Map<string, { count: number; revenueKobo: number }>();
+
+  for (const o of orders) {
+    const total = Number(o.totalKobo);
+    const paid = Number(o.paidKobo);
+    totalSalesKobo += total;
+    settledKobo += paid;
+    owedKobo += Math.max(0, total - paid);
+    const offline = OFFLINE_SOURCES.has(o.source);
+    if (offline) offlineSalesKobo += total;
+
+    const c = channelMap.get(o.source) ?? { count: 0, revenueKobo: 0 };
+    c.count += 1;
+    c.revenueKobo += total;
+    channelMap.set(o.source, c);
+
+    const m = monthly.get(monthKey.format(o.createdAt));
+    if (m) {
+      if (offline) m.offlineKobo += total;
+      else m.onlineKobo += total;
+    }
+  }
+
+  const channels = Array.from(channelMap.entries())
+    .map(([source, v]) => ({ source, label: SOURCE_LABELS[source] ?? source, ...v }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return {
+    ordersCount: orders.length,
+    productsSold: soldAgg._sum?.quantity ?? 0,
+    newCustomers,
+    totalSalesKobo,
+    settledKobo,
+    owedKobo,
+    offlineSalesKobo,
+    onlineSalesKobo: totalSalesKobo - offlineSalesKobo,
+    monthly: Array.from(monthly.values()),
+    channels,
   };
 }

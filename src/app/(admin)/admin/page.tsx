@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
 import { LineChart, DonutChart } from "@/components/ui/charts";
-import { getDashboard, type DashboardData } from "@/lib/data/dashboard";
+import { getDashboard, getBusinessOverview, type DashboardData } from "@/lib/data/dashboard";
+import { BusinessOverviewSection } from "@/components/admin/business-overview";
 import { getActiveAdminStore } from "@/lib/store";
 import { storefrontPathForStore } from "@/lib/store-constants";
 import {
@@ -52,9 +53,10 @@ export default async function AdminDashboardPage({
   const activeStore = await getActiveAdminStore();
   const storeId = activeStore?.id ?? null;
   const storefrontHref = activeStore ? storefrontPathForStore(activeStore) : "/";
-  const [data, revenue] = await Promise.all([
+  const [data, revenue, overview] = await Promise.all([
     getDashboard(revenueReportArg(resolved), storeId),
     getRevenueReport(revenueReportArg(resolved), storeId),
+    getBusinessOverview(revenueReportArg(resolved), storeId),
   ]);
   const revenueLabel = resolved.isCustom
     ? `${fmtDay(revenue.from)} – ${fmtDay(revenue.to)}`
@@ -112,6 +114,8 @@ export default async function AdminDashboardPage({
               </>
             }
           />
+
+          <BusinessOverviewSection data={overview} rangeLabel={revenueLabel} />
 
           {/* KPI strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">

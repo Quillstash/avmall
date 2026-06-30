@@ -20,7 +20,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { formatMoney } from "@/lib/money";
-import { StockStatusPill, type StockStatus } from "@/components/ui/status-pill";
+import { type StockStatus } from "@/components/ui/status-pill";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar, type FilterConfig } from "@/components/ui/filter-bar";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
@@ -169,22 +169,9 @@ export function ProductsListClient({ products, categories }: Props) {
                 </span>
               )}
             </div>
-            <div className="text-[11px] text-fg-muted">
-              {row.original.brand} · {row.original.variants.length}{" "}
-              variant{row.original.variants.length > 1 ? "s" : ""}
-            </div>
+            <div className="text-[11px] text-fg-muted">{row.original.brand}</div>
           </div>
         </Link>
-      ),
-    },
-    {
-      id: "sku",
-      header: "SKU",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <code className="font-mono text-[11px] text-fg-muted tabular">
-          {row.original.brand.slice(0, 3).toUpperCase()}-{row.original.id.toUpperCase()}
-        </code>
       ),
     },
     {
@@ -193,6 +180,34 @@ export function ProductsListClient({ products, categories }: Props) {
       cell: ({ row }) => (
         <span className="capitalize text-fg-muted">{row.original.category}</span>
       ),
+    },
+    {
+      id: "variations",
+      header: () => <div className="text-right">Variations</div>,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const v = row.original.variants.length <= 1 ? 0 : row.original.variants.length;
+        return <div className="text-right tabular text-fg-muted">{v}</div>;
+      },
+    },
+    {
+      accessorKey: "stock",
+      header: () => <div className="text-right">In Stock</div>,
+      cell: ({ row }) => {
+        const s = row.original.stock;
+        const tone = row.original.preorder
+          ? "text-fg-muted"
+          : s === 0
+            ? "text-danger"
+            : s < 20
+              ? "text-warning"
+              : "text-fg";
+        return (
+          <div className={`text-right font-bold tabular ${tone}`}>
+            {row.original.preorder ? `MOQ ${row.original.moq ?? 1}` : s}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "price",
@@ -214,21 +229,9 @@ export function ProductsListClient({ products, categories }: Props) {
       ),
     },
     {
-      accessorKey: "stock",
-      header: () => <div className="text-right">Stock</div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          <div className="font-bold tabular">{row.original.stock}</div>
-          <div className="text-[10px] text-fg-muted">
-            {row.original.preorder ? `MOQ ${row.original.moq}` : "on hand"}
-          </div>
-        </div>
-      ),
-    },
-    {
       id: "status",
       header: "Status",
-      cell: ({ row }) => <StockStatusPill status={statusFor(row.original)} />,
+      cell: ({ row }) => <PublishPill product={row.original} />,
     },
     {
       id: "actions",
@@ -438,6 +441,23 @@ export function ProductsListClient({ products, categories }: Props) {
         </div>
       </div>
     </>
+  );
+}
+
+/** Publish-state pill (Published / Draft / Archived) — mirrors the Bumpa layout. */
+function PublishPill({ product }: { product: Product }) {
+  const { label, cls } = product.archived
+    ? { label: "Archived", cls: "bg-surface-2 text-fg-muted" }
+    : product.published
+      ? { label: "Published", cls: "bg-success-bg text-success" }
+      : { label: "Draft", cls: "bg-warning-bg text-warning" };
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${cls}`}
+    >
+      <span className="size-1.5 rounded-full bg-current" aria-hidden />
+      {label}
+    </span>
   );
 }
 
