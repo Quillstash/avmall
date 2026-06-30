@@ -44,6 +44,13 @@ export type Product = {
   imageUrl: string;
   /** Optional additional gallery images. */
   gallery?: string[];
+  /**
+   * Persisted images with their R2 keys. The admin editor uses these to
+   * round-trip uploaded images on save (storefront renders imageUrl/gallery).
+   * Absent for products whose imagery is a slug-resolved fallback with no
+   * ProductImage row.
+   */
+  imageRecords?: { url: string; key: string; alt?: string; primary?: boolean }[];
   /** Theme tone used as a gradient background behind the image. */
   bg: string;
   fg?: string;

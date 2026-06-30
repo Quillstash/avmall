@@ -81,12 +81,22 @@ export function ProductEditorClient({ product, audit, categories }: EditorClient
           ? negotiateFloorKobo
           : null;
   const [images, setImages] = React.useState<UploadedImage[]>(
-    (product.gallery ?? [product.imageUrl]).map((url, i) => ({
-      id: `img-${i}`,
-      url,
-      alt: product.name,
-      primary: i === 0,
-    })),
+    product.imageRecords && product.imageRecords.length > 0
+      ? // Real uploaded images — seed with their R2 key so they survive a save.
+        product.imageRecords.map((img, i) => ({
+          id: `img-${i}`,
+          url: img.url,
+          key: img.key,
+          alt: img.alt ?? product.name,
+          primary: img.primary ?? i === 0,
+        }))
+      : // Slug-resolved fallback imagery (no ProductImage row) — no key to carry.
+        (product.gallery ?? [product.imageUrl]).map((url, i) => ({
+          id: `img-${i}`,
+          url,
+          alt: product.name,
+          primary: i === 0,
+        })),
   );
 
   return (
@@ -153,13 +163,11 @@ export function ProductEditorClient({ product, audit, categories }: EditorClient
                   size="sm"
                   loading={saving}
                   onClick={async () => {
-                    // Don't save while an image is still uploading — otherwise
-                    // the in-flight image (no key yet) is silently dropped.
-                    if (
-                      images.some(
-                        (i) => i.progress != null || (!i.key && !i.error),
-                      )
-                    ) {
+                    // Only block while an upload is actually in flight
+                    // (`progress` set). A settled image has either a key
+                    // (uploaded) or an error (failed); slug-resolved fallback
+                    // imagery has neither and must not block an unrelated save.
+                    if (images.some((i) => i.progress != null)) {
                       toast.error("Please wait for images to finish uploading.");
                       return;
                     }
