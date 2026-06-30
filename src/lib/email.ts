@@ -32,11 +32,12 @@ function client(): Resend {
 /** Default "from" — points at the configured Resend sender. Override per-send
  *  when needed (e.g. invitations might come "from Funmi at Avmall"). */
 function defaultFrom(): string {
-  // Once you've verified a domain on Resend, set EMAIL_FROM (e.g.
-  // `Avmall <orders@avmall.ng>`) — required to email anyone other than your own
-  // Resend account address. Until then, Resend's shared `onboarding@resend.dev`
-  // sender works, but ONLY delivers to the email that owns the Resend account.
-  return env.EMAIL_FROM || `${SITE.legalName} <onboarding@resend.dev>`;
+  // Default to the VERIFIED domain (avmall.com.ng) so emails send to any
+  // recipient in every environment without per-env config. `onboarding@
+  // resend.dev` is deliberately NOT used as a fallback — it only delivers to
+  // the Resend account owner, which silently breaks invites/receipts/resets.
+  // Override with EMAIL_FROM to use a different verified sender.
+  return env.EMAIL_FROM || `${SITE.legalName} <noreply@${SITE.domain}>`;
 }
 
 export interface SendEmailInput {
