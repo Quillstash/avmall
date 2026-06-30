@@ -69,6 +69,16 @@ function productFromDb(p: DbProductWith): Product {
     .slice(1)
     .map((img) => publicUrlForKey(img.key))
     .filter((u): u is string => !!u);
+  // Carry the R2 keys (not just composed URLs) so the admin editor can persist
+  // existing images on save instead of dropping them as keyless entries.
+  const imageRecords = sortedImages
+    .map((img) => {
+      const url = publicUrlForKey(img.key);
+      return url
+        ? { url, key: img.key, ...(img.alt && { alt: img.alt }), primary: img.isPrimary }
+        : null;
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
 
   return {
     id: p.id,
@@ -80,6 +90,7 @@ function productFromDb(p: DbProductWith): Product {
     category: "home", // overwritten by withCategorySlug() below
     imageUrl: primaryR2Url ?? defaultImageFor(p.slug),
     ...(galleryR2Urls.length > 0 && { gallery: galleryR2Urls }),
+    ...(imageRecords.length > 0 && { imageRecords }),
     bg: p.themeBg ?? "linear-gradient(135deg, #ece4d4 0%, #c4a87a 100%)",
     price: Number(p.priceKobo),
     cost: Number(p.costPriceKobo),
