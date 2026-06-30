@@ -30,6 +30,12 @@ export type ProductVariant = {
   price: number | null; // kobo; null means inherit product price
   option1Value?: string;
   option2Value?: string;
+  /**
+   * How many order lines reference this variant. Only populated by the admin
+   * editor loader (getProductBySlug); used to gate deletion — a variant with
+   * order history can't be removed. Absent elsewhere.
+   */
+  orderLineCount?: number;
 };
 
 export type Product = {

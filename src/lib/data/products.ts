@@ -28,6 +28,8 @@ import type {
 
 type DbVariantWithStock = DbVariant & {
   storeStock: { onHand: number; reserved: number }[];
+  // Only the single-product editor loader requests this.
+  _count?: { orderLines: number };
 };
 
 type DbProductWith = DbProduct & {
@@ -112,6 +114,7 @@ function productFromDb(p: DbProductWith): Product {
       price: v.priceKobo == null ? null : Number(v.priceKobo),
       ...(v.option1Value && { option1Value: v.option1Value }),
       ...(v.option2Value && { option2Value: v.option2Value }),
+      ...(v._count && { orderLineCount: v._count.orderLines }),
     })),
     ...(p.option1Name && { option1Name: p.option1Name }),
     ...(p.option2Name && { option2Name: p.option2Name }),
@@ -346,6 +349,9 @@ export async function getProductBySlug(
           orderBy: { position: "asc" },
           include: {
             storeStock: storeId ? { where: { storeId } } : true,
+            // Gate variant deletion in the admin editor — a variant with order
+            // history can't be removed.
+            _count: { select: { orderLines: true } },
           },
         },
         bulkTiers: true,

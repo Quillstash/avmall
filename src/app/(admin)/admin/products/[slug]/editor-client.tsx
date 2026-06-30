@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Save, Trash2, Eye } from "lucide-react";
+import { Save, Trash2, Eye, Pencil } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,12 @@ import { CodeInput } from "@/components/ui/code-input";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toaster";
 import { useRouter } from "next/navigation";
-import { type BulkTier, type Category, type Product } from "@/lib/mock-data";
+import {
+  type BulkTier,
+  type Category,
+  type Product,
+  type ProductVariant,
+} from "@/lib/mock-data";
 import type { ProductAuditSummary } from "@/lib/data/products";
 import { ProfitDisplay } from "@/components/admin/profit-display";
 import { StockAdjust } from "@/components/admin/stock-adjust";
@@ -435,45 +440,19 @@ export function ProductEditorClient({ product, audit, categories }: EditorClient
 
               <Card title="Variants & inventory">
                 <div className="flex flex-col gap-3">
-                  {product.variants.map((v) => {
-                    const effectiveKobo = v.price ?? priceKobo ?? product.price;
-                    return (
-                      <div
-                        key={v.id}
-                        className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 p-3 rounded-md border border-border"
-                      >
-                        <div className="flex flex-col gap-2 min-w-0">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <div className="font-semibold text-sm truncate">{v.label}</div>
-                            <Money kobo={effectiveKobo} className="text-sm font-bold" />
-                          </div>
-                          <div className="text-[11px] font-mono text-fg-muted truncate">
-                            {product.brand.slice(0, 3).toUpperCase()}-{v.id.toUpperCase()}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-fg-muted">
-                              Stock: <span className="font-bold tabular">{v.stock}</span>
-                            </span>
-                            {costKobo != null && (
-                              <ProfitDisplay
-                                priceKobo={effectiveKobo}
-                                costKobo={costKobo}
-                                size="compact"
-                              />
-                            )}
-                          </div>
-                        </div>
-                        <div className="lg:w-72">
-                          <StockAdjust
-                            productSlug={product.slug}
-                            variantId={v.id}
-                            variantLabel={v.label}
-                            currentStock={v.stock}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {product.variants.map((v) => (
+                    <VariantRow
+                      key={v.id}
+                      productSlug={product.slug}
+                      productBrand={product.brand}
+                      variant={v}
+                      option1Name={product.option1Name ?? null}
+                      option2Name={product.option2Name ?? null}
+                      fallbackPriceKobo={priceKobo ?? product.price}
+                      costKobo={costKobo}
+                      isOnlyVariant={product.variants.length <= 1}
+                    />
+                  ))}
                 </div>
                 <AddVariantInline
                   productSlug={product.slug}
@@ -626,6 +605,228 @@ function timeAgo(d: Date | string): string {
   return formatLagosDate(date);
 }
 
+/** A single variant row. View mode shows the price/stock and edit/delete
+ *  actions; edit mode exposes the label, option values, and price override.
+ *  Editing is safe on ordered variants (order lines snapshot their own copy);
+ *  deletion is gated to variants with no order history and never the last one. */
+function VariantRow({
+  productSlug,
+  productBrand,
+  variant,
+  option1Name,
+  option2Name,
+  fallbackPriceKobo,
+  costKobo,
+  isOnlyVariant,
+}: {
+  productSlug: string;
+  productBrand: string;
+  variant: ProductVariant;
+  option1Name: string | null;
+  option2Name: string | null;
+  fallbackPriceKobo: number;
+  costKobo: number | null;
+  isOnlyVariant: boolean;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = React.useState(false);
+  const [label, setLabel] = React.useState(variant.label);
+  const [option1Value, setOption1Value] = React.useState(variant.option1Value ?? "");
+  const [option2Value, setOption2Value] = React.useState(variant.option2Value ?? "");
+  // null = inherit the product price.
+  const [priceOverride, setPriceOverride] = React.useState<number | null>(variant.price);
+  const [saving, setSaving] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const effectiveKobo = (editing ? priceOverride : variant.price) ?? fallbackPriceKobo;
+  const hasOrders = (variant.orderLineCount ?? 0) > 0;
+
+  function resetFromVariant() {
+    setLabel(variant.label);
+    setOption1Value(variant.option1Value ?? "");
+    setOption2Value(variant.option2Value ?? "");
+    setPriceOverride(variant.price);
+  }
+
+  async function save() {
+    if (!label.trim()) {
+      toast.error("Label is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/products/${encodeURIComponent(productSlug)}/variants/${variant.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            label: label.trim(),
+            // Empty clears the option value; only send keys the product uses.
+            ...(option1Name ? { option1Value: option1Value.trim() || null } : {}),
+            ...(option2Name ? { option2Value: option2Value.trim() || null } : {}),
+            // number sets the override, null clears it (inherit product price).
+            priceOverrideKobo: priceOverride,
+          }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not update variant");
+        return;
+      }
+      toast.success("Variant updated");
+      setEditing(false);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function del() {
+    if (!window.confirm(`Delete variant "${variant.label}"? This can't be undone.`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/products/${encodeURIComponent(productSlug)}/variants/${variant.id}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error?.message ?? "Could not delete variant");
+        return;
+      }
+      toast.success(`Variant "${variant.label}" deleted`);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 p-3 rounded-md border border-border">
+      <div className="flex flex-col gap-2 min-w-0">
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="font-semibold text-sm truncate">{variant.label}</div>
+          <Money kobo={effectiveKobo} className="text-sm font-bold" />
+        </div>
+        <div className="text-[11px] font-mono text-fg-muted truncate">
+          {productBrand.slice(0, 3).toUpperCase()}-{variant.id.toUpperCase()}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-fg-muted">
+            Stock: <span className="font-bold tabular">{variant.stock}</span>
+          </span>
+          {costKobo != null && (
+            <ProfitDisplay priceKobo={effectiveKobo} costKobo={costKobo} size="compact" />
+          )}
+        </div>
+
+        {editing ? (
+          <div className="mt-1 rounded-md border border-border bg-surface-2 p-3 flex flex-col gap-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {option1Name && (
+                <Field id={`v-${variant.id}-o1`} label={option1Name}>
+                  <Input
+                    id={`v-${variant.id}-o1`}
+                    value={option1Value}
+                    onChange={(e) => setOption1Value(e.target.value)}
+                  />
+                </Field>
+              )}
+              {option2Name && (
+                <Field id={`v-${variant.id}-o2`} label={option2Name}>
+                  <Input
+                    id={`v-${variant.id}-o2`}
+                    value={option2Value}
+                    onChange={(e) => setOption2Value(e.target.value)}
+                  />
+                </Field>
+              )}
+              <Field id={`v-${variant.id}-label`} label="Display label">
+                <Input
+                  id={`v-${variant.id}-label`}
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              </Field>
+              <Field id={`v-${variant.id}-price`} label="Price override">
+                <CurrencyInput
+                  id={`v-${variant.id}-price`}
+                  {...(priceOverride != null ? { valueKobo: priceOverride } : {})}
+                  onValueChange={setPriceOverride}
+                  placeholder="Inherit product price"
+                />
+              </Field>
+            </div>
+            <p className="text-[11px] text-fg-muted">
+              Leave the price blank to inherit the product price (
+              <Money kobo={fallbackPriceKobo} />
+              ). The SKU can&apos;t be changed.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={saving}
+                onClick={() => {
+                  resetFromVariant();
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="button" size="sm" loading={saving} onClick={save}>
+                Save variant
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 mt-0.5">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-primary hover:underline"
+            >
+              <Pencil className="size-3" /> Edit
+            </button>
+            <button
+              type="button"
+              onClick={del}
+              disabled={hasOrders || isOnlyVariant || deleting}
+              title={
+                hasOrders
+                  ? "On past orders — can't delete. Set stock to zero instead."
+                  : isOnlyVariant
+                    ? "A product must keep at least one variant."
+                    : "Delete this variant"
+              }
+              className="inline-flex items-center gap-1 text-xs font-semibold text-danger hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+            >
+              <Trash2 className="size-3" /> Delete
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="lg:w-72">
+        <StockAdjust
+          productSlug={productSlug}
+          variantId={variant.id}
+          variantLabel={variant.label}
+          currentStock={variant.stock}
+        />
+      </div>
+    </div>
+  );
+}
+
 /** Inline "Add new variant" form on the edit page. */
 function AddVariantInline({
   productSlug,
@@ -643,6 +844,8 @@ function AddVariantInline({
   const [option1Value, setOption1Value] = React.useState("");
   const [option2Value, setOption2Value] = React.useState("");
   const [stock, setStock] = React.useState(0);
+  // null = inherit the product's price.
+  const [priceOverride, setPriceOverride] = React.useState<number | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
   // Auto-derive label from option values when both are filled, so staff
@@ -672,6 +875,7 @@ function AddVariantInline({
             ...(option1Name && option1Value.trim() && { option1Value: option1Value.trim() }),
             ...(option2Name && option2Value.trim() && { option2Value: option2Value.trim() }),
             stock,
+            ...(priceOverride != null && { priceOverrideKobo: priceOverride }),
           }),
         },
       );
@@ -687,6 +891,7 @@ function AddVariantInline({
       setOption1Value("");
       setOption2Value("");
       setStock(0);
+      setPriceOverride(null);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Network error");
@@ -748,6 +953,14 @@ function AddVariantInline({
         </Field>
         <Field id="v-stock" label="Initial stock">
           <NumberInput value={stock} onChange={setStock} min={0} />
+        </Field>
+        <Field id="v-price" label="Price override (optional)">
+          <CurrencyInput
+            id="v-price"
+            {...(priceOverride != null ? { valueKobo: priceOverride } : {})}
+            onValueChange={setPriceOverride}
+            placeholder="Inherit product price"
+          />
         </Field>
       </div>
       <div className="flex justify-end gap-2 mt-3">
