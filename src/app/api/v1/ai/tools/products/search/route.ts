@@ -4,11 +4,10 @@
  * Product search for the AI agent. Returns up to `limit` (default 6, max 20)
  * compact product hits suitable for the AI to summarise in a reply.
  *
- * Auth: Bearer AI_AGENT_TOKEN
+ * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAiAgent } from "@/lib/ai-auth";
 import { searchProducts, listProducts } from "@/lib/data/products";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 
@@ -16,7 +15,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    requireAiAgent(req);
+    // Public tool: no auth required — read-only catalogue/quote data.
     const sp = req.nextUrl.searchParams;
     const q = sp.get("q")?.trim() ?? "";
     const category = sp.get("category")?.trim() ?? undefined;

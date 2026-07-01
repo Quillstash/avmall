@@ -5,12 +5,11 @@
  * AI check whether the customer qualifies for free shipping. Falls back to
  * the flat rate when no zone covers the state.
  *
- * Auth: Bearer AI_AGENT_TOKEN
+ * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
-import { requireAiAgent } from "@/lib/ai-auth";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
 
@@ -18,7 +17,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    requireAiAgent(req);
+    // Public tool: no auth required — read-only catalogue/quote data.
 
     if (!hasDatabase) {
       throw new AppError("DB_NOT_CONFIGURED", "Shipping quote requires DATABASE_URL.", 503);

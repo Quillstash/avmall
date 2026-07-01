@@ -9,11 +9,10 @@
  *
  * Optional `?limit=<n>` (default 6, max 20).
  *
- * Auth: Bearer AI_AGENT_TOKEN
+ * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAiAgent } from "@/lib/ai-auth";
 import {
   getProductBySlug,
   getRelatedProducts,
@@ -25,7 +24,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    requireAiAgent(req);
+    // Public tool: no auth required — read-only catalogue/quote data.
     const sp = req.nextUrl.searchParams;
     const relatedTo = sp.get("relatedTo")?.trim() ?? undefined;
     const category = sp.get("category")?.trim() ?? undefined;

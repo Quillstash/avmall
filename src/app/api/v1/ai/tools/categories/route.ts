@@ -4,11 +4,10 @@
  * Flat list of storefront categories with counts. Lets the AI offer
  * "browse by department"-style navigation.
  *
- * Auth: Bearer AI_AGENT_TOKEN
+ * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAiAgent } from "@/lib/ai-auth";
 import { listCategories } from "@/lib/data/products";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 
@@ -16,7 +15,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    requireAiAgent(req);
+    // Public tool: no auth required — read-only catalogue/quote data.
     const cats = await listCategories();
     return NextResponse.json(
       apiSuccess({
