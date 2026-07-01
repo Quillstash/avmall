@@ -6,8 +6,10 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminProductsListPage() {
   const storeId = await getActiveAdminStoreId();
+  // No limit — show the store's ENTIRE catalogue. A cap here silently hides
+  // products and makes the "N products" stat lie (it counted the capped page,
+  // not the real total). The client table paginates in-memory.
   const products = await listProducts({
-    limit: 200,
     includeUnpublished: true,
     ...(storeId ? { storeId } : {}),
   });

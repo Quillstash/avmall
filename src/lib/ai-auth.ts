@@ -34,8 +34,16 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Throws if the request doesn't carry a valid `Authorization: Bearer <token>`
- * header matching AI_AGENT_TOKEN. Use at the top of every /ai/tools/* route.
+ * Throws unless the request presents the AI_AGENT_TOKEN, either as
+ * `Authorization: Bearer <token>` OR as a `?token=<token>` query param.
+ *
+ * The query-param fallback exists for orchestrators (like some DailZero setups)
+ * that let you configure a tool URL but NOT custom request headers — you bake
+ * the secret into the URL instead. Same trade-off we already accept for inbound
+ * webhooks (the token can appear in access logs); it's a long random secret and
+ * these are server-to-server calls only. Prefer the header when you can set one.
+ *
+ * Use at the top of every /ai/tools/* route.
  */
 export function requireAiAgent(req: NextRequest): void {
   const configured = env.AI_AGENT_TOKEN;
@@ -47,10 +55,13 @@ export function requireAiAgent(req: NextRequest): void {
     );
   }
   const header = req.headers.get("authorization") ?? "";
-  if (!header.toLowerCase().startsWith("bearer ")) {
-    throw new AiAuthError("Missing Bearer token");
+  const presented = header.toLowerCase().startsWith("bearer ")
+    ? header.slice("Bearer ".length).trim()
+    : (req.nextUrl.searchParams.get("token") ?? "").trim();
+
+  if (!presented) {
+    throw new AiAuthError("Missing token — send Authorization: Bearer <token> or ?token=<token>");
   }
-  const presented = header.slice("Bearer ".length).trim();
   if (!safeEqual(presented, configured)) {
     throw new AiAuthError("Invalid AI agent token");
   }
