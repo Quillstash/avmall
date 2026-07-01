@@ -7,11 +7,10 @@
  * Per CLAUDE.md §21 the negotiation floor is NEVER included in this payload.
  * Use POST /api/v1/ai/tools/negotiate to check a counter-offer instead.
  *
- * Auth: Bearer AI_AGENT_TOKEN
+ * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAiAgent } from "@/lib/ai-auth";
 import { getProductBySlug } from "@/lib/data/products";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { NotFoundError } from "@/lib/errors";
@@ -23,7 +22,7 @@ export async function GET(
   { params }: { params: { slug: string } },
 ) {
   try {
-    requireAiAgent(req);
+    // Public tool: no auth required — read-only catalogue/quote data.
 
     const p = await getProductBySlug(params.slug);
     if (!p) throw new NotFoundError("Product");

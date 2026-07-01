@@ -41,6 +41,16 @@ function statusFor(p: Product): StockStatus {
   return "in_stock";
 }
 
+const DATE_FMT = new Intl.DateTimeFormat("en-NG", {
+  timeZone: "Africa/Lagos",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+function fmtDate(iso: string): string {
+  return DATE_FMT.format(new Date(iso));
+}
+
 interface Props {
   products: Product[];
   categories: Category[];
@@ -182,15 +192,6 @@ export function ProductsListClient({ products, categories }: Props) {
       ),
     },
     {
-      id: "variations",
-      header: () => <div className="text-right">Variations</div>,
-      enableSorting: false,
-      cell: ({ row }) => {
-        const v = row.original.variants.length <= 1 ? 0 : row.original.variants.length;
-        return <div className="text-right tabular text-fg-muted">{v}</div>;
-      },
-    },
-    {
       accessorKey: "stock",
       header: () => <div className="text-right">In Stock</div>,
       cell: ({ row }) => {
@@ -232,6 +233,15 @@ export function ProductsListClient({ products, categories }: Props) {
       id: "status",
       header: "Status",
       cell: ({ row }) => <PublishPill product={row.original} />,
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Added",
+      cell: ({ row }) => (
+        <span className="text-[13px] text-fg-muted tabular whitespace-nowrap">
+          {fmtDate(row.original.createdAt)}
+        </span>
+      ),
     },
     {
       id: "actions",
@@ -419,6 +429,7 @@ export function ProductsListClient({ products, categories }: Props) {
           <DataTable
             columns={columns}
             data={filtered}
+            defaultSorting={[{ id: "createdAt", desc: true }]}
             enableSelection
             rowSelection={rowSelection}
             onRowSelectionChange={setRowSelection}

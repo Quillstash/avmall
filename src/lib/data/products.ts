@@ -87,6 +87,8 @@ function productFromDb(p: DbProductWith): Product {
     slug: p.slug,
     name: p.name,
     brand: p.brand,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
     short: p.shortDesc,
     mark: p.brand[0]?.toUpperCase() ?? "A",
     category: "home", // overwritten by withCategorySlug() below

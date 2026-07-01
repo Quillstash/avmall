@@ -44,6 +44,8 @@ interface DataTableProps<TData> {
   onRowSelectionChange?: (s: RowSelectionState) => void;
   /** Per-page size (defaults to 10). */
   pageSize?: number;
+  /** Initial sort applied on mount (e.g. newest-first). */
+  defaultSorting?: SortingState;
   /** Hide pagination when caller wants to render their own. */
   hidePagination?: boolean;
   /** Click on a row (excluding the checkbox cell). */
@@ -62,12 +64,13 @@ export function DataTable<TData>({
   rowSelection,
   onRowSelectionChange,
   pageSize = 10,
+  defaultSorting,
   hidePagination,
   onRowClick,
   toolbar,
   className,
 }: DataTableProps<TData>) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>(defaultSorting ?? []);
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize,
@@ -335,14 +338,31 @@ export function DataTable<TData>({
         )}
       </div>
 
-      {!hidePagination && table.getPageCount() > 1 && (
-        <div className="px-4 py-3 border-t border-border bg-surface-2">
-          <Pagination
-            page={table.getState().pagination.pageIndex + 1}
-            total={data.length}
-            perPage={table.getState().pagination.pageSize}
-            onChange={(p) => table.setPageIndex(p - 1)}
-          />
+      {!hidePagination && (
+        <div className="px-4 py-3 border-t border-border bg-surface-2 flex items-center justify-between gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs text-fg-muted">
+            <span className="hidden sm:inline">Rows per page</span>
+            <select
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="h-8 rounded-md border border-border-strong bg-surface px-2 text-sm text-fg outline-none focus:ring-2 focus:ring-brand-primary/30"
+              aria-label="Rows per page"
+            >
+              {[10, 25, 50, 100, 250].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          {table.getPageCount() > 1 && (
+            <Pagination
+              page={table.getState().pagination.pageIndex + 1}
+              total={data.length}
+              perPage={table.getState().pagination.pageSize}
+              onChange={(p) => table.setPageIndex(p - 1)}
+            />
+          )}
         </div>
       )}
     </div>

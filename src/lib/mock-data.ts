@@ -45,6 +45,9 @@ export type Product = {
   brand: string;
   short: string;
   mark: string; // single letter — used as last-resort placeholder
+  /** ISO timestamps — when the product was added / last changed. */
+  createdAt: string;
+  updatedAt: string;
   category: ProductCategoryId;
   /** Primary product image. */
   imageUrl: string;

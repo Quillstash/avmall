@@ -37,13 +37,12 @@
  * [floor, baseline] — an offer at or above retail is confirmed at retail, never
  * at the (possibly inflated or garbled) offered amount.
  *
- * Auth: Bearer AI_AGENT_TOKEN
+ * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
-import { requireAiAgent } from "@/lib/ai-auth";
 import { applyPercentageDiscount, formatMoney } from "@/lib/money";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -58,7 +57,7 @@ const bodySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    requireAiAgent(req);
+    // Public tool: no auth required — read-only catalogue/quote data.
 
     if (!hasDatabase) {
       throw new AppError("DB_NOT_CONFIGURED", "Negotiation requires DATABASE_URL.", 503);

@@ -69,6 +69,10 @@ function mp(input: {
     id: input.id,
     slug: input.slug,
     name: input.name,
+    // Seed fixtures carry a fixed placeholder timestamp; real rows get their
+    // createdAt/updatedAt from the DB at insert time.
+    createdAt: "2025-01-01T00:00:00.000Z",
+    updatedAt: "2025-01-01T00:00:00.000Z",
     brand: input.brand,
     short: input.short ?? `${input.brand} · ${input.name}`,
     mark: input.brand.charAt(0).toUpperCase(),
