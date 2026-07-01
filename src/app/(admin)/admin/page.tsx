@@ -53,10 +53,17 @@ export default async function AdminDashboardPage({
   const activeStore = await getActiveAdminStore();
   const storeId = activeStore?.id ?? null;
   const storefrontHref = activeStore ? storefrontPathForStore(activeStore) : "/";
+  // The Business Overview mirrors Bumpa's year-scoped panel, so it's locked to
+  // the current year (independent of the revenue range picker below).
+  const bizYear = new Date().getUTCFullYear();
+  const yearRange = {
+    from: new Date(Date.UTC(bizYear, 0, 1)),
+    to: new Date(Date.UTC(bizYear + 1, 0, 1)),
+  };
   const [data, revenue, overview] = await Promise.all([
     getDashboard(revenueReportArg(resolved), storeId),
     getRevenueReport(revenueReportArg(resolved), storeId),
-    getBusinessOverview(revenueReportArg(resolved), storeId),
+    getBusinessOverview(yearRange, storeId),
   ]);
   const revenueLabel = resolved.isCustom
     ? `${fmtDay(revenue.from)} – ${fmtDay(revenue.to)}`
@@ -115,7 +122,7 @@ export default async function AdminDashboardPage({
             }
           />
 
-          <BusinessOverviewSection data={overview} rangeLabel={revenueLabel} />
+          <BusinessOverviewSection data={overview} rangeLabel={`This year · ${bizYear}`} />
 
           {/* KPI strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">

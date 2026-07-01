@@ -43,8 +43,34 @@ model Store {
   pendingCheckouts PendingCheckout[]
   expenses     Expense[]
   expenseTypes ExpenseType[]
+  bumpaSnapshots BumpaSalesSnapshot[]
 
   @@map("stores")
+}
+
+/// Authoritative sales aggregates fetched from Bumpa's analytics API and cached
+/// here, so the dashboard shows Bumpa-exact figures with no view-time dependency
+/// on Bumpa (it keeps working after cutover). Refreshed by the Bumpa sync.
+/// One row per (store, period). Money in kobo.
+model BumpaSalesSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  storeId          String   @map("store_id") @db.Uuid
+  /// Human key for the period, e.g. "2026" or "all-time" — what the dashboard asks for.
+  periodKey        String   @map("period_key")
+  periodFrom       DateTime @map("period_from") @db.Timestamptz
+  periodTo         DateTime @map("period_to") @db.Timestamptz
+  totalSalesKobo   BigInt   @map("total_sales_kobo")
+  offlineSalesKobo BigInt   @map("offline_sales_kobo")
+  settledKobo      BigInt   @map("settled_kobo")
+  owedKobo         BigInt   @map("owed_kobo")
+  /// [{ source, label, valueKobo, color }] — the Top-5 channel split.
+  channels         Json
+  fetchedAt        DateTime @default(now()) @map("fetched_at") @db.Timestamptz
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, periodKey])
+  @@map("bumpa_sales_snapshots")
 }
 
 /// Per-store inventory. A product is sellable at a store when it has a row
