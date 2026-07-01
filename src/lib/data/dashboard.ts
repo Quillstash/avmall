@@ -327,10 +327,14 @@ export interface BusinessOverview {
   onlineSalesKobo: number;
   monthly: { label: string; onlineKobo: number; offlineKobo: number }[];
   channels: ChannelStat[];
+  /** ISO timestamp when the money figures were last synced from Bumpa's
+   *  analytics API. Set only when a cached Bumpa snapshot supplied them. */
+  syncedAt?: string;
 }
 
-/** Walk-in and phone orders count as offline; everything else is online. */
-const OFFLINE_SOURCES = new Set(["walkin", "phone"]);
+/** Online = the self-service website only; everything else (walk-in, WhatsApp,
+ *  phone, AI) counts as offline — matches how Bumpa splits online vs offline. */
+const ONLINE_SOURCES = new Set(["web"]);
 const SOURCE_LABELS: Record<string, string> = {
   web: "Website",
   whatsapp: "WhatsApp",
@@ -419,7 +423,7 @@ export async function getBusinessOverview(
     totalSalesKobo += total;
     settledKobo += paid;
     owedKobo += Math.max(0, total - paid);
-    const offline = OFFLINE_SOURCES.has(o.source);
+    const offline = !ONLINE_SOURCES.has(o.source);
     if (offline) offlineSalesKobo += total;
 
     const c = channelMap.get(o.source) ?? { count: 0, revenueKobo: 0 };
@@ -439,16 +443,41 @@ export async function getBusinessOverview(
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  // Prefer Bumpa's authoritative money figures when a cached snapshot for this
+  // period exists — so the dashboard headline matches Bumpa to the kobo. Wrapped
+  // in try/catch so it degrades to the computed figures before the snapshot
+  // table/migration exists.
+  let totalOut = totalSalesKobo, offlineOut = offlineSalesKobo, settledOut = settledKobo, owedOut = owedKobo;
+  let syncedAt: string | undefined;
+  if (storeId) {
+    try {
+      const periodKey = String(win.from.getUTCFullYear());
+      const snap = await db.bumpaSalesSnapshot.findUnique({
+        where: { storeId_periodKey: { storeId, periodKey } },
+      });
+      if (snap) {
+        totalOut = Number(snap.totalSalesKobo);
+        offlineOut = Number(snap.offlineSalesKobo);
+        settledOut = Number(snap.settledKobo);
+        owedOut = Number(snap.owedKobo);
+        syncedAt = snap.fetchedAt.toISOString();
+      }
+    } catch {
+      /* snapshot table not migrated yet — use computed figures */
+    }
+  }
+
   return {
     ordersCount: orders.length,
     productsSold: soldAgg._sum?.quantity ?? 0,
     newCustomers,
-    totalSalesKobo,
-    settledKobo,
-    owedKobo,
-    offlineSalesKobo,
-    onlineSalesKobo: totalSalesKobo - offlineSalesKobo,
+    totalSalesKobo: totalOut,
+    settledKobo: settledOut,
+    owedKobo: owedOut,
+    offlineSalesKobo: offlineOut,
+    onlineSalesKobo: totalOut - offlineOut,
     monthly: Array.from(monthly.values()),
     channels,
+    ...(syncedAt && { syncedAt }),
   };
 }

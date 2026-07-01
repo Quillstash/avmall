@@ -30,7 +30,19 @@ export function BusinessOverviewSection({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h2 className="text-lg font-bold">Business Overview</h2>
-              <p className="text-xs text-fg-muted mt-0.5">Here is how your business is doing</p>
+              <p className="text-xs text-fg-muted mt-0.5">
+                Here is how your business is doing
+                {data.syncedAt && (
+                  <span className="text-brand-accent">
+                    {" · "}synced from Bumpa{" "}
+                    {new Date(data.syncedAt).toLocaleDateString("en-NG", {
+                      day: "numeric",
+                      month: "short",
+                      timeZone: "Africa/Lagos",
+                    })}
+                  </span>
+                )}
+              </p>
             </div>
             <span className="text-[11px] font-semibold text-fg-muted rounded-md border border-border px-2.5 py-1">
               {rangeLabel}
@@ -57,7 +69,7 @@ export function BusinessOverviewSection({
             <Total label="Total Sales" value={data.totalSalesKobo} />
             <Total label="Total Settled" value={data.settledKobo} />
             <Total label="Total Owed" value={data.owedKobo} />
-            <Total label="Offline Sales" value={data.offlineSalesKobo} sub="walk-in + phone" />
+            <Total label="Offline Sales" value={data.offlineSalesKobo} sub="all except website" />
           </div>
 
           {/* Monthly online vs offline */}
