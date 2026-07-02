@@ -46,20 +46,15 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { waLink } from "@/lib/contact-links";
 import { cn } from "@/lib/utils";
-import { type OrderListRow, type OrderSource } from "@/lib/admin-mock-data";
+import { type OrderListRow } from "@/lib/admin-mock-data";
+import { ORDER_SOURCES, ORDER_SOURCE_LABELS, type OrderSource } from "@/lib/order-source";
 
 const PAYMENT_OPTIONS = [
   { value: "paid", label: "Paid" },
   { value: "partial", label: "Partial" },
   { value: "unpaid", label: "Unpaid" },
 ];
-const SOURCE_OPTIONS = [
-  { value: "web", label: "Web" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "phone", label: "Phone" },
-  { value: "walkin", label: "Walk-in" },
-  { value: "ai", label: "AI agent" },
-];
+const SOURCE_OPTIONS = ORDER_SOURCES.map((s) => ({ value: s.value, label: s.label }));
 
 // Forward-only status flow for the bulk "Edit status" dialog. Rank mirrors the
 // server's STATUS_RANK so we can show, before applying, how many of the
@@ -641,17 +636,10 @@ export function OrdersListClient({ orders, totals }: Props) {
 }
 
 function SourceChip({ source }: { source: OrderSource }) {
-  const labels: Record<OrderSource, string> = {
-    web: "Web",
-    whatsapp: "WhatsApp",
-    phone: "Phone",
-    walkin: "Walk-in",
-    ai: "AI agent",
-  };
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-2 text-xs font-medium">
       {source === "whatsapp" && <MessageCircle className="size-3" />}
-      {labels[source]}
+      {ORDER_SOURCE_LABELS[source] ?? source}
     </span>
   );
 }

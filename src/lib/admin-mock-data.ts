@@ -5,10 +5,13 @@
  */
 
 import type { OrderStatus, PaymentStatus } from "@/components/ui/status-pill";
+import type { OrderSource } from "@/lib/order-source";
 
 // ── Orders ────────────────────────────────────────────────────────────────
 
-export type OrderSource = "web" | "whatsapp" | "phone" | "walkin" | "ai";
+// Canonical channel union + labels live in one place; re-exported here so the
+// many admin views that already import `OrderSource` from this module keep working.
+export type { OrderSource };
 
 export interface OrderListRow {
   number: string;

@@ -18,6 +18,7 @@ import { toast } from "@/components/ui/toaster";
 import { NIGERIAN_STATES } from "@/lib/mock-data";
 import { NIGERIA_LGAS } from "@/lib/nigeria-lgas";
 import { formatMoney } from "@/lib/money";
+import { MANUAL_ORDER_SOURCES, DEFAULT_MANUAL_SOURCE, type OrderSource } from "@/lib/order-source";
 import { cn } from "@/lib/utils";
 
 interface ProductHit {
@@ -49,6 +50,7 @@ export default function AdminCreateOrderPage() {
   const [discountKobo, setDiscountKobo] = React.useState(0);
   const [recipientName, setRecipientName] = React.useState("Walk-in customer");
   const [phone, setPhone] = React.useState("");
+  const [source, setSource] = React.useState<OrderSource>(DEFAULT_MANUAL_SOURCE);
   const [state, setState] = React.useState("Lagos");
   const [lga, setLga] = React.useState(NIGERIA_LGAS["Lagos"]?.[0] ?? "");
   const [line1, setLine1] = React.useState("Walk-in (in-store)");
@@ -118,7 +120,7 @@ export default function AdminCreateOrderPage() {
             state,
           },
           manualDiscountKobo: discountKobo,
-          source: "walkin",
+          source,
           ...(notes.trim() && { customerNote: notes.trim() }),
         }),
       });
@@ -435,6 +437,23 @@ export default function AdminCreateOrderPage() {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                     />
+                  </Field>
+                  <Field
+                    id="source"
+                    label="Sales channel"
+                    hint="Where this order came from"
+                  >
+                    <Select
+                      id="source"
+                      value={source}
+                      onChange={(e) => setSource(e.target.value as OrderSource)}
+                    >
+                      {MANUAL_ORDER_SOURCES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </Select>
                   </Field>
                 </div>
               </Card>

@@ -24,11 +24,13 @@ import {
 import { AdminTopBar } from "@/components/admin/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Money } from "@/components/ui/money";
 import { ReceiptPrintView } from "@/components/admin/receipt-print-view";
 import { toast } from "@/components/ui/toaster";
 import { formatMoney } from "@/lib/money";
+import { MANUAL_ORDER_SOURCES, DEFAULT_MANUAL_SOURCE, type OrderSource } from "@/lib/order-source";
 import { cn } from "@/lib/utils";
 
 interface ProductHit {
@@ -100,6 +102,7 @@ export default function AdminPosPage() {
   const [searching, setSearching] = React.useState(false);
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [discountKobo, setDiscountKobo] = React.useState(0);
+  const [source, setSource] = React.useState<OrderSource>(DEFAULT_MANUAL_SOURCE);
   const [payRows, setPayRows] = React.useState<PayRow[]>([]);
   const [placing, setPlacing] = React.useState(false);
   const [completed, setCompleted] = React.useState<CompletedSale | null>(null);
@@ -223,6 +226,7 @@ export default function AdminPosPage() {
   function resetSale() {
     setLines([]);
     setDiscountKobo(0);
+    setSource(DEFAULT_MANUAL_SOURCE);
     setPayRows([]);
     setSearch("");
     setMatches([]);
@@ -274,6 +278,7 @@ export default function AdminPosPage() {
           items: lines.map((l) => ({ productSlug: l.slug, quantity: l.qty })),
           payments,
           manualDiscountKobo: discountKobo,
+          source,
           ...(custName.trim() || custPhone.trim()
             ? {
                 customer: {
@@ -573,6 +578,22 @@ export default function AdminPosPage() {
             {/* RIGHT — totals + payment */}
             <aside className="lg:sticky lg:top-4 self-start flex flex-col gap-4">
               <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2 pb-2.5 mb-2 border-b border-border">
+                  <span className="text-xs font-semibold text-fg-muted">Channel</span>
+                  <div className="w-40">
+                    <Select
+                      aria-label="Sales channel"
+                      value={source}
+                      onChange={(e) => setSource(e.target.value as OrderSource)}
+                    >
+                      {MANUAL_ORDER_SOURCES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
                 <div className="flex justify-between items-baseline py-1 text-sm">
                   <span className="text-fg-muted">Subtotal</span>
                   <span className="tabular font-semibold">{formatMoney(subtotal)}</span>

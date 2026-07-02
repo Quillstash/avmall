@@ -24,6 +24,7 @@ import {
   Send,
   Search,
   LockKeyhole,
+  ChevronDown,
 } from "lucide-react";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { Button } from "@/components/ui/button";
@@ -55,12 +56,12 @@ import {
 } from "@/components/ui/dialog";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PaymentLedger } from "@/components/admin/payment-ledger";
 import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
 import { InstallmentPanel } from "@/components/admin/installment-panel";
 import { toast } from "@/components/ui/toaster";
 import { telLink, waLink } from "@/lib/contact-links";
+import { MANUAL_ORDER_SOURCES } from "@/lib/order-source";
 import type { OrderPayment } from "@/lib/admin-mock-data";
 import type { OrderDetail } from "@/lib/data/orders";
 import { formatMoney } from "@/lib/money";
@@ -73,10 +74,13 @@ interface PageProps {
 // How each order source is labelled + described in the header pill. Driven by
 // the real `order.source` rather than assuming every order came from WhatsApp.
 const SOURCE_META: Record<string, { label: string; tip: string }> = {
-  web: { label: "Web", tip: "Placed by the customer on the storefront" },
+  web: { label: "Website", tip: "Placed by the customer on the storefront" },
   whatsapp: { label: "WhatsApp", tip: "Originated from a WhatsApp conversation" },
+  instagram: { label: "Instagram", tip: "Came in via Instagram" },
+  facebook: { label: "Facebook", tip: "Came in via Facebook" },
   phone: { label: "Phone", tip: "Taken over the phone by a staff member" },
   walkin: { label: "Walk-in", tip: "Created at the register / in-store" },
+  manual: { label: "Manual", tip: "Recorded by hand by a staff member" },
   ai: { label: "AI agent", tip: "Created by the AI agent" },
 };
 
@@ -168,6 +172,37 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const [recordOpen, setRecordOpen] = React.useState(false);
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [actionLoading, setActionLoading] = React.useState(false);
+
+  // Sales-channel pill is editable inline. Optimistic local state so the pill
+  // flips immediately; reverts on failure. Server enforces orders.edit.
+  const [sourceValue, setSourceValue] = React.useState<string>(order.source);
+  const [changingSource, setChangingSource] = React.useState(false);
+  async function changeSource(newSource: string) {
+    const prev = sourceValue;
+    if (newSource === prev) return;
+    setSourceValue(newSource);
+    setChangingSource(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/source`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ source: newSource }),
+      });
+      if (res.status === 404 || res.status === 503) {
+        toast.success("Channel updated (local)");
+        return;
+      }
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message ?? "Couldn't update channel");
+      toast.success(`Channel set to ${SOURCE_META[newSource]?.label ?? newSource}`);
+      router.refresh();
+    } catch (err) {
+      setSourceValue(prev);
+      toast.error(err instanceof Error ? err.message : "Couldn't update channel");
+    } finally {
+      setChangingSource(false);
+    }
+  }
 
   // Status update modal — opened from the header and the timeline card.
   const currentRank = STATUS_RANK[order.status] ?? 0;
@@ -542,22 +577,45 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 <OrderStatusPill status={order.status} />
                 <PaymentStatusPill status={order.paymentStatus} />
                 {(() => {
-                  const meta = SOURCE_META[order.source] ?? {
-                    label: order.source,
+                  const meta = SOURCE_META[sourceValue] ?? {
+                    label: sourceValue,
                     tip: "Order source",
                   };
                   return (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-surface-2 border border-border font-medium cursor-help capitalize">
-                          {order.source === "whatsapp" && (
-                            <MessageCircle className="size-3" />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          disabled={changingSource}
+                          title={`${meta.tip} — click to change`}
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-surface-2 border border-border font-medium capitalize hover:border-border-strong hover:bg-surface disabled:opacity-60 transition-colors"
+                        >
+                          {changingSource ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            sourceValue === "whatsapp" && (
+                              <MessageCircle className="size-3" />
+                            )
                           )}
                           {meta.label} source
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>{meta.tip}</TooltipContent>
-                    </Tooltip>
+                          <ChevronDown className="size-3 text-fg-muted" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="min-w-[11rem]">
+                        {MANUAL_ORDER_SOURCES.map((s) => (
+                          <DropdownMenuItem
+                            key={s.value}
+                            onClick={() => changeSource(s.value)}
+                            className="flex items-center justify-between gap-4"
+                          >
+                            {s.label}
+                            {sourceValue === s.value && (
+                              <Check className="size-3.5 text-brand-primary" />
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   );
                 })()}
               </div>

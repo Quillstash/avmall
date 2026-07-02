@@ -11,6 +11,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { db, hasDatabase, withRetry } from "@/lib/db";
 import { listAdminOrders, type OrderListRow } from "@/lib/data/orders";
+import { ORDER_SOURCE_LABELS } from "@/lib/order-source";
 
 export interface DashboardKpi {
   revenueKobo: number;
@@ -335,13 +336,7 @@ export interface BusinessOverview {
 /** Online = the self-service website only; everything else (walk-in, WhatsApp,
  *  phone, AI) counts as offline — matches how Bumpa splits online vs offline. */
 const ONLINE_SOURCES = new Set(["web"]);
-const SOURCE_LABELS: Record<string, string> = {
-  web: "Website",
-  whatsapp: "WhatsApp",
-  phone: "Phone",
-  walkin: "Walk-in",
-  ai: "AI agent",
-};
+const SOURCE_LABELS: Record<string, string> = ORDER_SOURCE_LABELS;
 
 const EMPTY_OVERVIEW: BusinessOverview = {
   ordersCount: 0,

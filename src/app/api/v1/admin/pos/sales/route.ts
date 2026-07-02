@@ -7,7 +7,8 @@
  * pays and carries the goods out the door. So in one transaction we
  *   1. reserve stock (SELECT FOR UPDATE availability check), then
  *   2. consume it right away — on_hand is decremented now,
- *   3. create the order as source `walkin`. A sale settled in full is
+ *   3. create the order tagged with its channel (default `walkin`). A sale
+ *      settled in full is
  *      `delivered`; a part-payment leaves a balance owed, so it starts
  *      `pending` and staff advance it manually as the customer pays/collects.
  *   4. record the (possibly split) cash / POS / transfer payments.
@@ -23,6 +24,7 @@
  *     payments: [{ method: "cash"|"pos"|"bank_transfer", amountKobo, reference? }],
  *     manualDiscountKobo?: number,
  *     note?: string,
+ *     source?: "walkin"|"phone"|"whatsapp"|"instagram"|"facebook"|"web"|"manual",
  *   }
  *
  * Response (201):
@@ -66,6 +68,11 @@ const bodySchema = z.object({
     .default([]),
   manualDiscountKobo: z.number().int().nonnegative().default(0),
   note: z.string().optional(),
+  /** Where the sale came from. Defaults to walk-in (the register's bread and
+   *  butter) but staff can tag a phone / social / website order too. */
+  source: z
+    .enum(["walkin", "phone", "whatsapp", "instagram", "facebook", "web", "manual"])
+    .default("walkin"),
   /** Optional walk-in customer. Captured for partial sales (so there's a
    *  record of who owes) and to print their name on the receipt. */
   customer: z
@@ -266,7 +273,7 @@ export async function POST(req: NextRequest) {
             storeId,
             status,
             paymentStatus,
-            source: "walkin",
+            source: body.source,
             shipName,
             shipPhone,
             shipLine1: "Walk-in (in-store)",

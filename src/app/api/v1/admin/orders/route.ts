@@ -13,7 +13,7 @@
  *     contact: { name, phone, email? },
  *     shipping: { line1, line2?, city, state },
  *     manualDiscountKobo?: number,
- *     source?: "walkin" | "phone" | "whatsapp",
+ *     source?: "walkin"|"phone"|"whatsapp"|"instagram"|"facebook"|"web"|"manual",
  *     customerNote?: string,
  *   }
  *
@@ -61,7 +61,9 @@ const bodySchema = z.object({
     state: z.string().optional(),
   }),
   manualDiscountKobo: z.number().int().nonnegative().default(0),
-  source: z.enum(["walkin", "phone", "whatsapp"]).default("walkin"),
+  source: z
+    .enum(["walkin", "phone", "whatsapp", "instagram", "facebook", "web", "manual"])
+    .default("walkin"),
   customerNote: z.string().optional(),
 });
 

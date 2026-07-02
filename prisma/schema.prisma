@@ -408,6 +408,9 @@ enum OrderSource {
   phone
   walkin
   ai
+  facebook
+  instagram
+  manual
 }
 
 model Order {

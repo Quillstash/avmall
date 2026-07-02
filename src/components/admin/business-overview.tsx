@@ -13,6 +13,9 @@ const CHANNEL_COLORS: Record<string, string> = {
   web: "hsl(0 72% 51%)",
   ai: "hsl(220 90% 56%)",
   phone: "hsl(38 92% 50%)",
+  instagram: "hsl(330 75% 55%)",
+  facebook: "hsl(221 60% 45%)",
+  manual: "hsl(220 9% 55%)",
 };
 
 export function BusinessOverviewSection({
