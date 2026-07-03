@@ -123,7 +123,7 @@ function mapProduct(p: any): Mapped | null {
       const cands = [naira(v.price), naira(v.sales)].filter((n): n is number => n != null && n > 0);
       const priceN = cands.length ? Math.min(...cands) : null;
       if (priceN == null) return; // skip a priceless variation
-      const st = Number(v.stock);
+      const st = Number(v.quantity ?? v.stock); // quantity = live available (stock − sold)
       vs.push({
         label: (String(v.variant || "").trim() || `Option ${idx + 1}`).slice(0, 80),
         sku: (v.sku ? String(v.sku).trim() : "") || `BUMPA-${p.id}-${idx}`,
@@ -159,7 +159,7 @@ function mapProduct(p: any): Mapped | null {
     priceKobo = toKobo(onSale ? originalN : chargedN);
     saleKobo = onSale ? toKobo(chargedN) : null;
     saleActive = onSale;
-    const oh = Number(p.stock);
+    const oh = Number(p.quantity ?? p.stock); // quantity = live available (stock − sold)
     onHand = Number.isFinite(oh) ? Math.max(0, oh) : 0;
   }
 
