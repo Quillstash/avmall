@@ -61,6 +61,15 @@ interface LineChartProps {
   className?: string;
   /** Brand color override. */
   stroke?: string;
+  /** Full per-point labels (e.g. the date) shown in the hover tooltip —
+   *  independent of the sparse axis `labels`. Falls back to `labels`. */
+  pointLabels?: string[];
+  /** Pre-formatted per-point value strings for the tooltip (e.g. money). Use
+   *  this from Server Components — `formatValue` (a function) can't cross the
+   *  server→client boundary, but a string array can. */
+  valueLabels?: string[];
+  /** Legend label for the series. When set, a legend chip is rendered. */
+  seriesLabel?: string;
 }
 
 export function LineChart({
@@ -70,49 +79,133 @@ export function LineChart({
   formatValue,
   className,
   stroke = "hsl(var(--brand-primary))",
+  pointLabels,
+  valueLabels,
+  seriesLabel,
 }: LineChartProps) {
   const w = 720;
   const h = height;
   const pad = 16;
+  const innerW = w - pad * 2;
+  const innerH = h - pad * 2;
+  const len = data.length;
   const max = Math.max(...data, 1);
-  const sx = (i: number) => pad + i * ((w - pad * 2) / Math.max(1, data.length - 1));
-  const sy = (v: number) => h - pad - (v / max) * (h - pad * 2);
+  const sx = (i: number) => pad + i * (innerW / Math.max(1, len - 1));
+  const sy = (v: number) => h - pad - (v / max) * innerH;
   const line = data.map((v, i) => `${i ? "L" : "M"} ${sx(i)} ${sy(v)}`).join(" ");
-  const area = `${line} L ${sx(data.length - 1)} ${h - pad} L ${sx(0)} ${h - pad} Z`;
-  const last = data[data.length - 1] ?? 0;
+  const area = `${line} L ${sx(len - 1)} ${h - pad} L ${sx(0)} ${h - pad} Z`;
   const gradId = React.useId();
+
+  // Fraction (0..1) across the plotted area, aligned to the padded points.
+  const xPct = (i: number) => (sx(i) / w) * 100;
+  const yPct = (v: number) => (sy(v) / h) * 100;
+
+  const [hi, setHi] = React.useState<number | null>(null);
+  const valueAt = (i: number) =>
+    valueLabels?.[i] ?? (formatValue ? formatValue(data[i] ?? 0) : String(data[i] ?? 0));
+
+  function onMove(e: React.PointerEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const svgX = ((e.clientX - rect.left) / rect.width) * w;
+    const step = innerW / Math.max(1, len - 1);
+    const idx = Math.max(0, Math.min(len - 1, Math.round((svgX - pad) / step)));
+    setHi(idx);
+  }
+
+  const hv = hi != null ? (data[hi] ?? 0) : 0;
+  const hovLabel = hi != null ? (pointLabels?.[hi] ?? labels?.[hi] ?? `#${hi + 1}`) : "";
+  // Keep the tooltip inside the card near the edges.
+  const hoverX = hi != null ? xPct(hi) : 0;
+  const tipTransform =
+    hoverX < 14
+      ? "translate(0, calc(-100% - 12px))"
+      : hoverX > 86
+        ? "translate(-100%, calc(-100% - 12px))"
+        : "translate(-50%, calc(-100% - 12px))";
 
   return (
     <div className={className}>
-      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
-            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 0.25, 0.5, 0.75].map((f) => (
-          <line
-            key={f}
-            x1={pad}
-            x2={w - pad}
-            y1={pad + f * (h - pad * 2)}
-            y2={pad + f * (h - pad * 2)}
-            stroke="hsl(var(--border))"
-            strokeDasharray="2 4"
+      <div
+        className="relative touch-none"
+        style={{ height: h }}
+        onPointerMove={onMove}
+        onPointerDown={onMove}
+        onPointerLeave={() => setHi(null)}
+      >
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          width="100%"
+          height={h}
+          preserveAspectRatio="none"
+          className="block"
+        >
+          <defs>
+            <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+              <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[0, 0.25, 0.5, 0.75].map((f) => (
+            <line
+              key={f}
+              x1={pad}
+              x2={w - pad}
+              y1={pad + f * innerH}
+              y2={pad + f * innerH}
+              stroke="hsl(var(--border))"
+              strokeDasharray="2 4"
+            />
+          ))}
+          <path d={area} fill={`url(#${gradId})`} />
+          <path d={line} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" />
+        </svg>
+
+        {/* Round marker on the latest point (HTML overlay → no aspect distortion). */}
+        {len > 0 && hi == null && (
+          <span
+            className="absolute size-2.5 rounded-full border-2 pointer-events-none"
+            style={{
+              left: `${xPct(len - 1)}%`,
+              top: `${yPct(data[len - 1] ?? 0)}%`,
+              transform: "translate(-50%, -50%)",
+              background: stroke,
+              borderColor: "hsl(var(--surface))",
+            }}
           />
-        ))}
-        <path d={area} fill={`url(#${gradId})`} />
-        <path d={line} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" />
-        <circle
-          cx={sx(data.length - 1)}
-          cy={sy(last)}
-          r="5"
-          fill={stroke}
-          stroke="hsl(var(--surface))"
-          strokeWidth="2"
-        />
-      </svg>
+        )}
+
+        {/* Hover: guide line, marker + tooltip. */}
+        {hi != null && (
+          <>
+            <span
+              className="absolute top-0 bottom-0 w-px bg-border-strong pointer-events-none"
+              style={{ left: `${hoverX}%` }}
+            />
+            <span
+              className="absolute size-3 rounded-full border-2 pointer-events-none"
+              style={{
+                left: `${hoverX}%`,
+                top: `${yPct(hv)}%`,
+                transform: "translate(-50%, -50%)",
+                background: stroke,
+                borderColor: "hsl(var(--surface))",
+              }}
+            />
+            <div
+              className="absolute z-10 pointer-events-none rounded-md border border-border bg-surface shadow-md px-2.5 py-1.5 whitespace-nowrap"
+              style={{ left: `${hoverX}%`, top: `${yPct(hv)}%`, transform: tipTransform }}
+            >
+              <div className="text-[10px] font-medium text-fg-muted">{hovLabel}</div>
+              <div className="text-sm font-bold tabular flex items-center gap-1.5">
+                <span className="size-2 rounded-full" style={{ background: stroke }} />
+                {hi != null ? valueAt(hi) : ""}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       {labels && (
         <div className="flex justify-between text-[10px] text-fg-muted mt-1 px-4">
           {labels.map((l, i) => (
@@ -120,8 +213,12 @@ export function LineChart({
           ))}
         </div>
       )}
-      {formatValue && (
-        <div className="sr-only">Last value: {formatValue(last)}</div>
+
+      {seriesLabel && (
+        <div className="flex items-center gap-1.5 mt-2 text-[11px] text-fg-muted">
+          <span className="inline-block w-3.5 h-[3px] rounded-full" style={{ background: stroke }} />
+          {seriesLabel}
+        </div>
       )}
     </div>
   );

@@ -39,7 +39,17 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
     : `Last ${presetRange} days`;
   const range = presetRange;
 
-  const series = data.byDay.map((d) => d.revenueKobo / 100);
+  // Kobo so the hover tooltip renders proper money.
+  const series = data.byDay.map((d) => d.revenueKobo);
+  const pointLabels = data.byDay.map((d) =>
+    new Date(d.date).toLocaleDateString("en-NG", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "Africa/Lagos",
+    }),
+  );
+  const valueLabels = data.byDay.map((d) => formatMoney(d.revenueKobo));
   const labels = data.byDay.map((d, i) =>
     i === 0 || i === data.byDay.length - 1 || i % 7 === 0
       ? new Date(d.date).toLocaleDateString("en-NG", {
@@ -93,7 +103,14 @@ export default async function RevenueReportPage({ searchParams }: PageProps) {
                 No orders in the window yet.
               </div>
             ) : (
-              <LineChart data={series} labels={labels} height={220} />
+              <LineChart
+                data={series}
+                labels={labels}
+                pointLabels={pointLabels}
+                valueLabels={valueLabels}
+                seriesLabel="Daily revenue"
+                height={220}
+              />
             )}
           </div>
 
