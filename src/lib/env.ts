@@ -66,6 +66,10 @@ const envSchema = z.object({
    *  Resend's shared onboarding@resend.dev (which only delivers to your own
    *  Resend account email) until a domain is verified. */
   EMAIL_FROM: z.string().optional(),
+  /** Optional override for who receives the recurring sales-summary emails —
+   *  a comma-separated list. When unset, they go to every active manager /
+   *  super-admin from the staff table. */
+  SALES_SUMMARY_RECIPIENTS: z.string().optional(),
   TERMII_API_KEY: z.string().optional(),
   AFRICAS_TALKING_API_KEY: z.string().optional(),
   AFRICAS_TALKING_USERNAME: z.string().optional(),
@@ -117,6 +121,7 @@ export const env = envSchema.parse({
   CRON_SECRET: blank(process.env.CRON_SECRET),
   RESEND_API_KEY: blank(process.env.RESEND_API_KEY),
   EMAIL_FROM: blank(process.env.EMAIL_FROM),
+  SALES_SUMMARY_RECIPIENTS: blank(process.env.SALES_SUMMARY_RECIPIENTS),
   TERMII_API_KEY: blank(process.env.TERMII_API_KEY),
   AFRICAS_TALKING_API_KEY: blank(process.env.AFRICAS_TALKING_API_KEY),
   AFRICAS_TALKING_USERNAME: blank(process.env.AFRICAS_TALKING_USERNAME),

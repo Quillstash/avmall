@@ -355,12 +355,22 @@ function RevenueChart({
   series: { date: string; revenueKobo: number }[];
   label: string;
 }) {
-  // The series is in kobo; convert to whole-Naira values for the chart so the
-  // axis numbers stay readable.
-  const data = series.map((s) => s.revenueKobo / 100);
+  // Chart data stays in kobo so the hover tooltip can format it as money.
+  const data = series.map((s) => s.revenueKobo);
   const total = series.reduce((a, s) => a + s.revenueKobo, 0);
 
-  // Sparse labels so we don't crowd the axis — first day, every 7th, last day.
+  // Full per-day labels + pre-formatted money for the hover tooltip (strings,
+  // so nothing non-serializable crosses into the client chart).
+  const pointLabels = series.map((s) =>
+    new Date(s.date).toLocaleDateString("en-NG", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "Africa/Lagos",
+    }),
+  );
+  const valueLabels = series.map((s) => formatMoney(s.revenueKobo));
+  // Sparse axis labels so we don't crowd the axis — first day, every 7th, last.
   const labels = series.map((s, i) =>
     i === 0 || i === series.length - 1 || i % 7 === 0
       ? new Date(s.date).toLocaleDateString("en-NG", {
@@ -384,7 +394,15 @@ function RevenueChart({
           No orders yet — the chart will fill in as orders come in.
         </div>
       ) : (
-        <LineChart data={data} labels={labels} height={200} className="min-w-0" />
+        <LineChart
+          data={data}
+          labels={labels}
+          pointLabels={pointLabels}
+          valueLabels={valueLabels}
+          seriesLabel="Daily revenue"
+          height={200}
+          className="min-w-0"
+        />
       )}
     </div>
   );

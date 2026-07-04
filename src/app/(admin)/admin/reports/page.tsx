@@ -9,6 +9,7 @@ import {
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
+import { SummaryEmailTester } from "@/components/admin/summary-email-tester";
 
 /**
  * Reports list. Trimmed to the three reports that are actually achievable
@@ -88,6 +89,10 @@ export default function AdminReportsPage() {
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-6">
+            <SummaryEmailTester />
           </div>
 
           <div className="mt-8 p-4 rounded-md bg-info-bg border border-brand-primary/15 text-xs leading-relaxed">

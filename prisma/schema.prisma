@@ -498,6 +498,7 @@ model OrderLine {
   returnLines  ReturnLine[]
 
   @@index([orderId])
+  @@index([productId])
   @@map("order_lines")
 }
 

@@ -12,6 +12,7 @@ import "server-only";
 
 import { SITE } from "@/lib/site";
 import { formatMoney } from "@/lib/money";
+import type { SalesSummary } from "@/lib/data/sales-summary";
 
 /** Wraps a block of inner HTML in our brand layout. */
 function layout(opts: {
@@ -382,6 +383,140 @@ export function returnReceivedEmail(args: {
     body,
   });
   const text = `We've received your return ${args.returnNumber} (from order ${args.orderNumber}). Refund of ${formatMoney(args.refundKobo)} will be processed within 48 hours.`;
+  return { subject, html, text };
+}
+
+// ─── Sales summary (daily / weekly / monthly) ─────────────────────────────
+
+const PERIOD_WORD: Record<SalesSummary["period"], string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
+
+function trendLine(gross: number, prevGross: number): string {
+  if (prevGross <= 0) {
+    const note = gross > 0 ? "No sales in the previous period" : "No sales either period";
+    return `<span style="color:#6b7280;">${note}</span>`;
+  }
+  const pct = ((gross - prevGross) / prevGross) * 100;
+  const up = pct >= 0;
+  const arrow = pct === 0 ? "→" : up ? "▲" : "▼";
+  const color = pct === 0 ? "#6b7280" : up ? "#067647" : "#b42318";
+  return `<span style="color:${color}; font-weight:600;">${arrow} ${Math.abs(pct).toFixed(0)}%</span> <span style="color:#6b7280;">vs previous period (${escapeHtml(formatMoney(prevGross))})</span>`;
+}
+
+function summaryTable(title: string, rows: { label: string; orders: number; kobo: number }[]): string {
+  if (rows.length === 0) return "";
+  const body = rows
+    .map(
+      (r) => `
+      <tr>
+        <td style="padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:14px;">${escapeHtml(r.label)}</td>
+        <td style="padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:13px; color:#6b7280; text-align:right;">${r.orders} order${r.orders === 1 ? "" : "s"}</td>
+        <td style="padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:14px; font-weight:600; text-align:right;">${escapeHtml(formatMoney(r.kobo))}</td>
+      </tr>`,
+    )
+    .join("");
+  return `
+    <p style="margin:22px 0 6px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#6b7280;">${escapeHtml(title)}</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${body}</table>`;
+}
+
+export function salesSummaryEmail(args: {
+  summary: SalesSummary;
+  dashboardUrl: string;
+}): EmailContent {
+  const s = args.summary;
+  const word = PERIOD_WORD[s.period];
+  const subject = `${SITE.name} ${word.toLowerCase()} sales — ${s.periodLabel}: ${formatMoney(s.grossSalesKobo)}`;
+  const heading = `${word} sales — ${s.periodLabel}`;
+
+  const storeRows = s.byStore.map((x) => ({ label: x.store, orders: x.ordersCount, kobo: x.grossSalesKobo }));
+  const chanRows = s.byChannel.map((x) => ({ label: x.label, orders: x.ordersCount, kobo: x.grossSalesKobo }));
+  const topProducts =
+    s.topProducts.length > 0
+      ? `
+    <p style="margin:22px 0 6px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#6b7280;">Top products</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      ${s.topProducts
+        .map(
+          (p) => `
+        <tr>
+          <td style="padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:14px;">${escapeHtml(p.name)}</td>
+          <td style="padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:13px; color:#6b7280; text-align:right;">${p.units} sold</td>
+          <td style="padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:14px; font-weight:600; text-align:right;">${escapeHtml(formatMoney(p.revenueKobo))}</td>
+        </tr>`,
+        )
+        .join("")}
+    </table>`
+      : "";
+
+  const body = `
+    <p style="margin:0 0 4px; font-size:13px; color:#6b7280;">Gross sales</p>
+    <p style="margin:0 0 4px; font-size:34px; font-weight:800; line-height:1;">${escapeHtml(formatMoney(s.grossSalesKobo))}</p>
+    <p style="margin:0 0 18px; font-size:13px;">${trendLine(s.grossSalesKobo, s.prev.grossSalesKobo)}</p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 4px;">
+      <tr>
+        <td style="width:33%; padding:10px 0; background:#f4f6fa; border-radius:10px 0 0 10px; text-align:center;">
+          <div style="font-size:20px; font-weight:700;">${s.ordersCount}</div>
+          <div style="font-size:11px; color:#6b7280;">orders</div>
+        </td>
+        <td style="width:34%; padding:10px 0; background:#f4f6fa; text-align:center; border-left:2px solid #fff; border-right:2px solid #fff;">
+          <div style="font-size:20px; font-weight:700;">${s.unitsSold}</div>
+          <div style="font-size:11px; color:#6b7280;">units</div>
+        </td>
+        <td style="width:33%; padding:10px 0; background:#f4f6fa; border-radius:0 10px 10px 0; text-align:center;">
+          <div style="font-size:20px; font-weight:700;">${s.newCustomers}</div>
+          <div style="font-size:11px; color:#6b7280;">new customers</div>
+        </td>
+      </tr>
+    </table>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:14px 0 0;">
+      <tr>
+        <td style="font-size:13px; color:#6b7280; padding:3px 0;">Collected</td>
+        <td style="font-size:14px; font-weight:600; text-align:right; padding:3px 0;">${escapeHtml(formatMoney(s.collectedKobo))}</td>
+      </tr>
+      ${
+        s.outstandingKobo > 0
+          ? `<tr>
+        <td style="font-size:13px; color:#b54708; padding:3px 0;">Outstanding</td>
+        <td style="font-size:14px; font-weight:700; color:#b54708; text-align:right; padding:3px 0;">${escapeHtml(formatMoney(s.outstandingKobo))}</td>
+      </tr>`
+          : ""
+      }
+    </table>
+
+    ${storeRows.length > 1 ? summaryTable("By store", storeRows) : ""}
+    ${summaryTable("By channel", chanRows)}
+    ${topProducts}
+
+    ${s.ordersCount === 0 ? `<p style="margin:20px 0 0; font-size:14px; color:#6b7280;">No sales recorded in this period.</p>` : ""}
+  `;
+
+  const html = layout({
+    preheader: `${formatMoney(s.grossSalesKobo)} across ${s.ordersCount} orders`,
+    heading,
+    body,
+    ctaUrl: args.dashboardUrl,
+    ctaLabel: "Open dashboard",
+    footerNote: `You're getting this because you're a manager on ${SITE.name}.`,
+  });
+
+  const text = [
+    `${heading}`,
+    ``,
+    `Gross sales: ${formatMoney(s.grossSalesKobo)}`,
+    `Orders: ${s.ordersCount} · Units: ${s.unitsSold} · New customers: ${s.newCustomers}`,
+    `Collected: ${formatMoney(s.collectedKobo)}${s.outstandingKobo > 0 ? ` · Outstanding: ${formatMoney(s.outstandingKobo)}` : ""}`,
+    ``,
+    ...(chanRows.length ? ["By channel:", ...chanRows.map((r) => `  ${r.label}: ${r.orders} orders, ${formatMoney(r.kobo)}`), ""] : []),
+    ...(s.topProducts.length ? ["Top products:", ...s.topProducts.map((p) => `  ${p.name}: ${p.units} sold, ${formatMoney(p.revenueKobo)}`), ""] : []),
+    `Dashboard: ${args.dashboardUrl}`,
+  ].join("\n");
+
   return { subject, html, text };
 }
 

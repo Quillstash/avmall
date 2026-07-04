@@ -27,17 +27,20 @@ import {
   type ProductVariant,
 } from "@/lib/mock-data";
 import type { ProductAuditSummary } from "@/lib/data/products";
+import type { ProductSalesHistory as ProductSalesHistoryData } from "@/lib/data/product-history";
 import { ProfitDisplay } from "@/components/admin/profit-display";
 import { StockAdjust } from "@/components/admin/stock-adjust";
+import { ProductSalesHistory } from "@/components/admin/product-sales-history";
 import { applyPercentageDiscount } from "@/lib/money";
 
 interface EditorClientProps {
   product: Product;
   audit: ProductAuditSummary;
   categories: Category[];
+  history: ProductSalesHistoryData;
 }
 
-export function ProductEditorClient({ product, audit, categories }: EditorClientProps) {
+export function ProductEditorClient({ product, audit, categories, history }: EditorClientProps) {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
   const [archiving, setArchiving] = React.useState(false);
@@ -540,6 +543,10 @@ export function ProductEditorClient({ product, audit, categories }: EditorClient
                 </dl>
               </Card>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <ProductSalesHistory history={history} />
           </div>
         </div>
       </div>
