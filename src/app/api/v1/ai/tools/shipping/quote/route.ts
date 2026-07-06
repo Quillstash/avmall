@@ -5,11 +5,17 @@
  * AI check whether the customer qualifies for free shipping. Falls back to
  * the flat rate when no zone covers the state.
  *
+ * `state` is matched leniently (casing, a trailing "State", punctuation, and
+ * every Abuja/FCT spelling) via lib/shipping-zone. The response echoes
+ * `matchedState` — the canonical name to reuse in cart/quote and create_order
+ * so their totals agree.
+ *
  * Auth: public — read-only catalogue tool, no token required.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
+import { findZoneForState, canonicalStateName } from "@/lib/shipping-zone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
 
@@ -23,25 +29,24 @@ export async function GET(req: NextRequest) {
       throw new AppError("DB_NOT_CONFIGURED", "Shipping quote requires DATABASE_URL.", 503);
     }
 
-    const state = req.nextUrl.searchParams.get("state")?.trim();
-    if (!state) {
+    const requestedState = req.nextUrl.searchParams.get("state")?.trim();
+    if (!requestedState) {
       throw new ValidationError({ state: "state query parameter is required" });
     }
     const subtotalParam = Number(req.nextUrl.searchParams.get("subtotalKobo"));
     const subtotalKobo =
       Number.isFinite(subtotalParam) && subtotalParam >= 0 ? subtotalParam : 0;
 
-    const zone = await db.shippingZone.findFirst({
-      where: { active: true, states: { has: state } },
-      orderBy: { createdAt: "asc" },
-    });
+    const matchedState = canonicalStateName(requestedState);
+    const zone = await findZoneForState(requestedState);
 
     if (zone) {
       const freeOver = zone.freeOverKobo == null ? null : Number(zone.freeOverKobo);
       const qualifiesFree = freeOver != null && subtotalKobo >= freeOver;
       return NextResponse.json(
         apiSuccess({
-          state,
+          requestedState,
+          matchedState: matchedState ?? requestedState,
           zone: zone.name,
           etaDays: zone.etaDays,
           baseRateKobo: Number(zone.baseRateKobo),
@@ -57,7 +62,8 @@ export async function GET(req: NextRequest) {
     if (fb?.enabled) {
       return NextResponse.json(
         apiSuccess({
-          state,
+          requestedState,
+          matchedState: matchedState ?? requestedState,
           zone: "Fallback",
           etaDays: fb.etaDays,
           baseRateKobo: Number(fb.flatRateKobo),
@@ -72,7 +78,8 @@ export async function GET(req: NextRequest) {
     // No zone, no fallback enabled — explicit "we don't ship there" answer.
     return NextResponse.json(
       apiSuccess({
-        state,
+        requestedState,
+        matchedState,
         zone: null,
         etaDays: null,
         baseRateKobo: null,

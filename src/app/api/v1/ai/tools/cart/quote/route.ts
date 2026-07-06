@@ -29,6 +29,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { findZoneForState } from "@/lib/shipping-zone";
 import { getMainStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -122,10 +123,7 @@ export async function POST(req: NextRequest) {
     let shippingZoneInfo: { name: string; etaDays: string } | null = null;
     let freeShippingEligible = false;
     if (body.state) {
-      const zone = await db.shippingZone.findFirst({
-        where: { active: true, states: { has: body.state } },
-        orderBy: { createdAt: "asc" },
-      });
+      const zone = await findZoneForState(body.state);
       if (zone) {
         shippingZoneInfo = { name: zone.name, etaDays: zone.etaDays };
         shippingKobo = Number(zone.baseRateKobo);

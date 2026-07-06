@@ -27,6 +27,7 @@ import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { findZoneForState } from "@/lib/shipping-zone";
 import { reserveStock } from "@/lib/stock";
 import { getMainStoreId } from "@/lib/store";
 import { withIdempotency } from "@/lib/idempotency";
@@ -185,10 +186,7 @@ export async function POST(req: NextRequest) {
       let shippingKobo = 0;
       let shippingZoneId: string | null = null;
       let freeShippingEligible = false;
-      const zone = await db.shippingZone.findFirst({
-        where: { active: true, states: { has: body.shipping.state } },
-        orderBy: { createdAt: "asc" },
-      });
+      const zone = await findZoneForState(body.shipping.state);
       if (zone) {
         shippingZoneId = zone.id;
         shippingKobo = Number(zone.baseRateKobo);
