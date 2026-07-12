@@ -29,15 +29,23 @@ function client(): Resend {
   return _client;
 }
 
+/**
+ * The domain verified in Resend for sending. Deliberately NOT derived from
+ * `SITE.domain` — that repoints for SEO/canonical URLs (e.g. to a *.vercel.app
+ * deployment), which cannot send email. Sending from an unverified domain makes
+ * Resend reject every message (invites, resets, receipts) silently. Override the
+ * whole sender per-environment with EMAIL_FROM.
+ */
+const VERIFIED_EMAIL_DOMAIN = "avmall.com.ng";
+
 /** Default "from" — points at the configured Resend sender. Override per-send
  *  when needed (e.g. invitations might come "from Funmi at Avmall"). */
 function defaultFrom(): string {
-  // Default to the VERIFIED domain (avmall.com.ng) so emails send to any
-  // recipient in every environment without per-env config. `onboarding@
-  // resend.dev` is deliberately NOT used as a fallback — it only delivers to
-  // the Resend account owner, which silently breaks invites/receipts/resets.
-  // Override with EMAIL_FROM to use a different verified sender.
-  return env.EMAIL_FROM || `${SITE.legalName} <noreply@${SITE.domain}>`;
+  // Default to the VERIFIED domain so emails send to any recipient in every
+  // environment without per-env config. `onboarding@resend.dev` is deliberately
+  // NOT used as a fallback — it only delivers to the Resend account owner, which
+  // silently breaks invites/receipts/resets. Override with EMAIL_FROM.
+  return env.EMAIL_FROM || `${SITE.legalName} <noreply@${VERIFIED_EMAIL_DOMAIN}>`;
 }
 
 export interface SendEmailInput {
