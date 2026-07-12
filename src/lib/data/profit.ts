@@ -110,11 +110,29 @@ export async function getProfitAnalysis(
   const soldIds = new Set<string>();
 
   for (const o of orders) {
-    discountKobo += Number(o.bulkDiscountKobo) + Number(o.couponDiscountKobo) + Number(o.manualDiscountKobo);
-    for (const l of o.lines) {
+    // Bulk discounts live per-line (l.bulkDiscountKobo); coupon + manual are
+    // order-level. Spread the order-level portion back across the lines by
+    // selling value so per-product / per-category profit reflects it too —
+    // otherwise a manual discount reduces the order total but products still
+    // read at full margin. (Don't also add o.bulkDiscountKobo to the total:
+    // it mirrors the per-line bulk sum, so counting both double-counts it.)
+    const orderLevelDisc = Number(o.couponDiscountKobo) + Number(o.manualDiscountKobo);
+    const orderGross = o.lines.reduce((s, l) => s + Number(l.unitKobo) * l.quantity, 0);
+
+    let allocated = 0; // running sum so the last line absorbs the rounding remainder
+    o.lines.forEach((l, i) => {
       const qty = l.quantity;
       const lineGross = Number(l.unitKobo) * qty;
-      const lineDisc = Number(l.bulkDiscountKobo);
+      // This line's slice of the order-level discount, proportional to value.
+      const lineOrderDisc =
+        orderLevelDisc === 0 || orderGross === 0
+          ? 0
+          : i === o.lines.length - 1
+            ? orderLevelDisc - allocated
+            : Math.round((orderLevelDisc * lineGross) / orderGross);
+      if (i !== o.lines.length - 1) allocated += lineOrderDisc;
+      const lineDisc = Number(l.bulkDiscountKobo) + lineOrderDisc;
+
       grossSalesKobo += lineGross;
       discountKobo += lineDisc;
       unitsSold += qty;
@@ -131,7 +149,7 @@ export async function getProfitAnalysis(
       agg.revenue += lineGross - lineDisc;
       agg.cost += cost;
       perProduct.set(key, agg);
-    }
+    });
   }
 
   const netRevenueKobo = grossSalesKobo - discountKobo;
