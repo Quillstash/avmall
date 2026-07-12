@@ -120,6 +120,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const itemsSubtotal = Number(order.totals.subtotalKobo);
   const totalLineDiscounts = Number(order.totals.bulkDiscountKobo);
   const couponDiscount = Number(order.totals.couponDiscountKobo);
+  const manualDiscount = Number(order.totals.manualDiscountKobo);
   const shipping = Number(order.totals.shippingKobo);
   const total = Number(order.totals.totalKobo);
 
@@ -852,11 +853,13 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 <div className="flex justify-end px-5 py-5 border-t border-border bg-surface-2/50">
                   <div className="w-full sm:w-auto sm:min-w-[320px] space-y-1.5">
                     <TotalRow label="Subtotal" value={formatMoney(itemsSubtotal)} />
-                    <TotalRow
-                      label="Bulk discounts"
-                      value={`−${formatMoney(totalLineDiscounts)}`}
-                      accent
-                    />
+                    {totalLineDiscounts > 0 && (
+                      <TotalRow
+                        label="Bulk discounts"
+                        value={`−${formatMoney(totalLineDiscounts)}`}
+                        accent
+                      />
+                    )}
                     {couponDiscount > 0 && (
                       <TotalRow
                         label={
@@ -868,6 +871,13 @@ export function OrderDetailClient({ params, order }: PageProps) {
                           </span>
                         }
                         value={`−${formatMoney(couponDiscount)}`}
+                        accent
+                      />
+                    )}
+                    {manualDiscount > 0 && (
+                      <TotalRow
+                        label="Manual discount"
+                        value={`−${formatMoney(manualDiscount)}`}
                         accent
                       />
                     )}
