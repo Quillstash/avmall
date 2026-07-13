@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, Loader2, X, ShoppingBag, Box, User, type LucideIcon } from "lucide-react";
+import { Search, Loader2, X, ShoppingBag, Box, User, Users, Ticket, Undo2, type LucideIcon } from "lucide-react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import type { AdminSearchResults, AdminSearchHit } from "@/lib/data/admin-search";
@@ -11,6 +11,9 @@ const EMPTY: AdminSearchResults = {
   orders: [],
   products: [],
   customers: [],
+  staff: [],
+  discounts: [],
+  returns: [],
   totalCount: 0,
 };
 
@@ -84,7 +87,7 @@ export function AdminTopBarSearch() {
             if (!open) setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search orders, products, customers…"
+          placeholder="Search orders, products, staff…"
           className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-fg-muted text-fg"
           aria-label="Search the admin"
         />
@@ -124,6 +127,9 @@ export function AdminTopBarSearch() {
               <Group title="Orders" icon={ShoppingBag} hits={results.orders} onClick={() => setOpen(false)} />
               <Group title="Products" icon={Box} hits={results.products} onClick={() => setOpen(false)} />
               <Group title="Customers" icon={User} hits={results.customers} onClick={() => setOpen(false)} />
+              <Group title="Staff" icon={Users} hits={results.staff} onClick={() => setOpen(false)} />
+              <Group title="Discounts" icon={Ticket} hits={results.discounts} onClick={() => setOpen(false)} />
+              <Group title="Returns" icon={Undo2} hits={results.returns} onClick={() => setOpen(false)} />
             </div>
           )}
         </div>
