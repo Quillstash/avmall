@@ -35,6 +35,55 @@ interface ImageUploaderProps {
   className?: string;
 }
 
+/**
+ * Shrink + re-encode a photo in the browser BEFORE upload. Vercel caps
+ * serverless request bodies at ~4.5 MB, so a raw phone photo (often 4–12 MB) is
+ * rejected with 413 FUNCTION_PAYLOAD_TOO_LARGE before our route ever runs.
+ * Re-drawing to ≤2000px WebP keeps every upload well under the limit — and the
+ * server still re-encodes + strips EXIF as a second pass. Falls back to the
+ * original file whenever the browser can't decode/encode it (old browser, HEIC,
+ * …) so we never block an upload that might otherwise have worked.
+ */
+async function downscaleImage(
+  file: File,
+  maxEdge = 2000,
+  quality = 0.82,
+): Promise<File> {
+  if (
+    typeof createImageBitmap !== "function" ||
+    typeof document === "undefined" ||
+    !/^image\/(jpe?g|png|webp)$/i.test(file.type)
+  ) {
+    return file;
+  }
+  // Already small — not worth re-encoding.
+  if (file.size < 1_500_000) return file;
+
+  let bitmap: ImageBitmap | null = null;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", quality),
+    );
+    if (!blob || blob.size === 0 || blob.size >= file.size) return file;
+    const base = file.name.replace(/\.[^/.]+$/, "") || "photo";
+    return new File([blob], `${base}.webp`, { type: "image/webp" });
+  } catch {
+    return file;
+  } finally {
+    bitmap?.close();
+  }
+}
+
 /** Multi-image uploader. Streams each file through /api/v1/admin/upload, which
  *  EXIF-strips + re-encodes to WebP and stores it on R2. The component owns
  *  the optimistic UI; the URL it shows after success is the real R2 URL. */
@@ -102,8 +151,13 @@ export function ImageUploader({
     onChange(next);
 
     try {
+      // Shrink big photos in the browser first so the payload clears Vercel's
+      // ~4.5 MB serverless body limit (else the platform 413s before our route
+      // runs). The server re-encodes + strips EXIF as a second pass regardless.
+      const prepared = await downscaleImage(file);
+
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", prepared);
       form.append("scope", scope);
       if (scopeId) form.append("scopeId", scopeId);
 
@@ -111,13 +165,29 @@ export function ImageUploader({
         method: "POST",
         body: form,
       });
-      const json = await res.json();
+
+      // Our route replies JSON, but a platform-level rejection (e.g. 413
+      // FUNCTION_PAYLOAD_TOO_LARGE) is plain text — parse defensively so a
+      // failed upload surfaces a clear message instead of throwing.
+      const raw = await res.text();
+      let json:
+        | { data?: { publicUrl: string; key: string }; error?: { message?: string } }
+        | null = null;
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch {
+        json = null;
+      }
 
       URL.revokeObjectURL(previewUrl);
 
-      if (!res.ok) {
+      if (!res.ok || !json?.data) {
         finishUpload(tempId, {
-          error: json?.error?.message ?? "Upload failed",
+          error:
+            json?.error?.message ??
+            (res.status === 413
+              ? "Image is too large — please use a smaller photo"
+              : `Upload failed (${res.status})`),
         });
         return;
       }
