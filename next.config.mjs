@@ -16,6 +16,15 @@ const nextConfig = {
   poweredByHeader: false,
   allowedDevOrigins: ["cbf2-102-214-14-5.ngrok-free.app"],
   images: {
+    // Serve images straight from source (R2/Cloudflare CDN) instead of routing
+    // them through Vercel's Image Optimization. Vercel returns 402 for
+    // /_next/image once the account's optimization quota is exhausted, which
+    // silently breaks EVERY image site-wide. Our upload pipeline already emits
+    // resized WebP and R2 serves it with a 1-year immutable cache, so Vercel's
+    // optimizer adds little here — and this removes both the 402 failure mode
+    // and the optimization cost. (remotePatterns is only enforced for the
+    // optimizer, so it's moot while unoptimized, but kept for correctness.)
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "picsum.photos" },
