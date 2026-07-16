@@ -1,12 +1,24 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { SlidersHorizontal, LayoutGrid, List } from "lucide-react";
 import { Select } from "@/components/ui/select";
 
 export function CategoryToolbar({ count }: { count: number }) {
-  const [sort, setSort] = React.useState("featured");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Sort lives in the URL so the server component re-renders the sorted slice.
+  const sort = searchParams.get("sort") ?? "featured";
   const [view, setView] = React.useState<"grid" | "list">("grid");
+
+  function setSort(value: string) {
+    const next = new URLSearchParams(searchParams.toString());
+    if (value === "featured") next.delete("sort");
+    else next.set("sort", value);
+    router.push(`${pathname}?${next.toString()}`);
+  }
 
   return (
     <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
@@ -23,12 +35,12 @@ export function CategoryToolbar({ count }: { count: number }) {
           value={sort}
           onChange={(e) => setSort(e.target.value)}
           className="h-9 text-sm w-44"
+          aria-label="Sort products"
         >
           <option value="featured">Featured</option>
           <option value="lo">Price: low to high</option>
           <option value="hi">Price: high to low</option>
           <option value="new">Newest</option>
-          <option value="best">Best selling</option>
         </Select>
         <div className="hidden lg:inline-flex border border-border-strong rounded-md overflow-hidden">
           <button

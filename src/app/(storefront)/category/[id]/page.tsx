@@ -24,6 +24,7 @@ interface CategoryPageProps {
     max?: string;
     inStock?: string;
     onSale?: string;
+    sort?: string;
   };
 }
 
@@ -82,6 +83,20 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       if (products.length >= 8) break;
       if (!ids.has(p.id)) products.push(p);
     }
+  }
+
+  // Sort the assembled list per the toolbar's ?sort=. Featured (default) keeps
+  // listProducts' featured-first order.
+  const sort = searchParams.sort ?? "featured";
+  if (sort === "lo" || sort === "hi") {
+    products = [...products].sort((a, b) => {
+      const ea = a.saleActive && a.sale != null ? a.sale : a.price;
+      const eb = b.saleActive && b.sale != null ? b.sale : b.price;
+      return sort === "lo" ? ea - eb : eb - ea;
+    });
+  } else if (sort === "new") {
+    // createdAt is an ISO string — lexicographic compare == chronological.
+    products = [...products].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   }
 
   return (
