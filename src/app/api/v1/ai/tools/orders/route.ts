@@ -27,7 +27,7 @@ import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
-import { findZoneForState } from "@/lib/shipping-zone";
+import { resolveShipping } from "@/lib/shipping-zone";
 import { reserveStock } from "@/lib/stock";
 import { getMainStoreId } from "@/lib/store";
 import { withIdempotency } from "@/lib/idempotency";
@@ -182,24 +182,16 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Shipping
-      let shippingKobo = 0;
-      let shippingZoneId: string | null = null;
-      let freeShippingEligible = false;
-      const zone = await findZoneForState(body.shipping.state);
-      if (zone) {
-        shippingZoneId = zone.id;
-        shippingKobo = Number(zone.baseRateKobo);
-        if (zone.freeOverKobo != null) {
-          const dry = computeQuote({ lines: inputLines });
-          if (BigInt(dry.subtotalKobo - dry.bulkDiscountKobo) >= zone.freeOverKobo) {
-            freeShippingEligible = true;
-          }
-        }
-      } else {
-        const fb = await db.fallbackShipping.findFirst();
-        if (fb?.enabled) shippingKobo = Number(fb.flatRateKobo);
-      }
+      // Shipping — LGA area price → whole-state zone → flat fallback.
+      const dryShip = computeQuote({ lines: inputLines });
+      const resolvedShipping = await resolveShipping({
+        state: body.shipping.state,
+        lga: body.shipping.city,
+        netSubtotalKobo: dryShip.subtotalKobo - dryShip.bulkDiscountKobo,
+      });
+      const shippingKobo = resolvedShipping.shippingKobo;
+      const shippingZoneId = resolvedShipping.zoneId;
+      const freeShippingEligible = resolvedShipping.freeShippingEligible;
 
       const quote = computeQuote({
         lines: inputLines,

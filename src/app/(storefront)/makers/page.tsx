@@ -4,6 +4,7 @@ import { CheckCircle2, MessageCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContentPageHeader } from "@/components/storefront/page-header";
 import { SITE } from "@/lib/site";
+import { getStoreContact, storeWaLink } from "@/lib/data/settings";
 
 export const metadata: Metadata = {
   title: "Sell on Avmall — Nigerian makers",
@@ -22,7 +23,7 @@ const BENEFITS = [
   },
   {
     title: "Storage in our warehouse",
-    body: "Lagos warehouse storage at no monthly fee. We pick, pack, and ship — you keep making.",
+    body: "Zaria warehouse storage at no monthly fee. We pick, pack, and ship — you keep making.",
   },
   {
     title: "One curator margin",
@@ -45,7 +46,10 @@ const STEPS = [
   "Photography, listing, and first stock delivery happens in week 2",
 ] as const;
 
-export default function MakersPage() {
+export default async function MakersPage() {
+  // Support/WhatsApp number is admin-editable at /admin/settings.
+  const contact = await getStoreContact();
+  const whatsappHref = storeWaLink(contact.whatsapp);
   return (
     <>
       <ContentPageHeader
@@ -66,7 +70,7 @@ export default function MakersPage() {
               Q2 2026 maker cohort — 6 spots left
             </h2>
           </div>
-          <Link href={SITE.social.whatsapp} target="_blank" rel="noreferrer">
+          <Link href={whatsappHref} target="_blank" rel="noreferrer">
             <Button className="bg-bg text-fg hover:bg-white/95">
               <MessageCircle className="size-4" /> Open WhatsApp
             </Button>
@@ -120,7 +124,7 @@ export default function MakersPage() {
 
         <div className="text-center">
           <p className="text-sm text-fg-muted mb-4">Already convinced?</p>
-          <Link href={SITE.social.whatsapp} target="_blank" rel="noreferrer">
+          <Link href={whatsappHref} target="_blank" rel="noreferrer">
             <Button size="lg">
               Apply on WhatsApp <ArrowRight className="size-4" />
             </Button>

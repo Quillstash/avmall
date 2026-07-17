@@ -4,6 +4,7 @@ import { SocialIcon, type SocialPlatform } from "@/components/ui/social-icon";
 import { SITE } from "@/lib/site";
 import { FooterStores } from "@/components/storefront/footer-stores";
 import type { StoreOption } from "@/components/storefront/store-switcher";
+import { getSiteSettings, getSocialLinks } from "@/lib/data/settings";
 
 const COLUMNS: { heading: string; items: { label: string; href: string }[] }[] = [
   {
@@ -35,24 +36,30 @@ const COLUMNS: { heading: string; items: { label: string; href: string }[] }[] =
   },
 ];
 
-const SOCIAL: { platform: SocialPlatform; label: string; href: string }[] = [
-  { platform: "instagram", label: "Instagram", href: SITE.social.instagram },
-  { platform: "twitter", label: "X / Twitter", href: SITE.social.twitter },
-  { platform: "whatsapp", label: "WhatsApp", href: SITE.social.whatsapp },
-  { platform: "tiktok", label: "TikTok", href: SITE.social.tiktok },
-];
-
-export function StorefrontFooter({
+export async function StorefrontFooter({
   categories = [],
   stores = [],
   currentStoreSlug = null,
+  whatsappHref = SITE.social.whatsapp,
 }: {
   /** Store categories for the "Shop" column — fetched per store. */
   categories?: { slug: string; name: string }[];
   /** Active stores for the "Our stores" column. */
   stores?: StoreOption[];
   currentStoreSlug?: string | null;
+  /** Support WhatsApp link — admin-editable, passed from the layout. */
+  whatsappHref?: string;
 }) {
+  // Social links + RC number are admin-editable at /admin/settings. Blank
+  // social links are omitted, so only configured platforms show an icon.
+  const [socialLinks, settings] = await Promise.all([
+    getSocialLinks(),
+    getSiteSettings(),
+  ]);
+  const social: { platform: SocialPlatform; label: string; href: string }[] = [
+    ...socialLinks.map((s) => ({ platform: s.platform, label: s.label, href: s.url })),
+    { platform: "whatsapp" as const, label: "WhatsApp", href: whatsappHref },
+  ];
   // Prepend a per-store "Shop" column; the rest are static site links.
   const columns =
     categories.length > 0
@@ -82,10 +89,10 @@ export function StorefrontFooter({
           </Link>
           <p className="text-xs text-fg-muted leading-relaxed max-w-xs">
             Goods made by Nigerian hands, delivered across the country. {SITE.legalName} Ltd · RC
-            1842901 · {SITE.address.city}, {SITE.address.state}.
+            {" "}{settings.rcNumber} · {SITE.address.city}, {SITE.address.state}.
           </p>
           <div className="flex gap-2 mt-4" aria-label="Social media">
-            {SOCIAL.map((s) => (
+            {social.map((s) => (
               <a
                 key={s.platform}
                 href={s.href}

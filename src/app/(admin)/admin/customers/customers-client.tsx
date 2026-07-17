@@ -487,7 +487,7 @@ function AddCustomerDialog({
   );
 }
 
-const PRESET_TAGS = ["VIP", "Wholesale", "Lagos", "Abuja", "Kano", "Anambra", "Rivers", "Ibadan", "Retail", "B2B"];
+const PRESET_TAGS = ["VIP", "Wholesale", "Zaria", "Kaduna", "Abuja", "Kano", "Anambra", "Rivers", "Retail", "B2B"];
 
 function TagDialog({
   customer,

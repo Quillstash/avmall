@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Search, Menu, User, MessageCircle, X, MapPin, Check } from "lucide-react";
+import { ShoppingBag, Search, Menu, User, MessageCircle, X, MapPin, Check, ChevronDown } from "lucide-react";
 import { useCart } from "@/stores/cart-store";
 import { SITE } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -18,14 +18,21 @@ import {
 /** A nav category, fetched per store by the storefront layout. */
 export type NavCategory = { slug: string; name: string; count: number };
 
+/** Categories shown inline in the desktop nav before the rest overflow into a
+ *  "More" dropdown — keeps the bar from pushing the search + icons off-screen. */
+const MAX_NAV_CATEGORIES = 6;
+
 export function TopNav({
   stores = [],
   currentStoreSlug = null,
   categories = [],
+  whatsappHref = SITE.social.whatsapp,
 }: {
   stores?: StoreOption[];
   currentStoreSlug?: string | null;
   categories?: NavCategory[];
+  /** Support WhatsApp link — admin-editable, passed from the layout. */
+  whatsappHref?: string;
 }) {
   const lines = useCart((s) => s.lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
@@ -41,12 +48,12 @@ export function TopNav({
             {stores.length > 0 && (
               <StoreSwitcher stores={stores} currentSlug={currentStoreSlug} />
             )}
-            <span>Free shipping on orders over ₦25,000 in Lagos</span>
+            <span>Free shipping on orders over ₦25,000 in Zaria</span>
             <span className="ml-auto">NGN ₦</span>
             <Link href="/faq" className="hover:text-fg">Help</Link>
             <Link href="/track-order" className="hover:text-fg">Track order</Link>
             <a
-              href={SITE.social.whatsapp}
+              href={whatsappHref}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center gap-1.5 hover:text-fg"
@@ -80,9 +87,11 @@ export function TopNav({
             <span>mall</span>
           </Link>
 
-          {/* Desktop nav — categories fetched per store */}
+          {/* Desktop nav — categories fetched per store. Capped so a long
+              category list can't push the search + icons off-screen; the rest
+              live under a hover "More" dropdown. */}
           <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
-            {categories.map((c) => (
+            {categories.slice(0, MAX_NAV_CATEGORIES).map((c) => (
               <Link
                 key={c.slug}
                 href={`/category/${c.slug}`}
@@ -91,9 +100,37 @@ export function TopNav({
                 {c.name}
               </Link>
             ))}
-            <Link href="/journal" className="hover:text-brand-primary transition-colors">
-              Journal
-            </Link>
+            <div className="relative group">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 hover:text-brand-primary transition-colors whitespace-nowrap"
+                aria-haspopup="true"
+              >
+                More
+                <ChevronDown className="size-3.5" />
+              </button>
+              {/* pt-2 keeps a hover bridge so the menu doesn't vanish in the gap */}
+              <div className="absolute left-0 top-full pt-2 hidden group-hover:block group-focus-within:block z-40">
+                <div className="w-56 max-h-[70vh] overflow-y-auto bg-surface border border-border rounded-lg shadow-lg py-1.5">
+                  {categories.slice(MAX_NAV_CATEGORIES).map((c) => (
+                    <Link
+                      key={c.slug}
+                      href={`/category/${c.slug}`}
+                      className="flex items-center justify-between px-4 py-2 text-sm hover:bg-surface-2"
+                    >
+                      {c.name}
+                      <span className="text-xs text-fg-muted tabular">{c.count}</span>
+                    </Link>
+                  ))}
+                  <Link
+                    href="/journal"
+                    className="block px-4 py-2 text-sm hover:bg-surface-2 border-t border-border mt-1 pt-2.5"
+                  >
+                    Journal
+                  </Link>
+                </div>
+              </div>
+            </div>
           </nav>
 
           <div className="flex-1" />
@@ -147,6 +184,7 @@ export function TopNav({
         categories={categories}
         stores={stores}
         currentStoreSlug={currentStoreSlug}
+        whatsappHref={whatsappHref}
       />
 
       {/* Mobile search overlay */}
@@ -163,12 +201,14 @@ function MobileDrawer({
   categories,
   stores,
   currentStoreSlug,
+  whatsappHref,
 }: {
   open: boolean;
   onClose: () => void;
   categories: NavCategory[];
   stores: StoreOption[];
   currentStoreSlug: string | null;
+  whatsappHref: string;
 }) {
   return (
     <>
@@ -290,7 +330,7 @@ function MobileDrawer({
             Orders
           </Link>
           <a
-            href={SITE.social.whatsapp}
+            href={whatsappHref}
             target="_blank"
             rel="noreferrer noopener"
             onClick={onClose}

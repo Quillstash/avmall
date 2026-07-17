@@ -10,6 +10,8 @@ import { getCustomerOrder } from "@/lib/data/orders";
 import { getCustomerSession } from "@/lib/customer-session";
 import { formatNigerianPhone } from "@/lib/phone";
 import { hasTrackGrant, GRANT_COOKIE } from "@/lib/track-grant";
+import { getStoreContact, storeWaLink } from "@/lib/data/settings";
+import { mailtoLink } from "@/lib/contact-links";
 
 interface PageProps {
   params: { number: string };
@@ -29,6 +31,9 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
 
   const order = await getCustomerOrder(params.number, session?.customerId ?? null);
   if (!order) notFound();
+
+  // Support/WhatsApp number is admin-editable at /admin/settings.
+  const contact = await getStoreContact();
 
   const placedAt = order.createdAt.toLocaleTimeString("en-NG", {
     hour: "numeric",
@@ -119,7 +124,7 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
               <Truck className="size-4" />
               <div className="font-bold text-sm">
                 Estimated delivery:{" "}
-                {order.shipping.state === "Lagos" ? "tomorrow by 6pm" : "2–5 business days"}
+                {order.shipping.state === "Kaduna" ? "tomorrow by 6pm" : "2–5 business days"}
               </div>
             </div>
             <Timeline events={steps} />
@@ -151,12 +156,28 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
               Need help?
             </div>
             <div className="flex flex-col gap-2">
-              <Button variant="secondary" size="sm">
-                <MessageCircle className="size-3.5" /> WhatsApp support
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Mail className="size-3.5" /> Email us
-              </Button>
+              <a
+                href={storeWaLink(
+                  contact.whatsapp,
+                  `Hi, I need help with my order ${order.number}.`,
+                )}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <Button variant="secondary" size="sm" width="full">
+                  <MessageCircle className="size-3.5" /> WhatsApp support
+                </Button>
+              </a>
+              <a
+                href={mailtoLink(
+                  contact.email,
+                  `Help with order ${order.number}`,
+                )}
+              >
+                <Button variant="ghost" size="sm" width="full">
+                  <Mail className="size-3.5" /> Email us
+                </Button>
+              </a>
             </div>
           </div>
 

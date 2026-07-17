@@ -49,7 +49,7 @@ const POSTS = [
     slug: "iba-silk",
     title: "Why Iba weaves with their hands, in a factory age",
     excerpt:
-      "A studio visit in Lagos Island with the silk-scarf weavers who&rsquo;ve quietly become an Avmall bestseller.",
+      "A studio visit in Zaria with the silk-scarf weavers who&rsquo;ve quietly become an Avmall bestseller.",
     image:
       "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=1200&q=80&auto=format&fit=crop",
     category: "Maker",

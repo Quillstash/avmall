@@ -62,8 +62,8 @@ export default function AdminCreateOrderPage() {
   const [recipientName, setRecipientName] = React.useState("Walk-in customer");
   const [phone, setPhone] = React.useState("");
   const [source, setSource] = React.useState<OrderSource>(DEFAULT_MANUAL_SOURCE);
-  const [state, setState] = React.useState("Lagos");
-  const [lga, setLga] = React.useState(NIGERIA_LGAS["Lagos"]?.[0] ?? "");
+  const [state, setState] = React.useState("Kaduna");
+  const [lga, setLga] = React.useState(NIGERIA_LGAS["Kaduna"]?.[0] ?? "");
   const [line1, setLine1] = React.useState("Walk-in (in-store)");
   const [notes, setNotes] = React.useState("");
   const [placing, setPlacing] = React.useState(false);

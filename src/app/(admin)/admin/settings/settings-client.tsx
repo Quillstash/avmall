@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { toast } from "@/components/ui/toaster";
@@ -14,10 +15,16 @@ interface Settings {
   storePhone: string;
   storeWhatsapp: string;
   storeAddress: string;
+  rcNumber: string;
   bankNumber: string | null;
   bankAccountName: string | null;
   bankName: string | null;
   returnWindowDays: number;
+  socialInstagram: string;
+  socialTwitter: string;
+  socialTiktok: string;
+  wholesaleTitle: string;
+  wholesaleSubtext: string;
 }
 
 const EMPTY: Settings = {
@@ -26,10 +33,16 @@ const EMPTY: Settings = {
   storePhone: "",
   storeWhatsapp: "",
   storeAddress: "",
+  rcNumber: "",
   bankNumber: "",
   bankAccountName: "",
   bankName: "",
   returnWindowDays: 14,
+  socialInstagram: "",
+  socialTwitter: "",
+  socialTiktok: "",
+  wholesaleTitle: "",
+  wholesaleSubtext: "",
 };
 
 export function SettingsClient() {
@@ -103,11 +116,41 @@ export function SettingsClient() {
           <Field id="s-phone" label="Phone number">
             <Input id="s-phone" value={settings.storePhone} onChange={(e) => set("storePhone", e.target.value)} placeholder="+234 803 421 7790" />
           </Field>
-          <Field id="s-wa" label="WhatsApp number" hint="Used in shipping error + customer messages">
-            <Input id="s-wa" value={settings.storeWhatsapp} onChange={(e) => set("storeWhatsapp", e.target.value)} placeholder="+2348034217790" />
+          <Field id="s-wa" label="WhatsApp number" hint="Powers every 'Chat with us' / contact-support link on the storefront, plus customer messages">
+            <Input id="s-wa" value={settings.storeWhatsapp} onChange={(e) => set("storeWhatsapp", e.target.value)} placeholder="+2347034486614" />
           </Field>
           <Field id="s-addr" label="Business address" className="md:col-span-2">
-            <Input id="s-addr" value={settings.storeAddress} onChange={(e) => set("storeAddress", e.target.value)} placeholder="14 Bourdillon Road, Ikoyi, Lagos" />
+            <Input id="s-addr" value={settings.storeAddress} onChange={(e) => set("storeAddress", e.target.value)} placeholder="Sokoto Road, Zaria, Kaduna" />
+          </Field>
+          <Field id="s-rc" label="RC number" hint="CAC registration number — shown in the storefront footer">
+            <Input id="s-rc" value={settings.rcNumber} onChange={(e) => set("rcNumber", e.target.value)} placeholder="7798804" className="font-mono" />
+          </Field>
+        </div>
+      </Card>
+
+      {/* Social links */}
+      <Card title="Social links" subtitle="Full profile URLs. Leave a field blank to hide that icon from the storefront footer.">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field id="s-ig" label="Instagram">
+            <Input id="s-ig" value={settings.socialInstagram} onChange={(e) => set("socialInstagram", e.target.value)} placeholder="https://instagram.com/avmall.ng" />
+          </Field>
+          <Field id="s-x" label="X / Twitter">
+            <Input id="s-x" value={settings.socialTwitter} onChange={(e) => set("socialTwitter", e.target.value)} placeholder="https://twitter.com/avmall_ng" />
+          </Field>
+          <Field id="s-tt" label="TikTok">
+            <Input id="s-tt" value={settings.socialTiktok} onChange={(e) => set("socialTiktok", e.target.value)} placeholder="https://tiktok.com/@avmall.ng" />
+          </Field>
+        </div>
+      </Card>
+
+      {/* Homepage content */}
+      <Card title="Homepage content" subtitle="The wholesale band shown on the storefront home page.">
+        <div className="flex flex-col gap-3">
+          <Field id="s-wt" label="Wholesale heading">
+            <Input id="s-wt" value={settings.wholesaleTitle} onChange={(e) => set("wholesaleTitle", e.target.value)} placeholder="Wholesale pricing, negotiated on WhatsApp." />
+          </Field>
+          <Field id="s-ws" label="Wholesale subtext">
+            <Textarea id="s-ws" value={settings.wholesaleSubtext} onChange={(e) => set("wholesaleSubtext", e.target.value)} placeholder="Tiered bulk discounts, split payments, dedicated account manager — chat with us to get a quote for your shop." />
           </Field>
         </div>
       </Card>

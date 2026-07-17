@@ -29,7 +29,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, hasDatabase } from "@/lib/db";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
-import { findZoneForState } from "@/lib/shipping-zone";
+import { resolveShipping } from "@/lib/shipping-zone";
 import { getMainStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -48,6 +48,7 @@ const bodySchema = z.object({
     )
     .min(1),
   state: z.string().min(1).optional(),
+  lga: z.string().min(1).optional(),
   couponCode: z.string().min(1).optional(),
 });
 
@@ -123,23 +124,15 @@ export async function POST(req: NextRequest) {
     let shippingZoneInfo: { name: string; etaDays: string } | null = null;
     let freeShippingEligible = false;
     if (body.state) {
-      const zone = await findZoneForState(body.state);
-      if (zone) {
-        shippingZoneInfo = { name: zone.name, etaDays: zone.etaDays };
-        shippingKobo = Number(zone.baseRateKobo);
-        if (zone.freeOverKobo != null) {
-          const dry = computeQuote({ lines: inputLines });
-          if (BigInt(dry.subtotalKobo - dry.bulkDiscountKobo) >= zone.freeOverKobo) {
-            freeShippingEligible = true;
-          }
-        }
-      } else {
-        const fb = await db.fallbackShipping.findFirst();
-        if (fb?.enabled) {
-          shippingKobo = Number(fb.flatRateKobo);
-          shippingZoneInfo = { name: "Fallback", etaDays: fb.etaDays };
-        }
-      }
+      const dry = computeQuote({ lines: inputLines });
+      const resolved = await resolveShipping({
+        state: body.state,
+        lga: body.lga,
+        netSubtotalKobo: dry.subtotalKobo - dry.bulkDiscountKobo,
+      });
+      shippingKobo = resolved.shippingKobo;
+      freeShippingEligible = resolved.freeShippingEligible;
+      if (resolved.zone) shippingZoneInfo = resolved.zone;
     }
 
     // Coupon

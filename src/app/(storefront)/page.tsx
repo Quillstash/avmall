@@ -13,7 +13,7 @@ import { ProductCard } from "@/components/storefront/product-card";
 import { NewsletterSignup } from "@/components/storefront/newsletter-signup";
 import { listProducts, listStoreCategories } from "@/lib/data/products";
 import { getStorefrontStoreId } from "@/lib/store";
-import { SITE } from "@/lib/site";
+import { getSiteSettings, storeWaLink } from "@/lib/data/settings";
 
 // Live product data — revalidate every 5 min so first request after a cold
 // Neon wake-up isn't a hard prerender failure during build.
@@ -21,7 +21,7 @@ export const revalidate = 300;
 export const dynamic = "force-dynamic";
 
 const TRUST_ITEMS = [
-  { t: "Same-day Lagos", s: "Order before 1pm" },
+  { t: "Same-day Zaria", s: "Order before 1pm" },
   { t: "Pay your way", s: "Nuqood · transfer · POS · cash" },
   { t: "14-day returns", s: "Free pickup" },
   { t: "Negotiate on WhatsApp", s: "For bulk orders, with our AI" },
@@ -29,10 +29,21 @@ const TRUST_ITEMS = [
 
 export default async function HomePage() {
   const storeId = await getStorefrontStoreId();
-  const [all, categories] = await Promise.all([
+  // Support number + homepage copy are admin-editable at /admin/settings.
+  const settings = await getSiteSettings();
+  const [all, featuredProducts, categories] = await Promise.all([
     listProducts({
       limit: 8,
       featuredFirst: true,
+      ...(storeId ? { storeId } : {}),
+    }),
+    // All products the admin flagged "featured" — powers the hero spotlight and
+    // the scalable Featured grid below. Marked via the product editor's
+    // "Featured" toggle.
+    listProducts({
+      featuredOnly: true,
+      featuredFirst: true,
+      limit: 12,
       ...(storeId ? { storeId } : {}),
     }),
     listStoreCategories(storeId ?? undefined),
@@ -41,7 +52,12 @@ export default async function HomePage() {
   // Only show a separate bestsellers row when there are enough products that it
   // wouldn't just repeat the new-arrivals grid.
   const bestsellers = all.length > 4 ? all.slice(4, 8) : [];
-  const featured = all[0] ?? null;
+  // Hero spotlights the top featured product; fall back to the newest product
+  // when nothing is featured yet.
+  const featured = featuredProducts[0] ?? all[0] ?? null;
+  // The Featured grid shows the remaining featured products (the hero already
+  // spotlights the first), so every featured product appears once.
+  const featuredGrid = featuredProducts.slice(1);
   // Total published products in this store = sum of its category counts.
   const productCount = categories.reduce((sum, c) => sum + c.count, 0);
   // Where the "shop" CTAs point — the store's first category, else search.
@@ -60,7 +76,7 @@ export default async function HomePage() {
           we&apos;ll help you find what you need.
         </p>
         <a
-          href={`https://wa.me/${SITE.whatsappNumber.replace(/\D/g, "")}`}
+          href={storeWaLink(settings.whatsapp)}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -86,21 +102,27 @@ export default async function HomePage() {
               <br className="hidden sm:inline" /> shipped today.
             </h1>
             <p className="text-base leading-relaxed text-fg-muted max-w-md mb-7">
-              Same-day Lagos dispatch. 14-day returns. Pay how you want — Nuqood, transfer,
+              Same-day Zaria dispatch. 14-day returns. Pay how you want — Nuqood, transfer,
               POS or cash.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href={browseHref}>
                 <Button size="lg">Shop the catalogue</Button>
               </Link>
-              <Button size="lg" variant="secondary" className="bg-transparent">
-                <MessageCircle className="size-4" /> Chat with us
-              </Button>
+              <a
+                href={storeWaLink(settings.whatsapp)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button size="lg" variant="secondary" className="bg-transparent">
+                  <MessageCircle className="size-4" /> Chat with us
+                </Button>
+              </a>
             </div>
             <div className="mt-7 flex flex-wrap gap-7 text-sm text-fg-muted">
               {[
                 `${productCount} ${productCount === 1 ? "product" : "products"} in stock`,
-                "Same-day Lagos",
+                "Same-day Zaria",
                 "14-day returns",
               ].map((s) => (
                 <span key={s} className="inline-flex items-center gap-1.5">
@@ -198,6 +220,19 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Featured — every product the admin flagged "Featured". Scales to any
+          count via the product grid. */}
+      {featuredGrid.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
+          <SectionHead eyebrow="Handpicked" title="Featured products" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
+            {featuredGrid.map((p, i) => (
+              <ProductCard key={p.id} product={p} priority={i < 4} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* New arrivals */}
       <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
         <SectionHead
@@ -220,15 +255,14 @@ export default async function HomePage() {
               Buying for your shop?
             </div>
             <div className="font-display text-xl lg:text-2xl font-semibold leading-tight tracking-tight">
-              Wholesale pricing, negotiated on WhatsApp.
+              {settings.wholesaleTitle}
             </div>
             <p className="text-sm text-fg-muted mt-2 max-w-xl">
-              Tiered bulk discounts, split payments, dedicated account manager — chat with
-              us to get a quote for your shop.
+              {settings.wholesaleSubtext}
             </p>
           </div>
           <a
-            href={`https://wa.me/${SITE.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Hi, I'm interested in wholesale pricing for my shop.")}`}
+            href={storeWaLink(settings.whatsapp, "Hi, I'm interested in wholesale pricing for my shop.")}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0"
@@ -260,7 +294,7 @@ export default async function HomePage() {
       <section className="mx-auto max-w-7xl px-4 lg:px-6 pt-16 lg:pt-24">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           {[
-            { icon: Truck, t: "Fast delivery", s: "24h Lagos · 2–5d nationwide" },
+            { icon: Truck, t: "Fast delivery", s: "24h Zaria · 2–5d nationwide" },
             { icon: Shield, t: "Secure checkout", s: "Nuqood · transfer · POS" },
             { icon: Package, t: "Easy returns", s: "14 days, no questions" },
             { icon: MessageCircle, t: "Real humans", s: "WhatsApp 8am–9pm" },

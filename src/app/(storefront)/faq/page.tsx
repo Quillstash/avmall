@@ -36,7 +36,7 @@ const SECTIONS = [
     items: [
       {
         q: "What payment methods do you accept?",
-        a: "Card payments (Visa, Mastercard, Verve) via Nuqood, direct bank transfer, POS on delivery (Lagos only), and cash on delivery (Lagos only).",
+        a: "Card payments (Visa, Mastercard, Verve) via Nuqood, direct bank transfer, POS on delivery (Zaria only), and cash on delivery (Zaria only).",
       },
       {
         q: "Is paying online safe?",
@@ -53,7 +53,7 @@ const SECTIONS = [
     items: [
       {
         q: "How quickly will I get my order?",
-        a: "Same-day in Lagos if you order before 1pm. 24 hours for other Lagos zones. 2–5 working days nationwide. Detail on the shipping page.",
+        a: "Same-day in Zaria if you order before 1pm. 24 hours for other Zaria zones. 2–5 working days nationwide. Detail on the shipping page.",
       },
       {
         q: "Can I track my order?",
@@ -70,7 +70,7 @@ const SECTIONS = [
     items: [
       {
         q: "What's your return policy?",
-        a: "14 days, no questions, free pickup in Lagos. Some items are final sale (opened beauty, perishables, bespoke). Full detail on the returns page.",
+        a: "14 days, no questions, free pickup in Zaria. Some items are final sale (opened beauty, perishables, bespoke). Full detail on the returns page.",
       },
       {
         q: "What if my item is damaged?",

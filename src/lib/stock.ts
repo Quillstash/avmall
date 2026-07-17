@@ -182,6 +182,40 @@ export async function consumeReservations(
 }
 
 /**
+ * Directly adjust committed (already-sold) stock — for editing an order whose
+ * reservations were consumed at ship/deliver, so its units live in `on_hand`,
+ * not `reserved`.
+ *
+ *   soldDelta > 0  → more units left the shelf (on_hand ↓)  e.g. qty increased
+ *   soldDelta < 0  → units came back to the shelf (on_hand ↑) e.g. qty decreased / line removed
+ *
+ * Locks the (store, variant) row. Throws StockUnavailableError if a positive
+ * delta exceeds on_hand. No-ops when the variant isn't stocked at the store.
+ */
+export async function adjustCommittedStock(
+  tx: Prisma.TransactionClient,
+  storeId: string,
+  variantId: string,
+  soldDelta: number,
+): Promise<void> {
+  if (soldDelta === 0) return;
+  const rows = await tx.$queryRaw<{ on_hand: number }[]>`
+    SELECT on_hand FROM store_stock
+    WHERE store_id = ${storeId}::uuid AND variant_id = ${variantId}::uuid
+    FOR UPDATE
+  `;
+  if (rows.length === 0) return; // not stocked here — nothing to reconcile
+  if (soldDelta > 0 && rows[0]!.on_hand < soldDelta) {
+    throw new StockUnavailableError(variantId, rows[0]!.on_hand, soldDelta);
+  }
+  await tx.storeStock.update({
+    where: { storeId_variantId: { storeId, variantId } },
+    // decrement by a negative delta == increment (units returning to shelf)
+    data: { onHand: { decrement: soldDelta } },
+  });
+}
+
+/**
  * Sweep expired reservations. Called lazily by reserveStock() and by the
  * BullMQ cron. Safe to run manually.
  */

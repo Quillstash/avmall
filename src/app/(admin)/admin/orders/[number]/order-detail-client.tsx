@@ -56,6 +56,9 @@ import {
 } from "@/components/ui/dialog";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { PaymentLedger } from "@/components/admin/payment-ledger";
 import { RecordPaymentModal } from "@/components/admin/record-payment-modal";
 import { InstallmentPanel } from "@/components/admin/installment-panel";
@@ -212,6 +215,10 @@ export function OrderDetailClient({ params, order }: PageProps) {
   );
   const canUpdateStatus =
     order.status !== "cancelled" && order.status !== "delivered";
+  // Field edits (lines, address, discount) are allowed on every order except
+  // cancelled ones — delivered orders stay editable so staff can correct a
+  // recorded sale; stock + totals reconcile server-side.
+  const canEditFields = order.status !== "cancelled";
   const [statusOpen, setStatusOpen] = React.useState(false);
   const [statusChoice, setStatusChoice] = React.useState("");
   React.useEffect(() => {
@@ -232,6 +239,23 @@ export function OrderDetailClient({ params, order }: PageProps) {
   const [editQtyValue, setEditQtyValue] = React.useState(1);
   const [removeTarget, setRemoveTarget] = React.useState<LineItem | null>(null);
   const [lineActionLoading, setLineActionLoading] = React.useState(false);
+
+  // Edit contact + delivery address
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [detailsSaving, setDetailsSaving] = React.useState(false);
+  const [detailsForm, setDetailsForm] = React.useState({
+    shipName: order.shipping.name,
+    shipPhone: order.shipping.phone,
+    shipLine1: order.shipping.line1,
+    shipLine2: order.shipping.line2 ?? "",
+    shipCity: order.shipping.city,
+    shipState: order.shipping.state,
+  });
+
+  // Edit manual discount (kobo)
+  const [discountOpen, setDiscountOpen] = React.useState(false);
+  const [discountSaving, setDiscountSaving] = React.useState(false);
+  const [discountKobo, setDiscountKobo] = React.useState<number | null>(null);
 
   // Add item dialog
   interface ProductHit {
@@ -325,6 +349,60 @@ export function OrderDetailClient({ params, order }: PageProps) {
     } catch { toast.error("Network error"); }
     finally { setLineActionLoading(false); }
   }
+
+  function openDetails() {
+    // Reseed from the latest order props (in case of a prior edit + refresh).
+    setDetailsForm({
+      shipName: order.shipping.name,
+      shipPhone: order.shipping.phone,
+      shipLine1: order.shipping.line1,
+      shipLine2: order.shipping.line2 ?? "",
+      shipCity: order.shipping.city,
+      shipState: order.shipping.state,
+    });
+    setDetailsOpen(true);
+  }
+
+  async function submitDetails() {
+    setDetailsSaving(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/details`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(detailsForm),
+      });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json?.error?.message ?? "Could not save details"); return; }
+      toast.success("Details updated");
+      setDetailsOpen(false);
+      router.refresh();
+    } catch { toast.error("Network error"); }
+    finally { setDetailsSaving(false); }
+  }
+
+  function openDiscount() {
+    setDiscountKobo(order.totals.manualDiscountKobo || null);
+    setDiscountOpen(true);
+  }
+
+  async function submitDiscount() {
+    setDiscountSaving(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/discount`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manualDiscountKobo: discountKobo ?? 0 }),
+      });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json?.error?.message ?? "Could not apply discount"); return; }
+      if (json.data?.capped) toast.info("Discount capped to the order total");
+      else toast.success("Manual discount updated");
+      setDiscountOpen(false);
+      router.refresh();
+    } catch { toast.error("Network error"); }
+    finally { setDiscountSaving(false); }
+  }
+
   const router = useRouter();
 
   // Internal notes
@@ -568,6 +646,29 @@ export function OrderDetailClient({ params, order }: PageProps) {
       />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 lg:p-8 max-w-[1500px] mx-auto pb-20">
+          {order.returnState !== "none" && order.returns.length > 0 && (
+            <div className="mb-5 rounded-lg border border-danger/30 bg-danger-bg/50 px-4 py-3">
+              <div className="text-sm font-semibold text-danger mb-1.5">
+                {order.returnState === "full"
+                  ? "This order was fully returned"
+                  : "This order was partially returned"}
+              </div>
+              <div className="flex flex-col gap-1">
+                {order.returns.map((r) => (
+                  <Link
+                    key={r.number}
+                    href={`/admin/returns/${r.number}`}
+                    className="text-xs text-fg-muted hover:text-fg inline-flex flex-wrap items-center gap-2"
+                  >
+                    <span className="font-mono font-semibold text-fg">{r.number}</span>
+                    <span className="uppercase tracking-wide">{r.status}</span>
+                    {r.refundKobo > 0 && <span>· refund {formatMoney(r.refundKobo)}</span>}
+                    {r.reason && <span className="text-fg-subtle">· {r.reason}</span>}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Header */}
           <div className="flex flex-wrap items-start gap-4 mb-6 lg:mb-8">
             <div className="flex-1 min-w-0">
@@ -577,6 +678,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
                 </h1>
                 <OrderStatusPill status={order.status} />
                 <PaymentStatusPill status={order.paymentStatus} />
+                {order.returnState !== "none" && (
+                  <span className="inline-flex items-center text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-danger-bg text-danger">
+                    {order.returnState === "full" ? "Returned" : "Partially returned"}
+                  </span>
+                )}
                 {(() => {
                   const meta = SOURCE_META[sourceValue] ?? {
                     label: sourceValue,
@@ -734,7 +840,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={order.status === "cancelled" || order.status === "delivered"}
+                    disabled={order.status === "cancelled"}
                     onClick={() => setAddItemOpen(true)}
                   >
                     <Plus className="size-3.5" /> Add item
@@ -810,7 +916,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                disabled={order.status === "cancelled" || order.status === "delivered"}
+                                disabled={order.status === "cancelled"}
                                 onClick={() => {
                                   setTimeout(() => {
                                     setEditQtyTarget(it);
@@ -822,7 +928,7 @@ export function OrderDetailClient({ params, order }: PageProps) {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 destructive
-                                disabled={order.status === "cancelled" || order.status === "delivered" || orderItems.length <= 1}
+                                disabled={order.status === "cancelled" || orderItems.length <= 1}
                                 onClick={() => {
                                   setTimeout(() => {
                                     setRemoveTarget(it);
@@ -831,12 +937,12 @@ export function OrderDetailClient({ params, order }: PageProps) {
                               >
                                 <Trash2 className="size-3.5" /> Remove item
                               </DropdownMenuItem>
-                              {(order.status === "cancelled" || order.status === "delivered") && (
+                              {order.status === "cancelled" && (
                                 <>
                                   <DropdownMenuSeparator />
                                   <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-fg-muted">
                                     <LockKeyhole className="size-3 flex-shrink-0" />
-                                    Items locked on {order.status} orders
+                                    Items locked on cancelled orders
                                   </div>
                                 </>
                               )}
@@ -876,10 +982,32 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     )}
                     {manualDiscount > 0 && (
                       <TotalRow
-                        label="Manual discount"
+                        label={
+                          <span className="inline-flex items-center gap-1.5">
+                            Manual discount
+                            {canEditFields && (
+                              <button
+                                onClick={openDiscount}
+                                className="text-[11px] font-semibold text-brand-primary hover:underline"
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </span>
+                        }
                         value={`−${formatMoney(manualDiscount)}`}
                         accent
                       />
+                    )}
+                    {manualDiscount === 0 && canEditFields && (
+                      <div className="flex justify-end pt-0.5">
+                        <button
+                          onClick={openDiscount}
+                          className="text-xs font-semibold text-brand-primary hover:underline"
+                        >
+                          + Add manual discount
+                        </button>
+                      </div>
                     )}
                     <TotalRow
                       label={
@@ -1126,9 +1254,14 @@ export function OrderDetailClient({ params, order }: PageProps) {
               <Card
                 title="Shipping address"
                 action={
-                  <button className="text-xs font-semibold text-brand-primary hover:underline">
-                    Edit
-                  </button>
+                  canEditFields ? (
+                    <button
+                      onClick={openDetails}
+                      className="text-xs font-semibold text-brand-primary hover:underline"
+                    >
+                      Edit
+                    </button>
+                  ) : undefined
                 }
               >
                 <div className="text-sm leading-relaxed">
@@ -1434,6 +1567,106 @@ export function OrderDetailClient({ params, order }: PageProps) {
             >
               {addItemLoading && <Loader2 className="size-4 animate-spin" />}
               Add to order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit contact + delivery address */}
+      <Dialog open={detailsOpen} onOpenChange={(o) => !detailsSaving && setDetailsOpen(o)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit contact &amp; delivery</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-2">
+            <Field id="d-name" label="Recipient name" required>
+              <Input
+                id="d-name"
+                value={detailsForm.shipName}
+                onChange={(e) => setDetailsForm((f) => ({ ...f, shipName: e.target.value }))}
+              />
+            </Field>
+            <Field id="d-phone" label="Phone" required>
+              <Input
+                id="d-phone"
+                inputMode="tel"
+                placeholder="0803 000 0000"
+                value={detailsForm.shipPhone}
+                onChange={(e) => setDetailsForm((f) => ({ ...f, shipPhone: e.target.value }))}
+              />
+            </Field>
+            <Field id="d-line1" label="Address" required>
+              <Input
+                id="d-line1"
+                value={detailsForm.shipLine1}
+                onChange={(e) => setDetailsForm((f) => ({ ...f, shipLine1: e.target.value }))}
+              />
+            </Field>
+            <Field id="d-line2" label="Address line 2" optional>
+              <Input
+                id="d-line2"
+                value={detailsForm.shipLine2}
+                onChange={(e) => setDetailsForm((f) => ({ ...f, shipLine2: e.target.value }))}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field id="d-city" label="City" required>
+                <Input
+                  id="d-city"
+                  value={detailsForm.shipCity}
+                  onChange={(e) => setDetailsForm((f) => ({ ...f, shipCity: e.target.value }))}
+                />
+              </Field>
+              <Field id="d-state" label="State" required>
+                <Input
+                  id="d-state"
+                  value={detailsForm.shipState}
+                  onChange={(e) => setDetailsForm((f) => ({ ...f, shipState: e.target.value }))}
+                />
+              </Field>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setDetailsOpen(false)} disabled={detailsSaving}>
+              Cancel
+            </Button>
+            <Button onClick={submitDetails} disabled={detailsSaving}>
+              {detailsSaving && <Loader2 className="size-4 animate-spin" />}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit manual discount */}
+      <Dialog open={discountOpen} onOpenChange={(o) => !discountSaving && setDiscountOpen(o)}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Manual discount</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-2">
+            <Field
+              id="md-amount"
+              label="Discount amount"
+              hint="Applied to the product total, before shipping."
+            >
+              <CurrencyInput
+                id="md-amount"
+                {...(discountKobo != null ? { valueKobo: discountKobo } : {})}
+                onValueChange={setDiscountKobo}
+              />
+            </Field>
+            <p className="text-xs text-fg-subtle">
+              Set to ₦0 to clear. Amounts above the order total are capped automatically.
+            </p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setDiscountOpen(false)} disabled={discountSaving}>
+              Cancel
+            </Button>
+            <Button onClick={submitDiscount} disabled={discountSaving}>
+              {discountSaving && <Loader2 className="size-4 animate-spin" />}
+              Apply
             </Button>
           </DialogFooter>
         </DialogContent>

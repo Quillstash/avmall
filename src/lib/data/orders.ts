@@ -53,6 +53,16 @@ export interface OrderDetail {
     outstandingKobo: number;
   };
   appliedCouponCode: string | null;
+  /** Derived from linked returns — drives the Returned / Partially returned badge. */
+  returnState: "none" | "partial" | "full";
+  returns: {
+    number: string;
+    status: string;
+    refundKobo: number;
+    fullyReturned: boolean;
+    reason: string;
+    createdAt: Date;
+  }[];
   lines: {
     id: string;
     name: string;
@@ -111,6 +121,10 @@ export async function listAdminOrders(storeId?: string | null): Promise<OrderLis
       customer: { select: { name: true, phone: true, email: true } },
       lines: { select: { id: true } },
       createdBy: { select: { name: true } },
+      returns: {
+        where: { status: { not: "rejected" } },
+        select: { fullyReturned: true },
+      },
     },
   });
 
@@ -130,6 +144,12 @@ export async function listAdminOrders(storeId?: string | null): Promise<OrderLis
       source: o.source as OrderListRow["source"],
       createdAt: formatTimestamp(o.createdAt),
       createdBy: o.createdBy?.name ?? "Self-serve",
+      returnState:
+        o.returns.length === 0
+          ? ("none" as const)
+          : o.returns.some((r) => r.fullyReturned)
+            ? ("full" as const)
+            : ("partial" as const),
     };
   });
 }
@@ -175,12 +195,27 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
         orderBy: { createdAt: "asc" },
       },
       installmentPlan: true,
+      returns: {
+        orderBy: { createdAt: "desc" },
+        include: { lines: { select: { quantity: true } } },
+      },
     },
   });
   if (!o) return null;
 
   const total = Number(o.totalKobo);
   const paid = Number(o.paidKobo);
+
+  // Returns that landed on this order (anything not rejected). Drives the
+  // "Returned / Partially returned" badge — a derived view, so the order status
+  // machine stays untouched.
+  const liveReturns = o.returns.filter((r) => r.status !== "rejected");
+  const returnState: "none" | "partial" | "full" =
+    liveReturns.length === 0
+      ? "none"
+      : liveReturns.some((r) => r.fullyReturned)
+        ? "full"
+        : "partial";
 
   return {
     id: o.id,
@@ -216,6 +251,15 @@ export async function getAdminOrder(number: string): Promise<OrderDetail | null>
       outstandingKobo: total - paid,
     },
     appliedCouponCode: o.appliedCouponCode,
+    returnState,
+    returns: o.returns.map((r) => ({
+      number: r.number,
+      status: r.status,
+      refundKobo: Number(r.refundKobo),
+      fullyReturned: r.fullyReturned,
+      reason: r.reason,
+      createdAt: r.createdAt,
+    })),
     lines: o.lines.map((l) => ({
       id: l.id,
       name: l.nameSnapshot,
@@ -269,7 +313,9 @@ export interface CustomerOrderSummary {
 }
 
 export async function listCustomerOrders(customerId: string): Promise<CustomerOrderSummary[]> {
-  if (!hasDatabase) {
+  // No customer (guest) → no orders. Guards against passing an empty string to
+  // the uuid `customerId` column, which Prisma rejects with a hard error.
+  if (!hasDatabase || !customerId) {
     return [];
   }
   const rows = await db.order.findMany({

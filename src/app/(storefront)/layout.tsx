@@ -5,6 +5,7 @@ import { PaymentRecovery } from "@/components/storefront/payment-recovery";
 import { SITE } from "@/lib/site";
 import { listActiveStores, getStorefrontStore } from "@/lib/store";
 import { listStoreCategories } from "@/lib/data/products";
+import { getStoreContact, storeWaLink } from "@/lib/data/settings";
 
 // The layout reads the active store (cookie/header) to render per-store nav +
 // footer categories, so it must render dynamically — never statically cached,
@@ -52,6 +53,9 @@ export default async function StorefrontLayout({ children }: { children: React.R
   ]);
   // Nav categories are fetched per store — each store shows only its own.
   const categories = await listStoreCategories(current?.id ?? undefined);
+  // Support/WhatsApp number is admin-editable at /admin/settings.
+  const contact = await getStoreContact();
+  const whatsappHref = storeWaLink(contact.whatsapp);
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -64,6 +68,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
         stores={stores}
         currentStoreSlug={current?.slug ?? null}
         categories={categories}
+        whatsappHref={whatsappHref}
       />
       <PaymentRecovery />
       <main className="flex-1">{children}</main>
@@ -72,6 +77,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
         categories={categories}
         stores={stores}
         currentStoreSlug={current?.slug ?? null}
+        whatsappHref={whatsappHref}
       />
       <Toaster />
       {/* D-Zero AI chat widget. The init queue lets calls fire before the embed

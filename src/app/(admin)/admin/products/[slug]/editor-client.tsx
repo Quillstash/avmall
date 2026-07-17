@@ -62,7 +62,7 @@ export function ProductEditorClient({ product, audit, categories, history, activ
   const [saleKobo, setSaleKobo] = React.useState<number | null>(product.sale ?? null);
   const [costKobo, setCostKobo] = React.useState<number | null>(product.cost);
   const [moq, setMoq] = React.useState(product.moq ?? 1);
-  const [tags, setTags] = React.useState<string[]>(["handmade", "lagos"]);
+  const [tags, setTags] = React.useState<string[]>(["handmade", "zaria"]);
   const [preorder, setPreorder] = React.useState(!!product.preorder);
   const [featured, setFeatured] = React.useState(!!product.featured);
   const [published, setPublished] = React.useState(product.published ?? true);
@@ -292,7 +292,7 @@ export function ProductEditorClient({ product, audit, categories, history, activ
                       value={tags}
                       onChange={setTags}
                       lowercase
-                      suggestions={["handmade", "small-batch", "lagos", "vegan", "organic"]}
+                      suggestions={["handmade", "small-batch", "zaria", "vegan", "organic"]}
                     />
                   </Field>
                 </div>

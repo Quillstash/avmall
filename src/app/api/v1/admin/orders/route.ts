@@ -122,8 +122,8 @@ export async function POST(req: NextRequest) {
 
     // Defaults so staff don't have to retype "Walk-in" on every order.
     const shipLine1 = body.shipping.line1?.trim() || "Walk-in (in-store)";
-    const shipCity = body.shipping.city?.trim() || "Lagos";
-    const shipState = body.shipping.state?.trim() || "Lagos";
+    const shipCity = body.shipping.city?.trim() || "Zaria";
+    const shipState = body.shipping.state?.trim() || "Kaduna";
     const shipPhone = normalizedPhone ?? "Walk-in";
 
     // Hydrate products by slug. Mock-data slugs match DB slugs, so the form's

@@ -36,8 +36,18 @@ export function CategorySidebar() {
   }
 
   function applyPrice() {
-    setParam("min", minDraft.trim() || null);
-    setParam("max", maxDraft.trim() || null);
+    // Set BOTH bounds in one navigation. Two separate setParam() calls each
+    // rebuild the query from the (stale) current searchParams and push, so the
+    // second push clobbers the first and one bound is silently dropped — which
+    // is why the price filter never applied.
+    const next = new URLSearchParams(searchParams.toString());
+    const min = minDraft.trim();
+    const max = maxDraft.trim();
+    if (min) next.set("min", min);
+    else next.delete("min");
+    if (max) next.set("max", max);
+    else next.delete("max");
+    router.push(`${pathname}?${next.toString()}`);
   }
 
   function clearAll() {

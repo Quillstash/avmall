@@ -33,17 +33,17 @@ model Store {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  staff        User[]
-  stock        StoreStock[]
-  orders       Order[]
-  reservations StockReservation[]
-  products     Product[]
-  customers    Customer[]
-  invitations  StaffInvitation[]
+  staff            User[]
+  stock            StoreStock[]
+  orders           Order[]
+  reservations     StockReservation[]
+  products         Product[]
+  customers        Customer[]
+  invitations      StaffInvitation[]
   pendingCheckouts PendingCheckout[]
-  expenses     Expense[]
-  expenseTypes ExpenseType[]
-  bumpaSnapshots BumpaSalesSnapshot[]
+  expenses         Expense[]
+  expenseTypes     ExpenseType[]
+  bumpaSnapshots   BumpaSalesSnapshot[]
 
   @@map("stores")
 }
@@ -122,34 +122,34 @@ model Role {
 }
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique
-  name          String
-  passwordHash  String    @map("password_hash")
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  name         String
+  passwordHash String    @map("password_hash")
   /// Legacy coarse role enum — kept as a fallback. Permissions resolve from
   /// roleId (the dynamic Role) when set, which it is for all migrated users.
-  role          StaffRole
-  roleId        String?   @map("role_id") @db.Uuid
-  active        Boolean   @default(true)
+  role         StaffRole
+  roleId       String?   @map("role_id") @db.Uuid
+  active       Boolean   @default(true)
   /// Home store. null = HQ / all-stores (e.g. super_admin). The POS sells from
   /// this store; cross-store visibility is gated by the stores.view_all perm.
-  storeId       String?   @map("store_id") @db.Uuid
-  totpSecret    String?   @map("totp_secret")
-  totpEnabled   Boolean   @default(false) @map("totp_enabled")
-  lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  storeId      String?   @map("store_id") @db.Uuid
+  totpSecret   String?   @map("totp_secret")
+  totpEnabled  Boolean   @default(false) @map("totp_enabled")
+  lastSeenAt   DateTime? @map("last_seen_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  assignedRole      Role?           @relation(fields: [roleId], references: [id])
-  store             Store?          @relation(fields: [storeId], references: [id])
-  ordersCreated     Order[]         @relation("OrderCreatedBy")
-  paymentsRecorded  OrderPayment[]  @relation("PaymentRecordedBy")
+  assignedRole            Role?             @relation(fields: [roleId], references: [id])
+  store                   Store?            @relation(fields: [storeId], references: [id])
+  ordersCreated           Order[]           @relation("OrderCreatedBy")
+  paymentsRecorded        OrderPayment[]    @relation("PaymentRecordedBy")
   installmentPlansCreated InstallmentPlan[] @relation("InstallmentPlanCreatedBy")
-  notes             OrderNote[]
-  auditLogs         AuditLog[]
-  invitationsSent   StaffInvitation[] @relation("StaffInvitedBy")
-  passwordResets    PasswordReset[]
-  expensesCreated   Expense[]         @relation("ExpenseCreatedBy")
+  notes                   OrderNote[]
+  auditLogs               AuditLog[]
+  invitationsSent         StaffInvitation[] @relation("StaffInvitedBy")
+  passwordResets          PasswordReset[]
+  expensesCreated         Expense[]         @relation("ExpenseCreatedBy")
 
   @@index([storeId])
   @@index([roleId])
@@ -159,25 +159,25 @@ model User {
 // ─── Customers ───────────────────────────────────────────────────────────
 
 model Customer {
-  id            String    @id @default(uuid()) @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
   /// Owning store — customers are isolated per store.
-  storeId       String    @map("store_id") @db.Uuid
+  storeId         String   @map("store_id") @db.Uuid
   /// E.164 — always stored with +234 prefix. See lib/phone.ts. Unique per
   /// store (the same person can exist independently in two stores).
-  phone         String
-  email         String?
+  phone           String
+  email           String?
   /// bcrypt hash for email+password sign-in. Null for OTP-only customers.
-  passwordHash  String?   @map("password_hash")
+  passwordHash    String?  @map("password_hash")
   /// True once the customer has confirmed their email with a code.
-  emailVerified Boolean   @default(false) @map("email_verified")
-  name          String
-  segments      String[]  @default([])
-  blacklisted   Boolean   @default(false)
-  blacklistReason String? @map("blacklist_reason")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  emailVerified   Boolean  @default(false) @map("email_verified")
+  name            String
+  segments        String[] @default([])
+  blacklisted     Boolean  @default(false)
+  blacklistReason String?  @map("blacklist_reason")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  store         Store     @relation(fields: [storeId], references: [id])
+  store         Store             @relation(fields: [storeId], references: [id])
   addresses     CustomerAddress[]
   orders        Order[]
   returns       Return[]
@@ -195,20 +195,20 @@ model Customer {
 }
 
 model CustomerAddress {
-  id          String   @id @default(uuid()) @db.Uuid
-  customerId  String   @map("customer_id") @db.Uuid
-  label       String   // "Home", "Office"
-  recipient   String
-  phone       String
-  line1       String
-  line2       String?
-  city        String   // LGA
-  state       String   // Nigerian state
-  isDefault   Boolean  @default(false) @map("is_default")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  label      String // "Home", "Office"
+  recipient  String
+  phone      String
+  line1      String
+  line2      String?
+  city       String // LGA
+  state      String // Nigerian state
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@map("customer_addresses")
@@ -225,63 +225,63 @@ model Category {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  products  Product[]
+  products Product[]
 
   @@map("categories")
 }
 
 model Product {
-  id              String    @id @default(uuid()) @db.Uuid
-  slug            String    @unique
-  name            String
-  brand           String
-  shortDesc       String    @map("short_desc")
-  longDesc        String    @default("") @map("long_desc")
-  categoryId      String    @map("category_id") @db.Uuid
+  id                 String    @id @default(uuid()) @db.Uuid
+  slug               String    @unique
+  name               String
+  brand              String
+  shortDesc          String    @map("short_desc")
+  longDesc           String    @default("") @map("long_desc")
+  categoryId         String    @map("category_id") @db.Uuid
   /// Owning store — products are isolated per store.
-  storeId         String    @map("store_id") @db.Uuid
+  storeId            String    @map("store_id") @db.Uuid
   /// Display tone hex / gradient for the imagery backdrop.
-  themeBg         String?   @map("theme_bg")
+  themeBg            String?   @map("theme_bg")
   /// Money — kobo. Use BigInt to support items > ~21M Naira.
-  priceKobo       BigInt    @map("price_kobo")
-  saleKobo        BigInt?   @map("sale_kobo")
-  saleActive      Boolean   @default(false) @map("sale_active")
+  priceKobo          BigInt    @map("price_kobo")
+  saleKobo           BigInt?   @map("sale_kobo")
+  saleActive         Boolean   @default(false) @map("sale_active")
   /// Internal-audit cost of goods, in kobo. Never exposed on the storefront.
   /// Profit displays use this to compute margin.
-  costPriceKobo   BigInt    @default(0) @map("cost_price_kobo")
+  costPriceKobo      BigInt    @default(0) @map("cost_price_kobo")
   /// Allow customers to propose a price via the AI / WhatsApp.
-  negotiate       Boolean   @default(false)
+  negotiate          Boolean   @default(false)
   /// Optional per-product negotiation cap. Either a flat kobo floor OR a max
   /// % off the retail price. Both null = fall back to AiSettings global rule.
-  negotiateFloorKobo BigInt? @map("negotiate_floor_kobo")
-  negotiateMaxPct   Int?    @map("negotiate_max_pct")
+  negotiateFloorKobo BigInt?   @map("negotiate_floor_kobo")
+  negotiateMaxPct    Int?      @map("negotiate_max_pct")
   /// Variant option-group labels. Null when the product has only the default
   /// variant. Up to two groups (e.g. "Size" × "Color").
-  option1Name     String?   @map("option1_name")
-  option2Name     String?   @map("option2_name")
+  option1Name        String?   @map("option1_name")
+  option2Name        String?   @map("option2_name")
   /// Pre-order only — won't reserve regular stock.
-  preorder        Boolean   @default(false)
-  moq             Int?
-  eta             String?
+  preorder           Boolean   @default(false)
+  moq                Int?
+  eta                String?
   /// Soft delete — archived products are hidden from the storefront but
   /// remain on past orders.
-  archivedAt      DateTime? @map("archived_at") @db.Timestamptz
-  published       Boolean   @default(false)
-  featured        Boolean   @default(false)
+  archivedAt         DateTime? @map("archived_at") @db.Timestamptz
+  published          Boolean   @default(false)
+  featured           Boolean   @default(false)
   /// Free-form tags ("handmade", "small-batch").
-  tags            String[]  @default([])
+  tags               String[]  @default([])
   /// SEO meta description (falls back to shortDesc).
-  metaDescription String?   @map("meta_description")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  metaDescription    String?   @map("meta_description")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  category        Category         @relation(fields: [categoryId], references: [id])
-  store           Store            @relation(fields: [storeId], references: [id])
-  variants        ProductVariant[]
-  images          ProductImage[]
-  bulkTiers       BulkTier[]
-  orderLines      OrderLine[]
-  stockReservations StockReservation[]
+  category           Category            @relation(fields: [categoryId], references: [id])
+  store              Store               @relation(fields: [storeId], references: [id])
+  variants           ProductVariant[]
+  images             ProductImage[]
+  bulkTiers          BulkTier[]
+  orderLines         OrderLine[]
+  stockReservations  StockReservation[]
   stockNotifications StockNotification[]
 
   @@index([categoryId])
@@ -292,25 +292,25 @@ model Product {
 }
 
 model ProductVariant {
-  id          String   @id @default(uuid()) @db.Uuid
-  productId   String   @map("product_id") @db.Uuid
-  label       String   // Composed display, e.g. "Small / Red"
-  sku         String   @unique
+  id           String    @id @default(uuid()) @db.Uuid
+  productId    String    @map("product_id") @db.Uuid
+  label        String // Composed display, e.g. "Small / Red"
+  sku          String    @unique
   /// Optional variant-specific override; null = inherit from product.
-  priceKobo   BigInt?  @map("price_kobo")
+  priceKobo    BigInt?   @map("price_kobo")
   /// Values for the parent product's option groups.
   /// option1Value matches Product.option1Name; option2Value matches option2Name.
-  option1Value String? @map("option1_value")
-  option2Value String? @map("option2_value")
-  position    Int      @default(0)
-  archivedAt  DateTime? @map("archived_at") @db.Timestamptz
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  option1Value String?   @map("option1_value")
+  option2Value String?   @map("option2_value")
+  position     Int       @default(0)
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
-  orderLines  OrderLine[]
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderLines        OrderLine[]
   stockReservations StockReservation[]
-  storeStock  StoreStock[]
+  storeStock        StoreStock[]
 
   @@index([productId])
   @@map("product_variants")
@@ -326,7 +326,7 @@ model ProductImage {
   isPrimary Boolean  @default(false) @map("is_primary")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@map("product_images")
@@ -338,16 +338,16 @@ enum BulkTierType {
 }
 
 model BulkTier {
-  id        String        @id @default(uuid()) @db.Uuid
-  productId String        @map("product_id") @db.Uuid
+  id        String       @id @default(uuid()) @db.Uuid
+  productId String       @map("product_id") @db.Uuid
   min       Int
   max       Int?
   type      BulkTierType
   /// Percent (0-100) when type=percentage, kobo per unit when type=fixed.
   value     Int
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
 
-  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@map("bulk_tiers")
@@ -362,20 +362,20 @@ enum StockReservationStatus {
 }
 
 model StockReservation {
-  id          String                  @id @default(uuid()) @db.Uuid
-  storeId     String                  @map("store_id") @db.Uuid
-  productId   String                  @map("product_id") @db.Uuid
-  variantId   String?                 @map("variant_id") @db.Uuid
-  orderId     String?                 @map("order_id") @db.Uuid
-  quantity    Int
-  expiresAt   DateTime                @map("expires_at") @db.Timestamptz
-  status      StockReservationStatus  @default(active)
-  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  id        String                 @id @default(uuid()) @db.Uuid
+  storeId   String                 @map("store_id") @db.Uuid
+  productId String                 @map("product_id") @db.Uuid
+  variantId String?                @map("variant_id") @db.Uuid
+  orderId   String?                @map("order_id") @db.Uuid
+  quantity  Int
+  expiresAt DateTime               @map("expires_at") @db.Timestamptz
+  status    StockReservationStatus @default(active)
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz
 
-  store       Store                   @relation(fields: [storeId], references: [id])
-  product     Product                 @relation(fields: [productId], references: [id])
-  variant     ProductVariant?         @relation(fields: [variantId], references: [id])
-  order       Order?                  @relation(fields: [orderId], references: [id])
+  store   Store           @relation(fields: [storeId], references: [id])
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+  order   Order?          @relation(fields: [orderId], references: [id])
 
   @@index([expiresAt, status])
   @@index([orderId])
@@ -414,51 +414,51 @@ enum OrderSource {
 }
 
 model Order {
-  id              String        @id @default(uuid()) @db.Uuid
+  id            String        @id @default(uuid()) @db.Uuid
   /// Customer-facing order number, AVM-YYYY-XXXXXXXX (Postgres sequence).
-  number          String        @unique
-  customerId      String?       @map("customer_id") @db.Uuid
+  number        String        @unique
+  customerId    String?       @map("customer_id") @db.Uuid
   /// Store the order belongs to (web: selected store; POS: operator's store).
-  storeId         String?       @map("store_id") @db.Uuid
-  status          OrderStatus   @default(pending)
-  paymentStatus   PaymentStatus @default(unpaid) @map("payment_status")
-  source          OrderSource
+  storeId       String?       @map("store_id") @db.Uuid
+  status        OrderStatus   @default(pending)
+  paymentStatus PaymentStatus @default(unpaid) @map("payment_status")
+  source        OrderSource
 
   // Shipping address snapshot (captured at order time so address edits later
   // don't rewrite history).
-  shipName        String        @map("ship_name")
-  shipPhone       String        @map("ship_phone")
-  shipLine1       String        @map("ship_line1")
-  shipLine2       String?       @map("ship_line2")
-  shipCity        String        @map("ship_city")
-  shipState       String        @map("ship_state")
-  shippingZoneId  String?       @map("shipping_zone_id") @db.Uuid
+  shipName       String  @map("ship_name")
+  shipPhone      String  @map("ship_phone")
+  shipLine1      String  @map("ship_line1")
+  shipLine2      String? @map("ship_line2")
+  shipCity       String  @map("ship_city")
+  shipState      String  @map("ship_state")
+  shippingZoneId String? @map("shipping_zone_id") @db.Uuid
 
   // Totals (kobo) — recomputed on every mutation; never trusted from client.
-  subtotalKobo     BigInt @default(0) @map("subtotal_kobo")
-  bulkDiscountKobo BigInt @default(0) @map("bulk_discount_kobo")
+  subtotalKobo       BigInt @default(0) @map("subtotal_kobo")
+  bulkDiscountKobo   BigInt @default(0) @map("bulk_discount_kobo")
   couponDiscountKobo BigInt @default(0) @map("coupon_discount_kobo")
   manualDiscountKobo BigInt @default(0) @map("manual_discount_kobo")
-  shippingKobo     BigInt @default(0) @map("shipping_kobo")
-  totalKobo        BigInt @default(0) @map("total_kobo")
-  paidKobo         BigInt @default(0) @map("paid_kobo")
+  shippingKobo       BigInt @default(0) @map("shipping_kobo")
+  totalKobo          BigInt @default(0) @map("total_kobo")
+  paidKobo           BigInt @default(0) @map("paid_kobo")
 
   appliedCouponCode String? @map("applied_coupon_code")
 
-  createdById     String?       @map("created_by_id") @db.Uuid
-  customerNote    String?       @map("customer_note")
+  createdById  String?   @map("created_by_id") @db.Uuid
+  customerNote String?   @map("customer_note")
   /// ISO from cart-quote — server validates totals before checkout.
-  quoteId         String?       @map("quote_id")
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz
-  shippedAt       DateTime?     @map("shipped_at") @db.Timestamptz
-  deliveredAt     DateTime?     @map("delivered_at") @db.Timestamptz
-  cancelledAt     DateTime?     @map("cancelled_at") @db.Timestamptz
+  quoteId      String?   @map("quote_id")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  shippedAt    DateTime? @map("shipped_at") @db.Timestamptz
+  deliveredAt  DateTime? @map("delivered_at") @db.Timestamptz
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz
 
-  customer        Customer?     @relation(fields: [customerId], references: [id])
-  store           Store?        @relation(fields: [storeId], references: [id])
-  createdBy       User?         @relation("OrderCreatedBy", fields: [createdById], references: [id])
-  shippingZone    ShippingZone? @relation(fields: [shippingZoneId], references: [id])
+  customer        Customer?          @relation(fields: [customerId], references: [id])
+  store           Store?             @relation(fields: [storeId], references: [id])
+  createdBy       User?              @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  shippingZone    ShippingZone?      @relation(fields: [shippingZoneId], references: [id])
   lines           OrderLine[]
   payments        OrderPayment[]
   reservations    StockReservation[]
@@ -476,26 +476,26 @@ model Order {
 }
 
 model OrderLine {
-  id           String  @id @default(uuid()) @db.Uuid
-  orderId      String  @map("order_id") @db.Uuid
-  productId    String  @map("product_id") @db.Uuid
-  variantId    String? @map("variant_id") @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
+  orderId          String   @map("order_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  variantId        String?  @map("variant_id") @db.Uuid
   /// Snapshotted at order time so future product edits don't rewrite history.
-  nameSnapshot    String @map("name_snapshot")
-  variantSnapshot String? @map("variant_snapshot")
-  skuSnapshot     String  @map("sku_snapshot")
-  quantity        Int
-  unitKobo        BigInt @map("unit_kobo")
+  nameSnapshot     String   @map("name_snapshot")
+  variantSnapshot  String?  @map("variant_snapshot")
+  skuSnapshot      String   @map("sku_snapshot")
+  quantity         Int
+  unitKobo         BigInt   @map("unit_kobo")
   /// Per-line discount from bulk tier.
-  bulkDiscountKobo BigInt @default(0) @map("bulk_discount_kobo")
-  bulkTierLabel   String? @map("bulk_tier_label")
-  preorder        Boolean @default(false)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  bulkDiscountKobo BigInt   @default(0) @map("bulk_discount_kobo")
+  bulkTierLabel    String?  @map("bulk_tier_label")
+  preorder         Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product      Product        @relation(fields: [productId], references: [id])
-  variant      ProductVariant? @relation(fields: [variantId], references: [id])
-  returnLines  ReturnLine[]
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [productId], references: [id])
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  returnLines ReturnLine[]
 
   @@index([orderId])
   @@index([productId])
@@ -517,19 +517,19 @@ enum PaymentRecordStatus {
 }
 
 model OrderPayment {
-  id          String              @id @default(uuid()) @db.Uuid
-  orderId     String              @map("order_id") @db.Uuid
-  method      PaymentMethod
-  amountKobo  BigInt              @map("amount_kobo")
+  id           String              @id @default(uuid()) @db.Uuid
+  orderId      String              @map("order_id") @db.Uuid
+  method       PaymentMethod
+  amountKobo   BigInt              @map("amount_kobo")
   /// Nuqood/bank transaction reference.
-  reference   String?
-  status      PaymentRecordStatus @default(pending)
-  recordedById String?            @map("recorded_by_id") @db.Uuid
-  note        String?
-  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  reference    String?
+  status       PaymentRecordStatus @default(pending)
+  recordedById String?             @map("recorded_by_id") @db.Uuid
+  note         String?
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz
 
-  order       Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  recordedBy  User?               @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recordedBy User? @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
 
   @@index([orderId])
   @@map("order_payments")
@@ -561,8 +561,8 @@ model InstallmentPlan {
   createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz
 
-  order            Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  createdBy        User?                 @relation("InstallmentPlanCreatedBy", fields: [createdById], references: [id])
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("InstallmentPlanCreatedBy", fields: [createdById], references: [id])
 
   @@index([status])
   @@map("installment_plans")
@@ -575,8 +575,8 @@ model OrderNote {
   text      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  author    User?    @relation(fields: [authorId], references: [id])
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id])
 
   @@index([orderId])
   @@map("order_notes")
@@ -605,27 +605,27 @@ enum ReturnRefundMethod {
 }
 
 model Return {
-  id              String              @id @default(uuid()) @db.Uuid
+  id            String             @id @default(uuid()) @db.Uuid
   /// Customer-facing return ID, RET-XXXXXXX.
-  number          String              @unique
-  orderId         String              @map("order_id") @db.Uuid
-  customerId      String              @map("customer_id") @db.Uuid
-  status          ReturnStatus        @default(requested)
-  reason          String
-  refundKobo      BigInt              @default(0) @map("refund_kobo")
-  refundMethod    ReturnRefundMethod  @default(original) @map("refund_method")
+  number        String             @unique
+  orderId       String             @map("order_id") @db.Uuid
+  customerId    String             @map("customer_id") @db.Uuid
+  status        ReturnStatus       @default(requested)
+  reason        String
+  refundKobo    BigInt             @default(0) @map("refund_kobo")
+  refundMethod  ReturnRefundMethod @default(original) @map("refund_method")
   /// Set when the originating order was delivered > 14 days ago.
-  outsideWindow   Boolean             @default(false) @map("outside_window")
+  outsideWindow Boolean            @default(false) @map("outside_window")
   /// Set if every line on the originating order has already been returned.
-  fullyReturned   Boolean             @default(false) @map("fully_returned")
-  internalNote    String?             @map("internal_note")
-  photos          String[]            @default([])
-  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+  fullyReturned Boolean            @default(false) @map("fully_returned")
+  internalNote  String?            @map("internal_note")
+  photos        String[]           @default([])
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz
 
-  order           Order               @relation(fields: [orderId], references: [id])
-  customer        Customer            @relation(fields: [customerId], references: [id])
-  lines           ReturnLine[]
+  order    Order        @relation(fields: [orderId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+  lines    ReturnLine[]
 
   @@index([orderId])
   @@index([status])
@@ -633,20 +633,20 @@ model Return {
 }
 
 model ReturnLine {
-  id              String          @id @default(uuid()) @db.Uuid
-  returnId        String          @map("return_id") @db.Uuid
-  orderLineId     String          @map("order_line_id") @db.Uuid
-  quantity        Int
-  condition       ReturnCondition
+  id            String          @id @default(uuid()) @db.Uuid
+  returnId      String          @map("return_id") @db.Uuid
+  orderLineId   String          @map("order_line_id") @db.Uuid
+  quantity      Int
+  condition     ReturnCondition
   /// Free-text condition stated by staff (optional), alongside the category.
-  conditionNote   String?         @map("condition_note")
+  conditionNote String?         @map("condition_note")
   /// Damaged items default to false (write off).
-  restock         Boolean         @default(false)
-  refundKobo      BigInt          @map("refund_kobo")
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  restock       Boolean         @default(false)
+  refundKobo    BigInt          @map("refund_kobo")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
 
-  return          Return          @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  orderLine       OrderLine       @relation(fields: [orderLineId], references: [id])
+  return    Return    @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id])
 
   @@map("return_lines")
 }
@@ -665,24 +665,24 @@ enum DiscountValueType {
 }
 
 model Discount {
-  id             String            @id @default(uuid()) @db.Uuid
+  id         String            @id @default(uuid()) @db.Uuid
   /// Coupon code (uppercase). Null for automatic discounts.
-  code           String?           @unique
-  kind           DiscountKind
-  name           String
-  valueType      DiscountValueType @map("value_type")
+  code       String?           @unique
+  kind       DiscountKind
+  name       String
+  valueType  DiscountValueType @map("value_type")
   /// Percent (0-100) for percentage, kobo for fixed, ignored for free_shipping.
-  value          Int               @default(0)
-  scope          String            @default("all") // "all", "category:beauty", "segment:wholesale"
-  usage          Int               @default(0)
-  usageLimit     Int?              @map("usage_limit")
-  validFrom      DateTime?         @map("valid_from") @db.Timestamptz
-  validUntil     DateTime?         @map("valid_until") @db.Timestamptz
-  active         Boolean           @default(true)
+  value      Int               @default(0)
+  scope      String            @default("all") // "all", "category:beauty", "segment:wholesale"
+  usage      Int               @default(0)
+  usageLimit Int?              @map("usage_limit")
+  validFrom  DateTime?         @map("valid_from") @db.Timestamptz
+  validUntil DateTime?         @map("valid_until") @db.Timestamptz
+  active     Boolean           @default(true)
   /// Locked once `usage > 0` per CLAUDE.md §20 — value & scope become immutable.
-  locked         Boolean           @default(false)
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+  locked     Boolean           @default(false)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("discounts")
 }
@@ -690,32 +690,53 @@ model Discount {
 // ─── Shipping ────────────────────────────────────────────────────────────
 
 model ShippingZone {
-  id              String   @id @default(uuid()) @db.Uuid
-  name            String
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
   /// Nigerian states this zone covers.
-  states          String[]
-  baseRateKobo    BigInt   @map("base_rate_kobo")
+  states       String[]
+  baseRateKobo BigInt   @map("base_rate_kobo")
   /// Order subtotal above which shipping is free; null = never.
-  freeOverKobo    BigInt?  @map("free_over_kobo")
-  etaDays         String   @map("eta_days")
+  freeOverKobo BigInt?  @map("free_over_kobo")
+  etaDays      String   @map("eta_days")
   /// Deprecated — priority/overlap resolution was removed (one price per state
   /// now). Kept at default 100 to avoid a migration; safe to drop later.
-  priority        Int      @default(100)
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  priority     Int      @default(100)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  orders          Order[]
+  orders Order[]
+  /// Fine-grained (state, LGA) coverage. An area price beats a whole-state one.
+  areas  ShippingZoneArea[]
 
   @@map("shipping_zones")
 }
 
+/// Sub-state delivery pricing: a specific LGA priced by a particular zone,
+/// overriding that state's whole-state zone. The unique (state, lga) constraint
+/// guarantees every LGA maps to at most one price — no overlaps possible.
+/// Resolution order at checkout: area (this table) → whole-state zone → fallback.
+model ShippingZoneArea {
+  id     String @id @default(uuid()) @db.Uuid
+  zoneId String @map("zone_id") @db.Uuid
+  /// Canonical Nigerian state name (a NIGERIA_LGAS key).
+  state  String
+  /// LGA / area name within that state.
+  lga    String
+
+  zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([state, lga])
+  @@index([zoneId])
+  @@map("shipping_zone_areas")
+}
+
 model FallbackShipping {
-  id            String  @id @default(uuid()) @db.Uuid
-  enabled       Boolean @default(true)
-  flatRateKobo  BigInt  @map("flat_rate_kobo")
-  etaDays       String  @map("eta_days")
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id           String   @id @default(uuid()) @db.Uuid
+  enabled      Boolean  @default(true)
+  flatRateKobo BigInt   @map("flat_rate_kobo")
+  etaDays      String   @map("eta_days")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("fallback_shipping")
 }
@@ -741,29 +762,29 @@ model Courier {
 // ─── Cart (server-side, replaces client mock store in Phase 4) ───────────
 
 model Cart {
-  id            String     @id @default(uuid()) @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
   /// Anonymous carts have no customer.
-  customerId    String?    @map("customer_id") @db.Uuid
+  customerId  String?   @map("customer_id") @db.Uuid
   /// Set when an Idempotency-Key has been used to lock a quote in.
-  lastQuoteId   String?    @map("last_quote_id")
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
-  abandonedAt   DateTime?  @map("abandoned_at") @db.Timestamptz
+  lastQuoteId String?   @map("last_quote_id")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  abandonedAt DateTime? @map("abandoned_at") @db.Timestamptz
 
-  items         CartItem[]
+  items CartItem[]
 
   @@map("carts")
 }
 
 model CartItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  cartId      String   @map("cart_id") @db.Uuid
-  productId   String   @map("product_id") @db.Uuid
-  variantId   String?  @map("variant_id") @db.Uuid
-  quantity    Int
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id        String   @id @default(uuid()) @db.Uuid
+  cartId    String   @map("cart_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  variantId String?  @map("variant_id") @db.Uuid
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, productId, variantId])
   @@index([cartId])
@@ -773,18 +794,18 @@ model CartItem {
 // ─── OTP (customer auth) ─────────────────────────────────────────────────
 
 model OtpCode {
-  id          String   @id @default(uuid()) @db.Uuid
+  id         String    @id @default(uuid()) @db.Uuid
   /// Phone (E.164) or email, normalized.
-  identifier  String
-  customerId  String?  @map("customer_id") @db.Uuid
+  identifier String
+  customerId String?   @map("customer_id") @db.Uuid
   /// Bcrypt hash of the 6-digit code.
-  codeHash    String   @map("code_hash")
-  attempts    Int      @default(0)
-  expiresAt   DateTime @map("expires_at") @db.Timestamptz
-  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  codeHash   String    @map("code_hash")
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  customer    Customer? @relation(fields: [customerId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
 
   @@index([identifier, expiresAt])
   @@map("otp_codes")
@@ -811,35 +832,35 @@ enum AiChannel {
 }
 
 model AiConversation {
-  id             String                @id @default(uuid()) @db.Uuid
-  customerId     String?               @map("customer_id") @db.Uuid
-  orderId        String?               @map("order_id") @db.Uuid
-  channel        AiChannel
-  status         AiConversationStatus  @default(active)
+  id              String               @id @default(uuid()) @db.Uuid
+  customerId      String?              @map("customer_id") @db.Uuid
+  orderId         String?              @map("order_id") @db.Uuid
+  channel         AiChannel
+  status          AiConversationStatus @default(active)
   assignedStaffId String?              @map("assigned_staff_id") @db.Uuid
-  startedAt      DateTime              @default(now()) @map("started_at") @db.Timestamptz
-  closedAt       DateTime?             @map("closed_at") @db.Timestamptz
+  startedAt       DateTime             @default(now()) @map("started_at") @db.Timestamptz
+  closedAt        DateTime?            @map("closed_at") @db.Timestamptz
   /// Set when SLA breached and not yet claimed.
-  slaBreachedAt  DateTime?             @map("sla_breached_at") @db.Timestamptz
+  slaBreachedAt   DateTime?            @map("sla_breached_at") @db.Timestamptz
 
-  customer       Customer?             @relation(fields: [customerId], references: [id])
-  order          Order?                @relation(fields: [orderId], references: [id])
-  messages       AiMessage[]
+  customer Customer?   @relation(fields: [customerId], references: [id])
+  order    Order?      @relation(fields: [orderId], references: [id])
+  messages AiMessage[]
 
   @@index([status])
   @@map("ai_conversations")
 }
 
 model AiMessage {
-  id              String         @id @default(uuid()) @db.Uuid
-  conversationId  String         @map("conversation_id") @db.Uuid
-  role            AiMessageRole
-  text            String
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
+  role           AiMessageRole
+  text           String
   /// Tool calls + results from the LLM orchestrator.
-  toolCalls       Json?          @map("tool_calls")
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  toolCalls      Json?         @map("tool_calls")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
-  conversation    AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@map("ai_messages")
@@ -851,7 +872,7 @@ model AuditLog {
   id          String   @id @default(uuid()) @db.Uuid
   actorUserId String?  @map("actor_user_id") @db.Uuid
   actorType   String   @map("actor_type") // "staff", "customer", "ai", "system"
-  action      String   // "order.cancel", "customer.blacklist", "product.price.change"
+  action      String // "order.cancel", "customer.blacklist", "product.price.change"
   entityType  String   @map("entity_type")
   entityId    String   @map("entity_id")
   before      Json?
@@ -860,7 +881,7 @@ model AuditLog {
   metadata    Json     @default("{}")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  actor       User?    @relation(fields: [actorUserId], references: [id])
+  actor User? @relation(fields: [actorUserId], references: [id])
 
   @@index([entityType, entityId])
   @@index([actorUserId])
@@ -890,25 +911,25 @@ model AiSettings {
 /// token is single-use). Expired rows can be reaped on a schedule but aren't
 /// dangerous to leave around — the route checks expiresAt + acceptedAt.
 model StaffInvitation {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String
-  name          String
-  role          StaffRole
-  roleId        String?   @map("role_id") @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  email       String
+  name        String
+  role        StaffRole
+  roleId      String?   @map("role_id") @db.Uuid
   /// Home store the invitee is assigned to. null = HQ / all-stores (resolves
   /// to Main). A specific store pins non-coverage roles to that store.
-  storeId       String?   @map("store_id") @db.Uuid
+  storeId     String?   @map("store_id") @db.Uuid
   /// Long opaque secret in the invite link. Hashed at rest would be safer
   /// but the field's already protected by HTTPS + single-use semantics.
-  token         String    @unique
-  invitedById   String?   @map("invited_by_id") @db.Uuid
-  expiresAt     DateTime  @map("expires_at") @db.Timestamptz
-  acceptedAt    DateTime? @map("accepted_at") @db.Timestamptz
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  token       String    @unique
+  invitedById String?   @map("invited_by_id") @db.Uuid
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  acceptedAt  DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  invitedBy     User?     @relation("StaffInvitedBy", fields: [invitedById], references: [id])
-  assignedRole  Role?     @relation(fields: [roleId], references: [id])
-  store         Store?    @relation(fields: [storeId], references: [id])
+  invitedBy    User?  @relation("StaffInvitedBy", fields: [invitedById], references: [id])
+  assignedRole Role?  @relation(fields: [roleId], references: [id])
+  store        Store? @relation(fields: [storeId], references: [id])
 
   @@index([email])
   @@index([expiresAt])
@@ -946,7 +967,7 @@ model StockNotification {
   notifiedAt DateTime? @map("notified_at") @db.Timestamptz
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, email])
   @@unique([productId, phone])
@@ -959,14 +980,14 @@ model StockNotification {
 
 /// Single-use password-reset tokens for the /forgot-password flow.
 model PasswordReset {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  token      String    @unique
-  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
-  usedAt     DateTime? @map("used_at") @db.Timestamptz
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -982,7 +1003,7 @@ model SiteSettings {
   storeName        String   @default("Avmall") @map("store_name")
   storeEmail       String   @default("hello@avmall.com.ng") @map("store_email")
   storePhone       String   @default("+234 803 421 7790") @map("store_phone")
-  storeWhatsapp    String   @default("+2348034217790") @map("store_whatsapp")
+  storeWhatsapp    String   @default("+2347034486614") @map("store_whatsapp")
   storeAddress     String   @default("14 Bourdillon Road, Ikoyi, Lagos") @map("store_address")
   /// Fallback bank account shown when Nuqood is not configured
   bankNumber       String?  @map("bank_number")
@@ -990,6 +1011,16 @@ model SiteSettings {
   bankName         String?  @map("bank_name")
   /// Return policy window in days (default 14)
   returnWindowDays Int      @default(14) @map("return_window_days")
+  /// CAC registration (RC) number shown in the footer.
+  rcNumber         String   @default("7798804") @map("rc_number")
+  /// Social profile URLs. NULL = not set (falls back to the built-in default);
+  /// empty string = admin cleared it → hidden on the storefront.
+  socialInstagram  String?  @map("social_instagram")
+  socialTwitter    String?  @map("social_twitter")
+  socialTiktok     String?  @map("social_tiktok")
+  /// Homepage wholesale band copy. NULL/blank falls back to the built-in copy.
+  wholesaleTitle   String?  @map("wholesale_title")
+  wholesaleSubtext String?  @map("wholesale_subtext")
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("site_settings")
@@ -1027,7 +1058,7 @@ model PendingCheckout {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  store       Store?   @relation(fields: [storeId], references: [id])
+  store Store? @relation(fields: [storeId], references: [id])
 
   @@index([nuqoodRef])
   @@index([bankNumber])
@@ -1039,12 +1070,12 @@ model PendingCheckout {
 // ─── Idempotency keys ────────────────────────────────────────────────────
 
 model IdempotencyKey {
-  key         String   @id
-  bodyHash    String   @map("body_hash")
+  key        String   @id
+  bodyHash   String   @map("body_hash")
   /// JSON-serialised response to replay on retry.
-  response    Json
-  statusCode  Int      @map("status_code")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  response   Json
+  statusCode Int      @map("status_code")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([createdAt])
   @@map("idempotency_keys")
@@ -1063,8 +1094,8 @@ model ExpenseType {
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  store      Store     @relation(fields: [storeId], references: [id])
-  expenses   Expense[]
+  store    Store     @relation(fields: [storeId], references: [id])
+  expenses Expense[]
 
   @@unique([storeId, name])
   @@index([storeId])
@@ -1072,20 +1103,20 @@ model ExpenseType {
 }
 
 model Expense {
-  id          String      @id @default(uuid()) @db.Uuid
-  storeId     String      @map("store_id") @db.Uuid
-  typeId      String      @map("type_id") @db.Uuid
-  amountKobo  BigInt      @map("amount_kobo")
+  id          String   @id @default(uuid()) @db.Uuid
+  storeId     String   @map("store_id") @db.Uuid
+  typeId      String   @map("type_id") @db.Uuid
+  amountKobo  BigInt   @map("amount_kobo")
   /// Date the expense was incurred (day granularity; stored UTC).
-  date        DateTime    @db.Timestamptz
+  date        DateTime @db.Timestamptz
   note        String?
-  createdById String?     @map("created_by_id") @db.Uuid
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  store       Store       @relation(fields: [storeId], references: [id])
-  type        ExpenseType @relation(fields: [typeId], references: [id])
-  createdBy   User?       @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  store     Store       @relation(fields: [storeId], references: [id])
+  type      ExpenseType @relation(fields: [typeId], references: [id])
+  createdBy User?       @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
 
   @@index([storeId])
   @@index([typeId])

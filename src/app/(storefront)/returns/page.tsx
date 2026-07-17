@@ -4,6 +4,7 @@ import { RefreshCcw, ShieldCheck, XCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContentPageHeader } from "@/components/storefront/page-header";
 import { SITE } from "@/lib/site";
+import { getStoreContact, storeWaLink } from "@/lib/data/settings";
 
 export const metadata: Metadata = {
   title: "Returns & refunds",
@@ -11,13 +12,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/returns" },
 };
 
-export default function ReturnsPage() {
+export default async function ReturnsPage() {
+  // Support/WhatsApp number is admin-editable at /admin/settings.
+  const contact = await getStoreContact();
+  const whatsappHref = storeWaLink(contact.whatsapp);
   return (
     <>
       <ContentPageHeader
         eyebrow="Help"
         title="Returns & refunds"
-        description="14 days, no questions, free pickup in Lagos. Here&rsquo;s exactly how it works."
+        description="14 days, no questions, free pickup in Zaria. Here&rsquo;s exactly how it works."
         breadcrumb={[{ label: "Returns" }]}
       />
 
@@ -25,7 +29,7 @@ export default function ReturnsPage() {
         {/* Highlights */}
         <div className="grid sm:grid-cols-3 gap-4 mb-10">
           <Card icon={RefreshCcw} title="14 days" sub="From delivery date" />
-          <Card icon={ShieldCheck} title="Free Lagos pickup" sub="Or drop at our flagship" />
+          <Card icon={ShieldCheck} title="Free Zaria pickup" sub="Or drop at our flagship" />
           <Card icon={MessageCircle} title="Refund in 7 days" sub="To your original method" />
         </div>
 
@@ -35,7 +39,7 @@ export default function ReturnsPage() {
         <ol className="space-y-4 mb-10">
           {[
             "Open your order from /account/orders and tap 'Request return'. Pick the items and tell us briefly why.",
-            "We confirm by WhatsApp within an hour during business hours. If your address is in Lagos we schedule a free pickup.",
+            "We confirm by WhatsApp within an hour during business hours. If your address is in Zaria we schedule a free pickup.",
             "We inspect the items in our warehouse — usually same-day after they arrive.",
             "Refund issued within 7 working days to your original payment method, or by bank transfer if you prefer.",
           ].map((step, i) => (
@@ -96,7 +100,7 @@ export default function ReturnsPage() {
                 My orders
               </Button>
             </Link>
-            <Link href={SITE.social.whatsapp} target="_blank" rel="noreferrer">
+            <Link href={whatsappHref} target="_blank" rel="noreferrer">
               <Button className="bg-bg text-fg hover:bg-white/95">WhatsApp</Button>
             </Link>
           </div>

@@ -119,7 +119,7 @@ function SidebarBody() {
         />
         <div>
           <div className="font-bold text-sm tracking-tight">Avmall</div>
-          <div className="text-[10px] text-fg-muted font-medium">Lagos · ops</div>
+          <div className="text-[10px] text-fg-muted font-medium">Zaria · ops</div>
         </div>
       </div>
 

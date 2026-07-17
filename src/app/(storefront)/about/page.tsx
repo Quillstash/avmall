@@ -27,7 +27,7 @@ const PILLARS = [
   },
   {
     title: "Honest returns",
-    body: "14 days, no questions, free pickup in Lagos. The only items we can&apos;t take back are opened beauty and bespoke goods.",
+    body: "14 days, no questions, free pickup in Zaria. The only items we can&apos;t take back are opened beauty and bespoke goods.",
   },
 ] as const;
 
@@ -55,7 +55,7 @@ export default function AboutPage() {
           <p>
             We built a website. Then a payment flow. Then a stock system that wouldn&apos;t oversell.
             Other makers started asking to be added. Today we work with 47 of them across beauty,
-            home goods, fashion, and pantry — every product in our Ikoyi warehouse before it goes live.
+            home goods, fashion, and pantry — every product in our Zaria warehouse before it goes live.
           </p>
           <p>
             We&apos;re not a marketplace. There&apos;s a single curator on staff (hi, that&apos;s

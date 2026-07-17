@@ -16,9 +16,16 @@ import { AppError, ConflictError, NotFoundError, ValidationError } from "@/lib/e
 
 export const runtime = "nodejs";
 
+const areaSchema = z.object({
+  state: z.string().min(1),
+  lga: z.string().min(1),
+});
+
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
-  states: z.array(z.string().min(1)).min(1).optional(),
+  states: z.array(z.string().min(1)).optional(),
+  // When present, replaces the zone's entire set of (state, LGA) area overrides.
+  areas: z.array(areaSchema).optional(),
   baseRateKobo: z.number().int().nonnegative().optional(),
   freeOverKobo: z.number().int().nonnegative().nullable().optional(),
   etaDays: z.string().min(1).optional(),
@@ -49,6 +56,25 @@ export async function PATCH(
     const existing = await db.shippingZone.findUnique({ where: { id: params.id } });
     if (!existing) throw new NotFoundError("Shipping zone");
 
+    // Replacing area overrides: reject LGAs already priced by a *different* zone
+    // before we wipe and recreate this zone's set.
+    if (b.areas !== undefined && b.areas.length > 0) {
+      const clash = await db.shippingZoneArea.findMany({
+        where: {
+          zoneId: { not: existing.id },
+          OR: b.areas.map((a) => ({ state: a.state, lga: a.lga })),
+        },
+        select: { state: true, lga: true },
+      });
+      if (clash.length > 0) {
+        throw new ValidationError({
+          areas: `Already priced by another zone: ${clash
+            .map((c) => `${c.state} — ${c.lga}`)
+            .join("; ")}`,
+        });
+      }
+    }
+
     const before = {
       name: existing.name,
       active: existing.active,
@@ -66,6 +92,13 @@ export async function PATCH(
         }),
         ...(b.etaDays !== undefined && { etaDays: b.etaDays }),
         ...(b.active !== undefined && { active: b.active }),
+        // Replace the whole area set when provided.
+        ...(b.areas !== undefined && {
+          areas: {
+            deleteMany: {},
+            create: b.areas.map((a) => ({ state: a.state, lga: a.lga })),
+          },
+        }),
       },
     });
 

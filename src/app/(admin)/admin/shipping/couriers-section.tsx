@@ -250,7 +250,7 @@ export function CouriersSection({ couriers }: { couriers: CourierView[] }) {
                 id="c-note"
                 value={form.note}
                 onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                placeholder="Covers intra-Lagos, same-day"
+                placeholder="Covers intra-Zaria, same-day"
               />
             </Field>
           </div>

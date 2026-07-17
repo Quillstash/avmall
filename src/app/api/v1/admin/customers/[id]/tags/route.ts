@@ -2,7 +2,7 @@
  * PATCH /api/v1/admin/customers/:id/tags
  *
  * Replace a customer's segments array. Tags are arbitrary strings (e.g.
- * "VIP", "Wholesale", "Lagos"). Send the full desired array — whatever
+ * "VIP", "Wholesale", "Zaria"). Send the full desired array — whatever
  * you send replaces what's there.
  */
 
