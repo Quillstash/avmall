@@ -226,8 +226,8 @@ export function PDPDetail({ product }: { product: Product }) {
         </TabsContent>
         <TabsContent value="shipping">
           <p className="text-sm text-fg-muted leading-relaxed">
-            Free shipping in Lagos on orders over ₦25,000. Lagos delivery: 24 hours. Other states:
-            2–5 business days. Pickup available at our Ikoyi flagship Mon–Sat 10–7.
+            Free shipping in Zaria on orders over ₦25,000. Zaria delivery: 24 hours. Other states:
+            2–5 business days. Pickup available at our Zaria flagship Mon–Sat 10–7.
           </p>
         </TabsContent>
         <TabsContent value="returns">

@@ -4,7 +4,8 @@
  * Accepts { productId, variantId?, quantity }.
  * If variantId is omitted, the first non-archived variant is used automatically.
  * Recalculates and persists order totals on success.
- * Blocked on cancelled / delivered orders.
+ * Blocked only on cancelled orders. Shipped/delivered orders are editable —
+ * the added units are drawn straight from committed on_hand stock.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,6 +17,7 @@ import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { adjustCommittedStock } from "@/lib/stock";
 
 const bodySchema = z.object({
   productId: z.string().uuid("Invalid product ID"),
@@ -45,9 +47,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
       });
       if (!order) throw new NotFoundError("Order");
-      if (order.status === "cancelled" || order.status === "delivered") {
-        throw new AppError("CONFLICT", `Cannot add lines to a ${order.status} order`, 409);
+      if (order.status === "cancelled") {
+        throw new AppError("CONFLICT", "Cannot add lines to a cancelled order", 409);
       }
+      // Shipped/delivered orders draw the new units straight from on_hand.
+      const committed = order.status === "shipped" || order.status === "delivered";
 
       // Resolve product + variant
       const product = await tx.product.findUnique({
@@ -92,6 +96,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
       });
 
+      if (committed && variant?.id && order.storeId) {
+        // Delivered/shipped: the added units leave the shelf now (throws if
+        // there isn't enough on-hand).
+        await adjustCommittedStock(tx, order.storeId, variant.id, quantity);
+      }
+
       // Recalculate totals from all lines including the new one
       const allLines = [
         ...order.lines.map((l) => ({
@@ -114,17 +124,33 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
       ] satisfies QuoteInputLine[];
 
-      const quote = computeQuote({
-        lines: allLines,
-        shippingKobo: Number(order.shippingKobo),
-      });
+      const quote = computeQuote({ lines: allLines });
+      // Preserve coupon + manual discounts (computeQuote only knows lines/bulk)
+      // and re-derive payment status against what's already paid.
+      const couponD = Number(order.couponDiscountKobo);
+      const manualD = Number(order.manualDiscountKobo);
+      const shipping = Number(order.shippingKobo);
+      const newTotal = Math.max(
+        0,
+        quote.subtotalKobo - quote.bulkDiscountKobo - couponD - manualD + shipping,
+      );
+      const paid = Number(order.paidKobo);
+      const newPaymentStatus =
+        order.paymentStatus === "refunded"
+          ? "refunded"
+          : paid >= newTotal
+            ? "paid"
+            : paid > 0
+              ? "partial"
+              : "unpaid";
 
       await tx.order.update({
         where: { id: order.id },
         data: {
           subtotalKobo: BigInt(quote.subtotalKobo),
           bulkDiscountKobo: BigInt(quote.bulkDiscountKobo),
-          totalKobo: BigInt(quote.totalKobo),
+          totalKobo: BigInt(newTotal),
+          paymentStatus: newPaymentStatus,
         },
       });
 

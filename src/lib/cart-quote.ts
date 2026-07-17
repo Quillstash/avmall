@@ -15,6 +15,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { applyPercentageDiscount } from "./money";
 import { AppError, NotFoundError } from "./errors";
+import { resolveShipping } from "./shipping-zone";
 
 export interface QuoteInputLine {
   productId: string;
@@ -182,6 +183,10 @@ export interface QuoteFromIdsInput {
   /// Nigerian state. When provided we pick the matching zone; otherwise
   /// shipping is zero and the caller must remind the customer it's TBD.
   state?: string | undefined;
+  /// LGA / area within the state. Enables sub-state (area-level) pricing —
+  /// an LGA override beats the whole-state zone. Optional; falls back to the
+  /// state price when omitted or unmatched.
+  lga?: string | undefined;
 }
 
 export interface QuoteFromIdsResult {
@@ -289,26 +294,15 @@ export async function quoteFromProductIds(
   let freeShippingEligible = false;
   let shippingZone: QuoteFromIdsResult["shippingZone"];
   if (input.state) {
-    const zone = await db.shippingZone.findFirst({
-      where: { active: true, states: { has: input.state } },
-      orderBy: { createdAt: "asc" },
+    const dry = computeQuote({ lines: inputLines });
+    const resolved = await resolveShipping({
+      state: input.state,
+      lga: input.lga,
+      netSubtotalKobo: dry.subtotalKobo - dry.bulkDiscountKobo,
     });
-    if (zone) {
-      shippingZone = { name: zone.name, etaDays: zone.etaDays };
-      shippingKobo = Number(zone.baseRateKobo);
-      if (zone.freeOverKobo != null) {
-        const dry = computeQuote({ lines: inputLines });
-        if (BigInt(dry.subtotalKobo - dry.bulkDiscountKobo) >= zone.freeOverKobo) {
-          freeShippingEligible = true;
-        }
-      }
-    } else {
-      const fb = await db.fallbackShipping.findFirst();
-      if (fb?.enabled) {
-        shippingKobo = Number(fb.flatRateKobo);
-        shippingZone = { name: "Standard", etaDays: fb.etaDays };
-      }
-    }
+    shippingKobo = resolved.shippingKobo;
+    freeShippingEligible = resolved.freeShippingEligible;
+    if (resolved.zone) shippingZone = resolved.zone;
   }
 
   const quote = computeQuote({

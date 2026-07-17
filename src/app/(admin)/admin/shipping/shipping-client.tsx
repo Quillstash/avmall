@@ -177,6 +177,12 @@ export function ShippingClient({
                           {z.states.length > 4
                             ? `${z.states.slice(0, 4).join(", ")} + ${z.states.length - 4} more`
                             : z.states.join(", ")}
+                          {z.states.length === 0 && z.areas.length === 0 && "—"}
+                          {z.areas.length > 0 && (
+                            <div className="text-[10px] text-fg-subtle mt-0.5">
+                              +{z.areas.length} LGA{z.areas.length === 1 ? "" : "s"}
+                            </div>
+                          )}
                         </td>
                         <td data-label="Base rate" className="px-3.5 py-3 text-right">
                           <Money kobo={z.baseRateKobo} className="font-bold" />

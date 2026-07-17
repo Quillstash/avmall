@@ -278,6 +278,8 @@ export async function listProducts(opts?: {
   category?: string;
   limit?: number;
   featuredFirst?: boolean;
+  /** Return only products flagged `featured` (for the homepage feature grid). */
+  featuredOnly?: boolean;
   /** Admin view — return unpublished and archived products too. */
   includeUnpublished?: boolean;
   /** Free-text search across name/brand/slug (case-insensitive substring). */
@@ -298,6 +300,7 @@ export async function listProducts(opts?: {
   const where = {
     ...(opts?.storeId && { storeId: opts.storeId }),
     ...(!opts?.includeUnpublished && { archivedAt: null, published: true }),
+    ...(opts?.featuredOnly && { featured: true }),
     ...(opts?.category && { category: { slug: opts.category } }),
     ...(q && q.length >= 2 && {
       OR: [

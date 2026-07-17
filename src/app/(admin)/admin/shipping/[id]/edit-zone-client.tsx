@@ -11,11 +11,13 @@ import { Field } from "@/components/ui/field";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { toast } from "@/components/ui/toaster";
 import { NIGERIAN_STATES } from "@/lib/mock-data";
+import { ZoneAreaPicker, type ZoneArea } from "../zone-area-picker";
 
 interface ZoneInput {
   id: string;
   name: string;
   states: string[];
+  areas: ZoneArea[];
   baseRateKobo: number;
   freeOverKobo: number | null;
   etaDays: string;
@@ -26,6 +28,7 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
   const router = useRouter();
   const [name, setName] = React.useState(zone.name);
   const [states, setStates] = React.useState<string[]>([...zone.states]);
+  const [areas, setAreas] = React.useState<ZoneArea[]>([...zone.areas]);
   const [baseRateKobo, setBaseRateKobo] = React.useState<number | null>(
     zone.baseRateKobo,
   );
@@ -52,8 +55,12 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
   }
 
   async function save() {
-    if (!name.trim() || states.length === 0 || baseRateKobo == null || !etaDays.trim()) {
-      toast.error("Name, base rate, ETA and at least one state are required.");
+    if (!name.trim() || baseRateKobo == null || !etaDays.trim()) {
+      toast.error("Name, base rate and ETA are required.");
+      return;
+    }
+    if (states.length === 0 && areas.length === 0) {
+      toast.error("Pick at least one state or LGA area.");
       return;
     }
     setSaving(true);
@@ -64,6 +71,7 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
         body: JSON.stringify({
           name: name.trim(),
           states,
+          areas,
           baseRateKobo,
           freeOverKobo: freeOverEnabled ? freeOverKobo : null,
           etaDays: etaDays.trim(),
@@ -162,12 +170,16 @@ export function EditZoneClient({ zone }: { zone: ZoneInput }) {
                 </div>
               </Card>
 
+              <Card title="Area pricing (specific LGAs)">
+                <ZoneAreaPicker value={areas} onChange={setAreas} />
+              </Card>
+
               <Card title="Rates">
                 <Field
                   id="base"
                   label="Base rate"
                   required
-                  hint="One flat price for every state in this zone"
+                  hint="Applies to every state and LGA area in this zone"
                 >
                   <CurrencyInput
                     id="base"

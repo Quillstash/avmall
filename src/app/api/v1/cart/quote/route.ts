@@ -45,6 +45,7 @@ const bodySchema = z.object({
     .min(1, "Cart must have at least one item"),
   couponCode: z.string().optional(),
   state: z.string().optional(),
+  lga: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {

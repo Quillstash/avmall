@@ -49,7 +49,7 @@ const BLANK: FormState = {
   email: "",
   address: "",
   city: "",
-  state: "Lagos",
+  state: "Kaduna",
   isMain: false,
   active: true,
 };
@@ -80,7 +80,7 @@ export function StoresClient({ stores }: { stores: StoreRow[] }) {
       email: s.email ?? "",
       address: s.address ?? "",
       city: s.city ?? "",
-      state: s.state ?? "Lagos",
+      state: s.state ?? "Kaduna",
       isMain: s.isMain,
       active: s.active,
     });

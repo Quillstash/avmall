@@ -15,28 +15,28 @@ const ROLES = [
   {
     title: "Warehouse Operations Lead",
     team: "Operations",
-    location: "Ikoyi, Lagos",
+    location: "Zaria, Kaduna",
     type: "Full-time · On-site",
     body: "Own the warehouse end-to-end: picking, packing, returns, and the team of 4 dispatch riders. Inventory accuracy is the metric.",
   },
   {
     title: "Senior Backend Engineer",
     team: "Engineering",
-    location: "Lagos / Remote",
+    location: "Zaria / Remote",
     type: "Full-time · Hybrid",
     body: "Next.js + PostgreSQL + Prisma. You&rsquo;ll own the order pipeline — checkout, payments, returns — and the AI agent tool API.",
   },
   {
     title: "Maker Partnerships Manager",
     team: "Partnerships",
-    location: "Ikoyi, Lagos",
+    location: "Zaria, Kaduna",
     type: "Full-time · On-site",
     body: "Source, evaluate, and onboard new makers. Travel within Nigeria once a month — workshop visits, photoshoots, contracting.",
   },
   {
     title: "Customer Care Specialist (WhatsApp)",
     team: "Support",
-    location: "Lagos",
+    location: "Zaria",
     type: "Full-time · Shift",
     body: "Front-line for WhatsApp tickets. Quick, kind, accurate — and unafraid to escalate when a maker or a customer needs more than a quick reply.",
   },
@@ -67,7 +67,7 @@ export default function CareersPage() {
       <ContentPageHeader
         eyebrow="Join us"
         title="Build the Nigerian retail platform"
-        description="We&rsquo;re a small team in Ikoyi shipping a serious amount of software, warehouse ops, and maker partnerships. Open roles below."
+        description="We&rsquo;re a small team in Zaria shipping a serious amount of software, warehouse ops, and maker partnerships. Open roles below."
         breadcrumb={[{ label: "Careers" }]}
       />
 

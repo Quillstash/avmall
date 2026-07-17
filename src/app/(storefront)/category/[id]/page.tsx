@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   const category = await getCategoryBySlug(params.id);
   if (!category) return { title: "Category not found" };
   const title = `${category.name} — shop ${category.count ?? ""} products`.trim();
-  const description = `Shop ${category.name.toLowerCase()} on ${SITE.name} — curated from Nigerian makers, with same-day Lagos delivery and 14-day returns.`;
+  const description = `Shop ${category.name.toLowerCase()} on ${SITE.name} — curated from Nigerian makers, with same-day Zaria delivery and 14-day returns.`;
   const url = `/category/${category.id}`;
   return {
     title,

@@ -26,10 +26,13 @@ export function TopNav({
   stores = [],
   currentStoreSlug = null,
   categories = [],
+  whatsappHref = SITE.social.whatsapp,
 }: {
   stores?: StoreOption[];
   currentStoreSlug?: string | null;
   categories?: NavCategory[];
+  /** Support WhatsApp link — admin-editable, passed from the layout. */
+  whatsappHref?: string;
 }) {
   const lines = useCart((s) => s.lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
@@ -45,12 +48,12 @@ export function TopNav({
             {stores.length > 0 && (
               <StoreSwitcher stores={stores} currentSlug={currentStoreSlug} />
             )}
-            <span>Free shipping on orders over ₦25,000 in Lagos</span>
+            <span>Free shipping on orders over ₦25,000 in Zaria</span>
             <span className="ml-auto">NGN ₦</span>
             <Link href="/faq" className="hover:text-fg">Help</Link>
             <Link href="/track-order" className="hover:text-fg">Track order</Link>
             <a
-              href={SITE.social.whatsapp}
+              href={whatsappHref}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center gap-1.5 hover:text-fg"
@@ -181,6 +184,7 @@ export function TopNav({
         categories={categories}
         stores={stores}
         currentStoreSlug={currentStoreSlug}
+        whatsappHref={whatsappHref}
       />
 
       {/* Mobile search overlay */}
@@ -197,12 +201,14 @@ function MobileDrawer({
   categories,
   stores,
   currentStoreSlug,
+  whatsappHref,
 }: {
   open: boolean;
   onClose: () => void;
   categories: NavCategory[];
   stores: StoreOption[];
   currentStoreSlug: string | null;
+  whatsappHref: string;
 }) {
   return (
     <>
@@ -324,7 +330,7 @@ function MobileDrawer({
             Orders
           </Link>
           <a
-            href={SITE.social.whatsapp}
+            href={whatsappHref}
             target="_blank"
             rel="noreferrer noopener"
             onClick={onClose}

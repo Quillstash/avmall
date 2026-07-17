@@ -258,7 +258,7 @@ function AddressDialog({
   const [line1, setLine1] = React.useState(initial?.line1 ?? "");
   const [line2, setLine2] = React.useState(initial?.line2 ?? "");
   const [city, setCity] = React.useState(initial?.city ?? "");
-  const [state, setState] = React.useState(initial?.state ?? "Lagos");
+  const [state, setState] = React.useState(initial?.state ?? "Kaduna");
   const [makeDefault, setMakeDefault] = React.useState(initial?.isDefault ?? false);
   const [saving, setSaving] = React.useState(false);
 
@@ -352,7 +352,7 @@ function AddressDialog({
                 id="city"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder="Ikoyi"
+                placeholder="Sabon Gari"
               />
             </Field>
             <Field id="state" label="State" required>

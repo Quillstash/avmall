@@ -26,6 +26,8 @@ export interface OrderListRow {
   source: OrderSource;
   createdAt: string;
   createdBy: string;
+  /** Derived from linked returns: none / partial / full. */
+  returnState: "none" | "partial" | "full";
 }
 
 // ── Order detail (single fixture used by /admin/orders/[number]) ──────────

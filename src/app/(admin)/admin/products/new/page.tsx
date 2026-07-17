@@ -523,7 +523,7 @@ export default function AdminNewProductPage() {
                       value={tags}
                       onChange={setTags}
                       lowercase
-                      suggestions={["handmade", "small-batch", "lagos", "vegan", "organic"]}
+                      suggestions={["handmade", "small-batch", "zaria", "vegan", "organic"]}
                     />
                   </Field>
                 </div>

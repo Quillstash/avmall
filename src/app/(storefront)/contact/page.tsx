@@ -4,20 +4,26 @@ import { MessageCircle, Mail, MapPin, Phone, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContentPageHeader } from "@/components/storefront/page-header";
 import { SITE } from "@/lib/site";
+import { getStoreContact, storeWaLink } from "@/lib/data/settings";
+import { formatNigerianPhone } from "@/lib/phone";
+import { mailtoLink } from "@/lib/contact-links";
 
 export const metadata: Metadata = {
   title: "Contact us",
-  description: `Get in touch with the ${SITE.name} team — WhatsApp, email, phone, or visit our Ikoyi flagship.`,
+  description: `Get in touch with the ${SITE.name} team — WhatsApp, email, phone, or visit our Zaria flagship.`,
   alternates: { canonical: "/contact" },
 };
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  // Support/WhatsApp number + contact details are admin-editable at /admin/settings.
+  const contact = await getStoreContact();
+  const whatsappHref = storeWaLink(contact.whatsapp);
   return (
     <>
       <ContentPageHeader
         eyebrow="Get in touch"
         title="We&rsquo;re here, in real life"
-        description="WhatsApp is fastest. Email is fine. Walk in if you&rsquo;re passing through Ikoyi."
+        description="WhatsApp is fastest. Email is fine. Walk in if you&rsquo;re passing through Zaria."
         breadcrumb={[{ label: "Contact" }]}
       />
 
@@ -27,8 +33,8 @@ export default function ContactPage() {
             icon={MessageCircle}
             label="Best for orders, questions, returns"
             title="WhatsApp"
-            primary={SITE.phone}
-            href={SITE.social.whatsapp}
+            primary={formatNigerianPhone(contact.whatsapp)}
+            href={whatsappHref}
             cta="Open WhatsApp"
             featured
           />
@@ -36,15 +42,15 @@ export default function ContactPage() {
             icon={Mail}
             label="Best for receipts, formal requests, partnerships"
             title="Email"
-            primary={SITE.supportEmail}
-            href={`mailto:${SITE.supportEmail}`}
+            primary={contact.email}
+            href={mailtoLink(contact.email)}
             cta="Compose email"
           />
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 mb-10">
-          <Info icon={Phone} title="Phone" body={SITE.phone} />
-          <Info icon={MapPin} title="Address" body={`${SITE.address.street}, ${SITE.address.city}, ${SITE.address.state}`} />
+          <Info icon={Phone} title="Phone" body={contact.phone} />
+          <Info icon={MapPin} title="Address" body={contact.address} />
           <Info icon={Clock} title="Hours" body="Mon–Sat 10am–7pm" />
         </div>
 
@@ -57,7 +63,11 @@ export default function ContactPage() {
             pricing, a dedicated account manager, split-payment terms, and scheduled deliveries.
             Open a wholesale chat on WhatsApp and we&apos;ll take it from there.
           </p>
-          <Link href={SITE.social.whatsapp} target="_blank" rel="noreferrer">
+          <Link
+            href={storeWaLink(contact.whatsapp, "Hi, I'm interested in wholesale pricing.")}
+            target="_blank"
+            rel="noreferrer"
+          >
             <Button>
               <MessageCircle className="size-4" /> Open a wholesale chat
             </Button>

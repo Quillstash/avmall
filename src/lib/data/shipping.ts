@@ -13,6 +13,8 @@ export interface ShippingZoneView {
   id: string;
   name: string;
   states: string[];
+  /** Sub-state coverage: specific (state, LGA) areas this zone prices. */
+  areas: { state: string; lga: string }[];
   baseRateKobo: number;
   freeOverKobo: number | null;
   etaDays: string;
@@ -44,12 +46,14 @@ export async function listShippingZones(): Promise<ShippingZoneView[]> {
   const rows = await withRetry(() =>
     db.shippingZone.findMany({
       orderBy: { name: "asc" },
+      include: { areas: { orderBy: [{ state: "asc" }, { lga: "asc" }] } },
     }),
   );
   const view: ShippingZoneView[] = rows.map((z) => ({
     id: z.id,
     name: z.name,
     states: z.states,
+    areas: z.areas.map((a) => ({ state: a.state, lga: a.lga })),
     baseRateKobo: Number(z.baseRateKobo),
     freeOverKobo: z.freeOverKobo == null ? null : Number(z.freeOverKobo),
     etaDays: z.etaDays,

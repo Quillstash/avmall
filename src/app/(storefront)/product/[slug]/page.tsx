@@ -161,7 +161,7 @@ export default async function PDPPage({ params }: PDPProps) {
 
           {/* Reassurance */}
           <div className="grid grid-cols-3 gap-2 mt-8 pt-6 border-t border-border text-xs">
-            <Feature icon={Truck} title="Free Lagos" subtitle="over ₦25k" />
+            <Feature icon={Truck} title="Free Zaria" subtitle="over ₦25k" />
             <Feature icon={RefreshCcw} title="14-day" subtitle="returns" />
             <Feature icon={Shield} title="Secure" subtitle="Nuqood" />
           </div>

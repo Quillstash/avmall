@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
-import { findZoneForState, canonicalStateName } from "@/lib/shipping-zone";
+import { findZoneForState, findZoneForArea, canonicalStateName } from "@/lib/shipping-zone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
 
@@ -36,9 +36,13 @@ export async function GET(req: NextRequest) {
     const subtotalParam = Number(req.nextUrl.searchParams.get("subtotalKobo"));
     const subtotalKobo =
       Number.isFinite(subtotalParam) && subtotalParam >= 0 ? subtotalParam : 0;
+    // Optional LGA/area — when given, an area-specific price beats the state one.
+    const requestedLga = req.nextUrl.searchParams.get("lga")?.trim();
 
     const matchedState = canonicalStateName(requestedState);
-    const zone = await findZoneForState(requestedState);
+    const zone =
+      (requestedLga ? await findZoneForArea(requestedState, requestedLga) : null) ??
+      (await findZoneForState(requestedState));
 
     if (zone) {
       const freeOver = zone.freeOverKobo == null ? null : Number(zone.freeOverKobo);

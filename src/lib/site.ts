@@ -12,26 +12,28 @@ export const SITE = {
   // SEO-friendly title — aim for 50–60 chars so it doesn't get truncated in
   // search results or social cards. Used as the default <title> and as the
   // OG/Twitter title on the home + every page without its own title.
-  tagline: "Phones, audio, power & home goods · Same-day Lagos",
+  tagline: "Phones, audio, power & home goods · Same-day Zaria",
   description:
-    "Goods made by Nigerian hands, delivered nationwide. Same-day Lagos delivery, secure checkout via Nuqood, 14-day returns.",
+    "Goods made by Nigerian hands, delivered nationwide. Same-day Zaria delivery, secure checkout via Nuqood, 14-day returns.",
   themeColor: "#0a0a0a",
   locale: "en_NG",
   email: "hello@avmall.com.ng",
   supportEmail: "support@avmall.com.ng",
-  whatsappNumber: "+2348034217790",
+  // Default support/WhatsApp number. Admin-editable at /admin/settings — the
+  // storefront reads the DB value via getStoreContact(); this is the fallback.
+  whatsappNumber: "+2347034486614",
   // Display phone — international format
-  phone: "+234 803 421 7790",
+  phone: "+234 703 448 6614",
   address: {
-    street: "14 Bourdillon Road",
-    city: "Ikoyi",
-    state: "Lagos",
+    street: "Sokoto Road",
+    city: "Zaria",
+    state: "Kaduna",
     country: "NG",
   },
   social: {
     instagram: "https://instagram.com/avmall.ng",
     twitter: "https://twitter.com/avmall_ng",
-    whatsapp: "https://wa.me/2348034217790",
+    whatsapp: "https://wa.me/2347034486614",
     tiktok: "https://tiktok.com/@avmall.ng",
   },
 } as const;
@@ -39,7 +41,7 @@ export const SITE = {
 export const SITE_KEYWORDS = [
   "Nigerian e-commerce",
   "shop Nigeria",
-  "Lagos delivery",
+  "Zaria delivery",
   "Nigerian makers",
   "beauty Nigeria",
   "home goods Nigeria",

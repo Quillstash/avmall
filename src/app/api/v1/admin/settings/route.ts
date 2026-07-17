@@ -23,6 +23,14 @@ const patchSchema = z.object({
   bankAccountName: z.string().nullable().optional(),
   bankName: z.string().nullable().optional(),
   returnWindowDays: z.number().int().min(1).max(365).optional(),
+  rcNumber: z.string().optional(),
+  // Social URLs — freeform so an empty string (admin cleared it → hidden) is
+  // accepted alongside a full URL.
+  socialInstagram: z.string().optional(),
+  socialTwitter: z.string().optional(),
+  socialTiktok: z.string().optional(),
+  wholesaleTitle: z.string().optional(),
+  wholesaleSubtext: z.string().optional(),
 });
 
 /** Fallback when the DB row doesn't exist yet */
@@ -36,6 +44,13 @@ const DEFAULTS = {
   bankAccountName: process.env.BUSINESS_BANK_NAME ?? null,
   bankName: process.env.BUSINESS_BANK ?? null,
   returnWindowDays: 14,
+  rcNumber: "7798804",
+  socialInstagram: SITE.social.instagram,
+  socialTwitter: SITE.social.twitter,
+  socialTiktok: SITE.social.tiktok,
+  wholesaleTitle: "Wholesale pricing, negotiated on WhatsApp.",
+  wholesaleSubtext:
+    "Tiered bulk discounts, split payments, dedicated account manager — chat with us to get a quote for your shop.",
 };
 
 export async function GET() {
@@ -57,6 +72,14 @@ export async function GET() {
         bankAccountName: row.bankAccountName,
         bankName: row.bankName,
         returnWindowDays: row.returnWindowDays,
+        rcNumber: row.rcNumber || DEFAULTS.rcNumber,
+        // Show the effective value in the form: NULL → the built-in default, an
+        // empty string → keep it empty (admin deliberately hid it).
+        socialInstagram: row.socialInstagram ?? DEFAULTS.socialInstagram,
+        socialTwitter: row.socialTwitter ?? DEFAULTS.socialTwitter,
+        socialTiktok: row.socialTiktok ?? DEFAULTS.socialTiktok,
+        wholesaleTitle: row.wholesaleTitle || DEFAULTS.wholesaleTitle,
+        wholesaleSubtext: row.wholesaleSubtext || DEFAULTS.wholesaleSubtext,
       } : DEFAULTS),
     );
   } catch (err) {
@@ -94,6 +117,12 @@ export async function PATCH(req: NextRequest) {
         ...(d.bankAccountName !== undefined && { bankAccountName: d.bankAccountName }),
         ...(d.bankName !== undefined && { bankName: d.bankName }),
         ...(d.returnWindowDays !== undefined && { returnWindowDays: d.returnWindowDays }),
+        ...(d.rcNumber !== undefined && { rcNumber: d.rcNumber }),
+        ...(d.socialInstagram !== undefined && { socialInstagram: d.socialInstagram }),
+        ...(d.socialTwitter !== undefined && { socialTwitter: d.socialTwitter }),
+        ...(d.socialTiktok !== undefined && { socialTiktok: d.socialTiktok }),
+        ...(d.wholesaleTitle !== undefined && { wholesaleTitle: d.wholesaleTitle }),
+        ...(d.wholesaleSubtext !== undefined && { wholesaleSubtext: d.wholesaleSubtext }),
       },
       update: {
         ...(d.storeName !== undefined && { storeName: d.storeName }),
@@ -105,6 +134,12 @@ export async function PATCH(req: NextRequest) {
         ...(d.bankAccountName !== undefined && { bankAccountName: d.bankAccountName }),
         ...(d.bankName !== undefined && { bankName: d.bankName }),
         ...(d.returnWindowDays !== undefined && { returnWindowDays: d.returnWindowDays }),
+        ...(d.rcNumber !== undefined && { rcNumber: d.rcNumber }),
+        ...(d.socialInstagram !== undefined && { socialInstagram: d.socialInstagram }),
+        ...(d.socialTwitter !== undefined && { socialTwitter: d.socialTwitter }),
+        ...(d.socialTiktok !== undefined && { socialTiktok: d.socialTiktok }),
+        ...(d.wholesaleTitle !== undefined && { wholesaleTitle: d.wholesaleTitle }),
+        ...(d.wholesaleSubtext !== undefined && { wholesaleSubtext: d.wholesaleSubtext }),
       },
     });
 

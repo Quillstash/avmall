@@ -28,14 +28,26 @@ import { AppError, ValidationError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
-const bodySchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  states: z.array(z.string().min(1)).min(1, "Pick at least one state"),
-  baseRateKobo: z.number().int().nonnegative(),
-  freeOverKobo: z.number().int().nonnegative().nullable().optional(),
-  etaDays: z.string().min(1, "ETA is required"),
-  active: z.boolean().default(true),
+const areaSchema = z.object({
+  state: z.string().min(1),
+  lga: z.string().min(1),
 });
+
+const bodySchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    states: z.array(z.string().min(1)).default([]),
+    // Sub-state coverage: specific (state, LGA) areas this zone prices.
+    areas: z.array(areaSchema).default([]),
+    baseRateKobo: z.number().int().nonnegative(),
+    freeOverKobo: z.number().int().nonnegative().nullable().optional(),
+    etaDays: z.string().min(1, "ETA is required"),
+    active: z.boolean().default(true),
+  })
+  .refine((d) => d.states.length > 0 || d.areas.length > 0, {
+    message: "Pick at least one state or LGA area",
+    path: ["states"],
+  });
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,6 +67,22 @@ export async function POST(req: NextRequest) {
     }
     const b = parsed.data;
 
+    // Each (state, LGA) can only be priced by one zone (DB-enforced). Pre-check
+    // so we can name the clashing LGAs instead of surfacing a raw 500.
+    if (b.areas.length > 0) {
+      const clash = await db.shippingZoneArea.findMany({
+        where: { OR: b.areas.map((a) => ({ state: a.state, lga: a.lga })) },
+        select: { state: true, lga: true },
+      });
+      if (clash.length > 0) {
+        throw new ValidationError({
+          areas: `Already priced by another zone: ${clash
+            .map((c) => `${c.state} — ${c.lga}`)
+            .join("; ")}`,
+        });
+      }
+    }
+
     const created = await db.shippingZone.create({
       data: {
         name: b.name,
@@ -63,6 +91,7 @@ export async function POST(req: NextRequest) {
         freeOverKobo: b.freeOverKobo == null ? null : BigInt(b.freeOverKobo),
         etaDays: b.etaDays,
         active: b.active,
+        areas: { create: b.areas.map((a) => ({ state: a.state, lga: a.lga })) },
       },
     });
 
@@ -75,6 +104,7 @@ export async function POST(req: NextRequest) {
       after: {
         name: created.name,
         states: created.states,
+        areas: b.areas,
         baseRateKobo: Number(created.baseRateKobo),
         freeOverKobo:
           created.freeOverKobo == null ? null : Number(created.freeOverKobo),

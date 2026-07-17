@@ -21,7 +21,7 @@ import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 
 // Bank transfer is available everywhere.
-// POS is Lagos-only — enforced here and at the API level.
+// POS is Kaduna-only — enforced here and at the API level.
 type PaymentMethod = "bank_transfer" | "pos";
 
 const BANK_TRANSFER_OPTION = {
@@ -32,7 +32,7 @@ const BANK_TRANSFER_OPTION = {
 const POS_OPTION = {
   id: "pos" as const,
   name: "Pay on delivery (POS / Cash)",
-  sub: "Lagos only · Agent collects on arrival",
+  sub: "Kaduna only · Agent collects on arrival",
 };
 
 interface ServerQuote {
@@ -62,7 +62,7 @@ export default function CheckoutPage() {
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [state, setState] = React.useState("Lagos");
+  const [state, setState] = React.useState("Kaduna");
   const [city, setCity] = React.useState("");
   const [address, setAddress] = React.useState("");
   const [pay, setPay] = React.useState<PaymentMethod>("bank_transfer");
@@ -71,16 +71,16 @@ export default function CheckoutPage() {
   // Bank-transfer modal state
   const [pendingSessionId, setPendingSessionId] = React.useState<string | null>(null);
 
-  // Payment options — POS only visible for Lagos
-  const isLagos = state === "Lagos";
-  const paymentOptions = isLagos
+  // Payment options — POS only visible for Kaduna
+  const isKaduna = state === "Kaduna";
+  const paymentOptions = isKaduna
     ? [BANK_TRANSFER_OPTION, POS_OPTION]
     : [BANK_TRANSFER_OPTION];
 
-  // If state changes away from Lagos while POS is selected, reset to bank transfer
+  // If state changes away from Kaduna while POS is selected, reset to bank transfer
   React.useEffect(() => {
-    if (!isLagos && pay === "pos") setPay("bank_transfer");
-  }, [isLagos, pay]);
+    if (!isKaduna && pay === "pos") setPay("bank_transfer");
+  }, [isKaduna, pay]);
 
   // Restore a live session from a previous page load
   React.useEffect(() => {
@@ -113,6 +113,8 @@ export default function CheckoutPage() {
           body: JSON.stringify({
             items: resolved.map((l) => ({ productId: l.productId, variantId: l.variantId, quantity: l.qty })),
             ...(state && { state }),
+            // LGA enables sub-state (area-level) delivery pricing.
+            ...(state && city && { lga: city }),
           }),
           signal: controller.signal,
         });
@@ -123,7 +125,7 @@ export default function CheckoutPage() {
       } finally { setQuoteLoading(false); }
     }, 300);
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [resolved, state]);
+  }, [resolved, state, city]);
 
   const totals = serverQuote?.quote ?? optimistic;
   const shippingZone = serverQuote?.shippingZone ?? null;
@@ -358,9 +360,9 @@ export default function CheckoutPage() {
                     ))}
                   </RadioGroup>
 
-                  {!isLagos && (
+                  {!isKaduna && (
                     <p className="text-xs text-fg-muted">
-                      Pay on delivery is only available for Lagos orders.
+                      Pay on delivery is only available for Kaduna orders.
                     </p>
                   )}
 

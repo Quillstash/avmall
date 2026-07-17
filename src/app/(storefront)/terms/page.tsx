@@ -41,8 +41,8 @@ export default function TermsPage() {
 
         <Section title="3. Payment">
           <p>
-            We accept card payments via Nuqood, direct bank transfers, POS on delivery (Lagos only),
-            and cash on delivery (Lagos only). For online card payments the charge is captured at
+            We accept card payments via Nuqood, direct bank transfers, POS on delivery (Zaria only),
+            and cash on delivery (Zaria only). For online card payments the charge is captured at
             checkout. For bank transfers your order moves to &ldquo;processing&rdquo; only once funds
             clear in our account.
           </p>
@@ -50,7 +50,7 @@ export default function TermsPage() {
 
         <Section title="4. Delivery">
           <p>
-            We aim to deliver within 24 hours in Lagos and 2–5 working days elsewhere in Nigeria.
+            We aim to deliver within 24 hours in Zaria and 2–5 working days elsewhere in Nigeria.
             Delivery windows are estimates, not guarantees. Risk of loss transfers to you on delivery.
             For more detail see our <Link href="/shipping" className="text-brand-primary underline">shipping policy</Link>.
           </p>

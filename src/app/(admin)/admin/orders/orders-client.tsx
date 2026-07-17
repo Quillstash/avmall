@@ -296,7 +296,16 @@ export function OrdersListClient({ orders, totals }: Props) {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <OrderStatusPill status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1.5">
+          <OrderStatusPill status={row.original.status} />
+          {row.original.returnState !== "none" && (
+            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-danger-bg text-danger whitespace-nowrap">
+              {row.original.returnState === "full" ? "Returned" : "Part. ret."}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: "source",

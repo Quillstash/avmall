@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill } from "@/components/ui/status-pill";
@@ -7,9 +8,14 @@ import { Select } from "@/components/ui/select";
 import { getCustomerSession } from "@/lib/customer-session";
 import { listCustomerOrders } from "@/lib/data/orders";
 
+export const dynamic = "force-dynamic";
+
 export default async function AccountOrdersPage() {
   const session = await getCustomerSession();
-  const orders = await listCustomerOrders(session?.customerId ?? "");
+  // Guests have no (UUID) customer id — redirect to login instead of querying
+  // with an empty id, which throws on the uuid column and 500s the page.
+  if (!session) redirect("/login?next=/account/orders");
+  const orders = await listCustomerOrders(session.customerId);
 
   return (
     <div>

@@ -17,6 +17,35 @@ import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { adjustCommittedStock } from "@/lib/stock";
+
+/**
+ * Recompute an order's money after a line change, preserving coupon + manual
+ * discounts (computeQuote only knows lines + bulk), and re-derive the payment
+ * status against what's already been paid.
+ */
+function reconcileMoney(order: {
+  couponDiscountKobo: bigint;
+  manualDiscountKobo: bigint;
+  shippingKobo: bigint;
+  paidKobo: bigint;
+  paymentStatus: string;
+}, subtotalKobo: number, bulkDiscountKobo: number) {
+  const couponD = Number(order.couponDiscountKobo);
+  const manualD = Number(order.manualDiscountKobo);
+  const shipping = Number(order.shippingKobo);
+  const totalKobo = Math.max(0, subtotalKobo - bulkDiscountKobo - couponD - manualD + shipping);
+  const paid = Number(order.paidKobo);
+  const paymentStatus =
+    order.paymentStatus === "refunded"
+      ? "refunded"
+      : paid >= totalKobo
+        ? "paid"
+        : paid > 0
+          ? "partial"
+          : "unpaid";
+  return { totalKobo, paymentStatus } as const;
+}
 
 const patchSchema = z.object({
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
@@ -45,14 +74,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
       if (!order) throw new NotFoundError("Order");
-      if (order.status === "cancelled" || order.status === "delivered") {
-        throw new AppError("CONFLICT", `Cannot edit lines on a ${order.status} order`, 409);
+      if (order.status === "cancelled") {
+        throw new AppError("CONFLICT", "Cannot edit lines on a cancelled order", 409);
       }
+      // Shipped/delivered orders had their reservations consumed, so their
+      // stock now lives in on_hand — edits reconcile it directly.
+      const committed = order.status === "shipped" || order.status === "delivered";
 
       const line = order.lines.find((l) => l.id === params.lineId);
       if (!line) throw new NotFoundError("Order line");
 
       const oldQty = line.quantity;
+      const qtyDelta = newQty - oldQty;
 
       // Update the line
       await tx.orderLine.update({
@@ -60,13 +93,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         data: { quantity: newQty },
       });
 
-      // Adjust stock reservation for this line
+      if (committed && qtyDelta !== 0 && line.variantId && order.storeId) {
+        // Stock already left the shelf — reconcile on_hand (down if qty up,
+        // back on the shelf if qty down). Throws if increasing beyond on_hand.
+        await adjustCommittedStock(tx, order.storeId, line.variantId, qtyDelta);
+      }
+
+      // Adjust the stock reservation (non-committed orders only).
       const reservation = order.reservations.find(
         (r) => r.productId === line.productId && r.variantId === line.variantId,
       );
-      const qtyDelta = newQty - oldQty;
 
-      if (reservation && qtyDelta !== 0) {
+      if (!committed && reservation && qtyDelta !== 0) {
         if (qtyDelta > 0) {
           // Increasing — check stock and add reservation
           const stock = await tx.$queryRaw<{ on_hand: number; reserved: number }[]>`
@@ -118,17 +156,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         })),
       }));
 
-      const quote = computeQuote({
-        lines: inputLines,
-        shippingKobo: Number(order.shippingKobo),
-      });
+      const quote = computeQuote({ lines: inputLines });
+      const money = reconcileMoney(order, quote.subtotalKobo, quote.bulkDiscountKobo);
 
       await tx.order.update({
         where: { id: order.id },
         data: {
           subtotalKobo: BigInt(quote.subtotalKobo),
           bulkDiscountKobo: BigInt(quote.bulkDiscountKobo),
-          totalKobo: BigInt(quote.totalKobo),
+          totalKobo: BigInt(money.totalKobo),
+          paymentStatus: money.paymentStatus,
         },
       });
 
@@ -176,9 +213,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
         },
       });
       if (!order) throw new NotFoundError("Order");
-      if (order.status === "cancelled" || order.status === "delivered") {
-        throw new AppError("CONFLICT", `Cannot edit lines on a ${order.status} order`, 409);
+      if (order.status === "cancelled") {
+        throw new AppError("CONFLICT", "Cannot edit lines on a cancelled order", 409);
       }
+      const committed = order.status === "shipped" || order.status === "delivered";
 
       const line = order.lines.find((l) => l.id === params.lineId);
       if (!line) throw new NotFoundError("Order line");
@@ -187,15 +225,20 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
         throw new AppError("CONFLICT", "Cannot remove the last item — cancel the order instead", 409);
       }
 
-      // Release this line's stock reservation
-      const reservation = order.reservations.find(
-        (r) => r.productId === line.productId && r.variantId === line.variantId,
-      );
-      if (reservation) {
-        await tx.stockReservation.update({
-          where: { id: reservation.id },
-          data: { status: "released", quantity: 0 },
-        });
+      if (committed && line.variantId && order.storeId) {
+        // Stock already committed — put the whole line's quantity back on the shelf.
+        await adjustCommittedStock(tx, order.storeId, line.variantId, -line.quantity);
+      } else {
+        // Non-committed — release this line's reservation.
+        const reservation = order.reservations.find(
+          (r) => r.productId === line.productId && r.variantId === line.variantId,
+        );
+        if (reservation) {
+          await tx.stockReservation.update({
+            where: { id: reservation.id },
+            data: { status: "released", quantity: 0 },
+          });
+        }
       }
 
       await tx.orderLine.delete({ where: { id: params.lineId } });
@@ -212,17 +255,16 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
         })),
       }));
 
-      const quote = computeQuote({
-        lines: inputLines,
-        shippingKobo: Number(order.shippingKobo),
-      });
+      const quote = computeQuote({ lines: inputLines });
+      const money = reconcileMoney(order, quote.subtotalKobo, quote.bulkDiscountKobo);
 
       await tx.order.update({
         where: { id: order.id },
         data: {
           subtotalKobo: BigInt(quote.subtotalKobo),
           bulkDiscountKobo: BigInt(quote.bulkDiscountKobo),
-          totalKobo: BigInt(quote.totalKobo),
+          totalKobo: BigInt(money.totalKobo),
+          paymentStatus: money.paymentStatus,
         },
       });
 
