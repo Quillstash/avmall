@@ -6,6 +6,7 @@
 import "server-only";
 
 import { db, hasDatabase, withRetry } from "@/lib/db";
+import { stateKey, lgaKey } from "@/lib/shipping-zone";
 
 /** View shape used by the admin shipping page — matches the legacy mock so
  *  the existing UI keeps rendering with no further changes. */
@@ -19,7 +20,10 @@ export interface ShippingZoneView {
   freeOverKobo: number | null;
   etaDays: string;
   active: boolean;
-  /** Other zones that cover any of the same states. Computed client-side. */
+  /** Other active zones whose coverage genuinely collides with this one:
+   *  they claim the same whole state, or price the exact same (state, LGA)
+   *  area. A whole-state zone and an LGA-area zone in that state do NOT
+   *  collide — the area price is more specific and wins (see resolveShipping). */
   overlapsWith?: string[];
 }
 
@@ -29,12 +33,42 @@ export interface FallbackShippingView {
   etaDays: string;
 }
 
+/**
+ * Flag zones whose coverage genuinely collides, matching how resolveShipping
+ * actually picks a rate (LGA area beats whole state):
+ *   - two zones claiming the SAME whole state  → collision (ambiguous for any
+ *     LGA neither prices specifically);
+ *   - two zones pricing the SAME (state, LGA) area → collision.
+ * A whole-state zone plus an LGA-area zone in that state is fine — the area is
+ * more specific and wins, so it's NOT flagged. Names are normalised (casing /
+ * punctuation / a trailing "State") so "Kaduna" and "kaduna" still match.
+ */
 function annotateOverlaps(zones: ShippingZoneView[]): ShippingZoneView[] {
+  const norm = zones.map((z) => ({
+    id: z.id,
+    active: z.active,
+    stateKeys: new Set(z.states.map(stateKey).filter(Boolean)),
+    areaKeys: new Set(
+      z.areas
+        .map((a) => ({ s: stateKey(a.state), l: lgaKey(a.lga) }))
+        .filter((x) => x.s && x.l)
+        .map((x) => `${x.s}::${x.l}`),
+    ),
+  }));
+  const byId = new Map(norm.map((n) => [n.id, n]));
+
   return zones.map((z) => {
-    const overlaps = zones
-      .filter((other) => other.id !== z.id && other.active)
-      .filter((other) => other.states.some((s) => z.states.includes(s)))
-      .map((other) => other.id);
+    const me = byId.get(z.id);
+    // Only active zones can collide; an inactive zone never matches at checkout.
+    if (!me || !z.active) return z;
+    const overlaps = norm
+      .filter((o) => o.id !== z.id && o.active)
+      .filter(
+        (o) =>
+          [...me.stateKeys].some((s) => o.stateKeys.has(s)) ||
+          [...me.areaKeys].some((a) => o.areaKeys.has(a)),
+      )
+      .map((o) => o.id);
     return overlaps.length > 0 ? { ...z, overlapsWith: overlaps } : z;
   });
 }

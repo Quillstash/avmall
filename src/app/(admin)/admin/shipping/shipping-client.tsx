@@ -126,7 +126,7 @@ export function ShippingClient({
               tone="warning"
               icon={<AlertTriangle className="size-5" />}
               title="Overlapping zones detected"
-              description="Two or more active zones cover the same state. Each state should have exactly one shipping price — merge or deactivate the overlapping zone so checkout is unambiguous."
+              description="Two or more active zones claim the same whole state (or price the same LGA). To charge different rates within one state, give each zone a specific LGA under “Area pricing (specific LGAs)” and deselect the whole state — an LGA price overrides the state price, so those zones won't collide. Otherwise merge or deactivate the duplicate so checkout stays unambiguous."
               className="mb-5"
             />
           )}
@@ -180,7 +180,13 @@ export function ShippingClient({
                           {z.states.length === 0 && z.areas.length === 0 && "—"}
                           {z.areas.length > 0 && (
                             <div className="text-[10px] text-fg-subtle mt-0.5">
-                              +{z.areas.length} LGA{z.areas.length === 1 ? "" : "s"}
+                              {z.areas
+                                .slice(0, 3)
+                                .map((a) => `${a.lga} (${a.state})`)
+                                .join(", ")}
+                              {z.areas.length > 3
+                                ? ` +${z.areas.length - 3} more`
+                                : ""}
                             </div>
                           )}
                         </td>
