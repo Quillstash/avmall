@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 const BENEFITS = [
   {
     title: "Paid in 7 days",
-    body: "We hold stock and pay you on net-7 terms after the order ships. No three-month-Bumpa-style holds.",
+    body: "We hold stock and pay you on net-7 terms after the order ships. No three-month payment holds.",
   },
   {
     title: "Photography on us",

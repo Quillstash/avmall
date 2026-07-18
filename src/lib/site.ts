@@ -17,8 +17,8 @@ export const SITE = {
     "Goods made by Nigerian hands, delivered nationwide. Same-day Zaria delivery, secure checkout via Nuqood, 14-day returns.",
   themeColor: "#0a0a0a",
   locale: "en_NG",
-  email: "hello@avmall.com.ng",
-  supportEmail: "support@avmall.com.ng",
+  email: "avmallbusiness@gmail.com",
+  supportEmail: "avmallbusiness@gmail.com",
   // Default support/WhatsApp number. Admin-editable at /admin/settings — the
   // storefront reads the DB value via getStoreContact(); this is the fallback.
   whatsappNumber: "+2347034486614",

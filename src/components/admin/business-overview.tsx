@@ -37,7 +37,7 @@ export function BusinessOverviewSection({
                 Here is how your business is doing
                 {data.syncedAt && (
                   <span className="text-brand-accent">
-                    {" · "}synced from Bumpa{" "}
+                    {" · "}synced{" "}
                     {new Date(data.syncedAt).toLocaleDateString("en-NG", {
                       day: "numeric",
                       month: "short",

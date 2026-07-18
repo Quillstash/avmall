@@ -1001,7 +1001,7 @@ model PasswordReset {
 model SiteSettings {
   key              String   @id @default("default")
   storeName        String   @default("Avmall") @map("store_name")
-  storeEmail       String   @default("hello@avmall.com.ng") @map("store_email")
+  storeEmail       String   @default("avmallbusiness@gmail.com") @map("store_email")
   storePhone       String   @default("+234 803 421 7790") @map("store_phone")
   storeWhatsapp    String   @default("+2347034486614") @map("store_whatsapp")
   storeAddress     String   @default("14 Bourdillon Road, Ikoyi, Lagos") @map("store_address")
