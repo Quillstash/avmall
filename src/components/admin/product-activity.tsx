@@ -43,7 +43,7 @@ export function ProductActivity({ activity }: { activity: ProductActivityData })
     addedBy.via === "staff"
       ? { icon: UserPlus, text: <>Added by <b>{addedBy.name}</b></> }
       : addedBy.via === "bumpa"
-        ? { icon: PackagePlus, text: <>Imported from <b>Bumpa</b></> }
+        ? { icon: PackagePlus, text: <>Bulk-imported</> }
         : { icon: PackagePlus, text: <>In the catalogue</> };
   const OriginIcon = origin.icon;
 

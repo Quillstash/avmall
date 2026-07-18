@@ -37,7 +37,7 @@ export default function AboutPage() {
       <ContentPageHeader
         eyebrow="About"
         title="Made in Nigeria, for the country"
-        description={`${SITE.legalName} exists to give small-batch Nigerian makers a fair shot at the national market — without forcing them onto Instagram DMs or Bumpa stores that take half their revenue.`}
+        description={`${SITE.legalName} exists to give small-batch Nigerian makers a fair shot at the national market — without forcing them onto Instagram DMs or marketplaces that take half their revenue.`}
         breadcrumb={[{ label: "About" }]}
       />
 
