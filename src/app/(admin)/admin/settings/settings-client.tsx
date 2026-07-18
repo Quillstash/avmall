@@ -111,7 +111,7 @@ export function SettingsClient() {
             <Input id="s-name" value={settings.storeName} onChange={(e) => set("storeName", e.target.value)} placeholder="Avmall" />
           </Field>
           <Field id="s-email" label="Contact email" required>
-            <Input id="s-email" type="email" value={settings.storeEmail} onChange={(e) => set("storeEmail", e.target.value)} placeholder="hello@avmall.com.ng" />
+            <Input id="s-email" type="email" value={settings.storeEmail} onChange={(e) => set("storeEmail", e.target.value)} placeholder="avmallbusiness@gmail.com" />
           </Field>
           <Field id="s-phone" label="Phone number">
             <Input id="s-phone" value={settings.storePhone} onChange={(e) => set("storePhone", e.target.value)} placeholder="+234 803 421 7790" />
