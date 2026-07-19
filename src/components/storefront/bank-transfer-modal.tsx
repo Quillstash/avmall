@@ -185,6 +185,17 @@ export function BankTransferModal({
                 />
               </div>
 
+              <div className="flex items-start gap-2 p-3 rounded-md bg-info-bg text-info text-xs leading-relaxed mb-3">
+                <AlertCircle className="size-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  This account is provided by{" "}
+                  <strong>{status.account.name}</strong>, Avmall&apos;s trusted
+                  payment partner, so that name is normal — please don&apos;t
+                  worry. Your payment is secure and goes straight to your Avmall
+                  order.
+                </div>
+              </div>
+
               <div className="flex items-start gap-2 p-3 rounded-md bg-warning-bg text-warning text-xs leading-relaxed">
                 <AlertCircle className="size-4 flex-shrink-0 mt-0.5" />
                 <div>

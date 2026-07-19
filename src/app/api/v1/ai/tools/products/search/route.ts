@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
         name: p.name,
         brand: p.brand,
         category: p.category,
+        categoryName: p.categoryName,
+        description: p.shortDesc,
+        status: p.stock > 0 ? "In stock" : "Out of stock",
         // Human-readable Naira — the LLM must never see raw kobo (it reports
         // it as Naira → 100× inflated "millions"). Currency is always NGN.
         price: formatMoney(Number(p.priceKobo)),
@@ -64,6 +67,9 @@ export async function GET(req: NextRequest) {
         name: p.name,
         brand: p.brand,
         category: p.category,
+        categoryName: p.category,
+        description: p.short,
+        status: p.stock > 0 ? "In stock" : "Out of stock",
         price: formatMoney(p.price),
         ...(p.saleActive && p.sale != null && {
           salePrice: formatMoney(p.sale),
