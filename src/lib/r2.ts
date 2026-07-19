@@ -84,6 +84,13 @@ export function returnPhotoKey(returnId: string, ext: string): string {
   return `returns/${returnId}/${crypto.randomUUID()}.${safeExt}`;
 }
 
+/** CMS content images (About CTA, Journal covers). `scopeId` = page key / slug. */
+export function contentImageKey(scopeId: string, ext: string): string {
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "").toLowerCase() || "webp";
+  const safeScope = scopeId.replace(/[^a-z0-9-]/gi, "").toLowerCase() || "page";
+  return `content/${safeScope}/${crypto.randomUUID()}.${safeExt}`;
+}
+
 /** Direct server-side upload. Body is a Buffer (already re-encoded). */
 export async function putObject(
   key: string,

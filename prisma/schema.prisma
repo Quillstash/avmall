@@ -1026,6 +1026,45 @@ model SiteSettings {
   @@map("site_settings")
 }
 
+// ─── CMS: editable storefront content ─────────────────────────────────────
+// Structured content for the About / Makers / Careers pages, edited from
+// /admin/content. One row per page (key), content held as a validated JSON blob
+// (shape per key lives in lib/data/content.ts). Falls back to built-in defaults
+// when a row is absent, so the storefront never renders blank.
+
+model ContentPage {
+  /// Page key: "about" | "makers" | "careers".
+  key       String   @id
+  /// Structured, page-specific content. Validated per-key in the app layer.
+  content   Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("content_pages")
+}
+
+/// Journal (blog) posts — a true collection, edited from /admin/content/journal.
+/// Body is Markdown, rendered sanitised on the storefront.
+model JournalPost {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique
+  title       String
+  excerpt     String    @default("")
+  /// Markdown body rendered at /journal/[slug].
+  body        String    @default("")
+  coverImage  String?   @map("cover_image")
+  category    String    @default("")
+  author      String?
+  /// Free-text reading estimate, e.g. "6 min read". Optional.
+  readTime    String?   @map("read_time")
+  published   Boolean   @default(false)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([published, publishedAt])
+  @@map("journal_posts")
+}
+
 // ─── Pending checkout sessions (bank-transfer, pre-order-creation) ───────
 //
 // Created when the customer clicks "Pay" for a Nuqood bank transfer.

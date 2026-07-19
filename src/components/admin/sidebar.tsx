@@ -21,6 +21,7 @@ import {
   Settings,
   Truck,
   Shield,
+  FileText,
   LogOut,
   X,
 } from "lucide-react";
@@ -51,6 +52,7 @@ const NAV: NavItem[] = [
 ];
 
 const SECONDARY: NavItem[] = [
+  { href: "/admin/content", label: "Content", icon: FileText },
   { href: "/admin/stores", label: "Stores", icon: Store },
   { href: "/admin/staff", label: "Staff & roles", icon: Shield },
   { href: "/admin/settings", label: "Settings", icon: Settings },

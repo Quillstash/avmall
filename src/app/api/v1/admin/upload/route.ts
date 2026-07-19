@@ -25,7 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { putObject, productImageKey, returnPhotoKey, r2Configured } from "@/lib/r2";
+import { putObject, productImageKey, returnPhotoKey, contentImageKey, r2Configured } from "@/lib/r2";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
@@ -128,7 +128,11 @@ export async function POST(req: NextRequest) {
 
     const ext = "webp";
     const key =
-      scope === "return" ? returnPhotoKey(scopeId, ext) : productImageKey(scopeId, ext);
+      scope === "return"
+        ? returnPhotoKey(scopeId, ext)
+        : scope === "content"
+          ? contentImageKey(scopeId, ext)
+          : productImageKey(scopeId, ext);
 
     const stored = await putObject(key, processed.data, "image/webp");
 
@@ -136,7 +140,7 @@ export async function POST(req: NextRequest) {
       actorUserId: session.id,
       actorType: "staff",
       action: "asset.upload",
-      entityType: scope === "return" ? "return" : "product",
+      entityType: scope === "return" ? "return" : scope === "content" ? "content" : "product",
       entityId: scopeId,
       after: {
         key: stored.key,

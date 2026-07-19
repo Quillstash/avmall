@@ -30,7 +30,7 @@ interface ImageUploaderProps {
   onChange: (images: UploadedImage[]) => void;
   /** Used by the upload route to scope the R2 key. Pass the slug for products. */
   scopeId?: string;
-  scope?: "product" | "return";
+  scope?: "product" | "return" | "content";
   max?: number;
   className?: string;
 }
