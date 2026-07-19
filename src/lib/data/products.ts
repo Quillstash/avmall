@@ -393,7 +393,12 @@ export interface ProductSearchHit {
   priceKobo: number;
   saleKobo: number | null;
   saleActive: boolean;
+  /** Category slug, e.g. "power". */
   category: string;
+  /** Readable category name, e.g. "Power" — for the AI's product table. */
+  categoryName: string;
+  /** Short description — a specs/capacity hint (e.g. "10,000mAh") for listings. */
+  shortDesc: string;
   stock: number;
   /** Variants for the order/POS builder to pick from. A product with a single
    *  default variant has one entry; multi-variant products let staff choose. */
@@ -589,6 +594,8 @@ export async function searchProducts(
         saleKobo: p.saleKobo == null ? null : Number(p.saleKobo),
         saleActive: p.saleActive,
         category: p.category.slug,
+        categoryName: p.category.name,
+        shortDesc: p.shortDesc,
         stock: p.variants.reduce(
           (a, v) => a + v.storeStock.reduce((b, s) => b + s.onHand, 0),
           0,
