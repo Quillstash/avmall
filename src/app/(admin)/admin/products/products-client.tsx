@@ -13,6 +13,8 @@ import {
   ArchiveRestore,
   Copy,
   Eye,
+  FolderInput,
+  Loader2,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
@@ -24,6 +26,14 @@ import { type StockStatus } from "@/components/ui/status-pill";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar, type FilterConfig } from "@/components/ui/filter-bar";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -62,6 +72,9 @@ export function ProductsListClient({ products, categories }: Props) {
   const [categoryValues, setCategoryValues] = React.useState<string[]>([]);
   const [statusValues, setStatusValues] = React.useState<string[]>([]);
   const [rowSelection, setRowSelection] = React.useState({});
+  const [categorizeOpen, setCategorizeOpen] = React.useState(false);
+  const [chosenCategory, setChosenCategory] = React.useState("");
+  const [categorizing, setCategorizing] = React.useState(false);
 
   const lowStock = products.filter((p) => p.stock > 0 && p.stock < 20 && !p.preorder).length;
   const outOfStock = products.filter((p) => p.stock === 0 && !p.preorder).length;
@@ -146,6 +159,34 @@ export function ProductsListClient({ products, categories }: Props) {
     toast.success(`Archived ${ok} / ${selectedSlugs.length}`);
     setRowSelection({});
     router.refresh();
+  }
+
+  async function bulkCategorize() {
+    if (selectedSlugs.length === 0 || !chosenCategory) return;
+    setCategorizing(true);
+    try {
+      const res = await fetch("/api/v1/admin/products/bulk-category", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slugs: selectedSlugs, categorySlug: chosenCategory }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Could not set category");
+        return;
+      }
+      const catName = json.data?.category?.name ?? "category";
+      const moved = json.data?.updated ?? 0;
+      toast.success(`Moved ${moved} product${moved === 1 ? "" : "s"} to ${catName}`);
+      setCategorizeOpen(false);
+      setChosenCategory("");
+      setRowSelection({});
+      router.refresh();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setCategorizing(false);
+    }
   }
 
   const columns: ColumnDef<Product>[] = [
@@ -440,6 +481,12 @@ export function ProductsListClient({ products, categories }: Props) {
                 onClear={() => table.resetRowSelection()}
                 actions={[
                   {
+                    id: "categorize",
+                    label: "Set category",
+                    icon: <FolderInput className="size-3.5" />,
+                    onClick: () => setCategorizeOpen(true),
+                  },
+                  {
                     id: "archive",
                     label: "Archive",
                     icon: <Archive className="size-3.5" />,
@@ -451,6 +498,50 @@ export function ProductsListClient({ products, categories }: Props) {
           />
         </div>
       </div>
+
+      {/* Bulk "Set category" — assign every selected product to one category so
+          the storefront filters and the AI agent surface them by category. */}
+      <Dialog open={categorizeOpen} onOpenChange={(o) => !categorizing && setCategorizeOpen(o)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set category</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-2">
+            <p className="text-sm text-fg-muted">
+              Move{" "}
+              <span className="font-semibold text-fg">{selectedCount}</span> selected
+              product{selectedCount === 1 ? "" : "s"} into one category. This is what the
+              storefront filters and the AI agent use to find them.
+            </p>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">
+                Category
+              </div>
+              <Select
+                value={chosenCategory}
+                onChange={(e) => setChosenCategory(e.target.value)}
+                autoFocus
+              >
+                <option value="">Choose a category…</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setCategorizeOpen(false)} disabled={categorizing}>
+              Cancel
+            </Button>
+            <Button onClick={bulkCategorize} disabled={categorizing || !chosenCategory}>
+              {categorizing && <Loader2 className="size-4 animate-spin" />}
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -490,6 +490,41 @@ function expandSearchTerms(query: string): { tokens: string[]; terms: string[]; 
   return { tokens: effectiveTokens, terms: [...terms].slice(0, 20), norm };
 }
 
+function bigrams(s: string): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < s.length - 1; i++) out.add(s.slice(i, i + 2));
+  return out;
+}
+
+/** Dice coefficient over character bigrams — a cheap typo-similarity in [0,1].
+ *  "orimo" vs "oraimo" ≈ 0.67, so a misspelled brand still matches. */
+function diceSim(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const A = bigrams(a);
+  const B = bigrams(b);
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter++;
+  return (2 * inter) / (A.size + B.size);
+}
+
+// Distinct brand list, cached briefly in-memory (brands change rarely). Only the
+// fuzzy typo fallback reads it, so the common search path never fetches it.
+let brandCache: { at: number; brands: string[] } | null = null;
+async function knownBrands(): Promise<string[]> {
+  const now = Date.now();
+  if (brandCache && now - brandCache.at < 5 * 60 * 1000) return brandCache.brands;
+  const rows = await withRetry(() =>
+    db.product.findMany({
+      where: { archivedAt: null, published: true },
+      select: { brand: true },
+      distinct: ["brand"],
+    }),
+  );
+  brandCache = { at: now, brands: rows.map((r) => r.brand).filter(Boolean) };
+  return brandCache.brands;
+}
+
 export async function searchProducts(
   query: string,
   limit = 8,
@@ -498,6 +533,39 @@ export async function searchProducts(
   const { tokens, terms, norm } = expandSearchTerms(query);
   if (terms.length === 0 || !hasDatabase) return [];
 
+  let hits = await queryProductHits(terms, tokens, norm, limit, storeId);
+
+  // Typo tolerance: a thin result is usually a misspelled brand ("orimo" →
+  // "Oraimo") that substring search can't catch. Fuzzy-match the query tokens
+  // against the real brand list and retry with any close brand added as a term.
+  if (hits.length < 3) {
+    const corrections = new Set<string>();
+    for (const b of await knownBrands()) {
+      const bn = normalizeText(b);
+      if (!bn) continue;
+      for (const t of tokens) {
+        if (t.length >= 4 && bn !== t && diceSim(t, bn) >= 0.6) corrections.add(bn);
+      }
+    }
+    if (corrections.size > 0) {
+      const mergedTerms = [...new Set([...terms, ...corrections])].slice(0, 24);
+      const mergedTokens = [...new Set([...tokens, ...corrections])];
+      hits = await queryProductHits(mergedTerms, mergedTokens, norm, limit, storeId);
+    }
+  }
+
+  return hits;
+}
+
+/** Run the OR search over the given terms and rank the hits. Shared by the
+ *  normal search and the fuzzy-corrected retry. */
+async function queryProductHits(
+  terms: string[],
+  tokens: string[],
+  norm: string,
+  limit: number,
+  storeId?: string,
+): Promise<ProductSearchHit[]> {
   // Broad candidate net: any expanded term in ANY searchable field — name,
   // brand, slug, both descriptions, the category, or an exact tag. This is what
   // lets "power bank" find a product that only says so in its details, not name.
