@@ -15,6 +15,7 @@ import {
   Eye,
   FolderInput,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
@@ -34,6 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -74,6 +76,8 @@ export function ProductsListClient({ products, categories }: Props) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [categorizeOpen, setCategorizeOpen] = React.useState(false);
   const [chosenCategory, setChosenCategory] = React.useState("");
+  const [newCatName, setNewCatName] = React.useState("");
+  const [brandInput, setBrandInput] = React.useState("");
   const [categorizing, setCategorizing] = React.useState(false);
 
   const lowStock = products.filter((p) => p.stock > 0 && p.stock < 20 && !p.preorder).length;
@@ -142,6 +146,15 @@ export function ProductsListClient({ products, categories }: Props) {
         .map((p) => p.slug),
     [filtered, rowSelection],
   );
+  // Drafts among the selection — categorising them won't surface them on the
+  // storefront or to the AI until they're published (the usual "0 in category").
+  const selectedDrafts = React.useMemo(
+    () =>
+      filtered.filter(
+        (p, i) => (rowSelection as Record<string, boolean>)[i] && !p.published && !p.archived,
+      ).length,
+    [filtered, rowSelection],
+  );
 
   async function bulkArchive() {
     if (selectedSlugs.length === 0) return;
@@ -162,24 +175,59 @@ export function ProductsListClient({ products, categories }: Props) {
   }
 
   async function bulkCategorize() {
-    if (selectedSlugs.length === 0 || !chosenCategory) return;
+    if (selectedSlugs.length === 0) return;
+    const wantNew = chosenCategory === "__new__";
+    const brandVal = brandInput.trim();
+    if (wantNew && !newCatName.trim()) {
+      toast.error("Enter the new category name");
+      return;
+    }
+    if (!wantNew && !chosenCategory && !brandVal) {
+      toast.error("Choose a category or set a brand");
+      return;
+    }
     setCategorizing(true);
     try {
+      // Create the category first when staff typed a new one, then assign it.
+      let categorySlug: string | undefined = wantNew ? undefined : chosenCategory || undefined;
+      if (wantNew) {
+        const cr = await fetch("/api/v1/admin/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newCatName.trim() }),
+        });
+        const cj = await cr.json();
+        if (!cr.ok) {
+          toast.error(cj?.error?.message ?? "Could not create category");
+          return;
+        }
+        categorySlug = cj.data?.category?.slug;
+      }
       const res = await fetch("/api/v1/admin/products/bulk-category", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slugs: selectedSlugs, categorySlug: chosenCategory }),
+        body: JSON.stringify({
+          slugs: selectedSlugs,
+          ...(categorySlug && { categorySlug }),
+          ...(brandVal && { brand: brandVal }),
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json?.error?.message ?? "Could not set category");
+        toast.error(json?.error?.message ?? "Could not update products");
         return;
       }
-      const catName = json.data?.category?.name ?? "category";
       const moved = json.data?.updated ?? 0;
-      toast.success(`Moved ${moved} product${moved === 1 ? "" : "s"} to ${catName}`);
+      const bits: string[] = [];
+      if (json.data?.category?.name) bits.push(`category “${json.data.category.name}”`);
+      if (json.data?.brand) bits.push(`brand “${json.data.brand}”`);
+      toast.success(
+        `Updated ${moved} product${moved === 1 ? "" : "s"}${bits.length ? " → " + bits.join(" + ") : ""}`,
+      );
       setCategorizeOpen(false);
       setChosenCategory("");
+      setNewCatName("");
+      setBrandInput("");
       setRowSelection({});
       router.refresh();
     } catch {
@@ -504,38 +552,75 @@ export function ProductsListClient({ products, categories }: Props) {
       <Dialog open={categorizeOpen} onOpenChange={(o) => !categorizing && setCategorizeOpen(o)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Set category</DialogTitle>
+            <DialogTitle>Set category &amp; brand</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 mt-2">
             <p className="text-sm text-fg-muted">
-              Move{" "}
-              <span className="font-semibold text-fg">{selectedCount}</span> selected
-              product{selectedCount === 1 ? "" : "s"} into one category. This is what the
-              storefront filters and the AI agent use to find them.
+              Update <span className="font-semibold text-fg">{selectedCount}</span> selected
+              product{selectedCount === 1 ? "" : "s"}. Category and brand are what the storefront
+              filters and the AI agent use to find them.
             </p>
+
+            {selectedDrafts > 0 && (
+              <div className="flex items-start gap-2 p-2.5 rounded-md bg-warning-bg text-warning text-xs leading-relaxed">
+                <AlertTriangle className="size-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold">{selectedDrafts}</span> of these{" "}
+                  {selectedDrafts === 1 ? "is a draft" : "are drafts"}. Categorising won&apos;t make
+                  {selectedDrafts === 1 ? " it" : " them"} show on the storefront or to the AI until
+                  you <span className="font-semibold">publish</span>.
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">
                 Category
               </div>
-              <Select
-                value={chosenCategory}
-                onChange={(e) => setChosenCategory(e.target.value)}
-                autoFocus
-              >
-                <option value="">Choose a category…</option>
+              <Select value={chosenCategory} onChange={(e) => setChosenCategory(e.target.value)}>
+                <option value="">Keep current category</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
+                <option value="__new__">➕ New category…</option>
               </Select>
+              {chosenCategory === "__new__" && (
+                <Input
+                  className="mt-2"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="New category name, e.g. Power banks"
+                  autoFocus
+                />
+              )}
+            </div>
+
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-fg-muted mb-2">
+                Brand{" "}
+                <span className="font-normal normal-case text-fg-subtle">(optional)</span>
+              </div>
+              <Input
+                value={brandInput}
+                onChange={(e) => setBrandInput(e.target.value)}
+                placeholder="Set brand, e.g. Oraimo"
+              />
             </div>
           </div>
           <DialogFooter className="mt-4">
             <Button variant="ghost" onClick={() => setCategorizeOpen(false)} disabled={categorizing}>
               Cancel
             </Button>
-            <Button onClick={bulkCategorize} disabled={categorizing || !chosenCategory}>
+            <Button
+              onClick={bulkCategorize}
+              disabled={
+                categorizing ||
+                (!chosenCategory && !brandInput.trim()) ||
+                (chosenCategory === "__new__" && !newCatName.trim())
+              }
+            >
               {categorizing && <Loader2 className="size-4 animate-spin" />}
               Apply
             </Button>
