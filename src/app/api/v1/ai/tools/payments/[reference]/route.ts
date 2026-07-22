@@ -13,6 +13,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError } from "@/lib/errors";
+import { formatMoney } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -47,18 +48,20 @@ export async function GET(
       apiSuccess({
         reference: payment.reference,
         method: payment.method,
-        amountKobo: Number(payment.amountKobo),
+        amount: formatMoney(Number(payment.amountKobo)),
         status: payment.status,
         createdAt: payment.createdAt.toISOString(),
         order: {
           number: payment.order.number,
           status: payment.order.status,
           paymentStatus: payment.order.paymentStatus,
-          totalKobo: Number(payment.order.totalKobo),
-          paidKobo: Number(payment.order.paidKobo),
-          outstandingKobo: Math.max(
-            0,
-            Number(payment.order.totalKobo) - Number(payment.order.paidKobo),
+          total: formatMoney(Number(payment.order.totalKobo)),
+          paid: formatMoney(Number(payment.order.paidKobo)),
+          outstanding: formatMoney(
+            Math.max(
+              0,
+              Number(payment.order.totalKobo) - Number(payment.order.paidKobo),
+            ),
           ),
         },
       }),

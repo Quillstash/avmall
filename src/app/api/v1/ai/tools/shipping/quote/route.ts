@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
 import { findZoneForState, findZoneForArea, canonicalStateName } from "@/lib/shipping-zone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
+import { formatMoney } from "@/lib/money";
 import { AppError, ValidationError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -53,9 +54,8 @@ export async function GET(req: NextRequest) {
           matchedState: matchedState ?? requestedState,
           zone: zone.name,
           etaDays: zone.etaDays,
-          baseRateKobo: Number(zone.baseRateKobo),
-          freeOverKobo: freeOver,
-          shippingKobo: qualifiesFree ? 0 : Number(zone.baseRateKobo),
+          shipping: qualifiesFree ? "Free" : formatMoney(Number(zone.baseRateKobo)),
+          freeOver: freeOver != null ? formatMoney(freeOver) : null,
           qualifiesForFreeShipping: qualifiesFree,
           fallback: false,
         }),
@@ -70,9 +70,8 @@ export async function GET(req: NextRequest) {
           matchedState: matchedState ?? requestedState,
           zone: "Fallback",
           etaDays: fb.etaDays,
-          baseRateKobo: Number(fb.flatRateKobo),
-          freeOverKobo: null,
-          shippingKobo: Number(fb.flatRateKobo),
+          shipping: formatMoney(Number(fb.flatRateKobo)),
+          freeOver: null,
           qualifiesForFreeShipping: false,
           fallback: true,
         }),
@@ -86,8 +85,7 @@ export async function GET(req: NextRequest) {
         matchedState,
         zone: null,
         etaDays: null,
-        baseRateKobo: null,
-        shippingKobo: null,
+        shipping: null,
         qualifiesForFreeShipping: false,
         unavailable: true,
         message:

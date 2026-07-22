@@ -15,6 +15,7 @@ import { getMainStoreId } from "@/lib/store";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
+import { formatMoney } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -73,9 +74,9 @@ export async function GET(req: NextRequest) {
           number: o.number,
           status: o.status,
           paymentStatus: o.paymentStatus,
-          totalKobo: Number(o.totalKobo),
-          paidKobo: Number(o.paidKobo),
-          outstandingKobo: Math.max(0, Number(o.totalKobo) - Number(o.paidKobo)),
+          total: formatMoney(Number(o.totalKobo)),
+          paid: formatMoney(Number(o.paidKobo)),
+          outstanding: formatMoney(Math.max(0, Number(o.totalKobo) - Number(o.paidKobo))),
           createdAt: o.createdAt.toISOString(),
         })),
       }),
