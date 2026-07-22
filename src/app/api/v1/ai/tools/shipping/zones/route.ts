@@ -46,24 +46,21 @@ export async function GET() {
           return {
             name: z.name,
             states: z.states,
-            baseRateKobo: rate,
-            displayRate: formatMoney(rate),
-            freeOverKobo: freeOver,
-            ...(freeOver != null && { freeOverDisplay: formatMoney(freeOver) }),
+            rate: formatMoney(rate),
+            freeOver: freeOver != null ? formatMoney(freeOver) : null,
             etaDays: z.etaDays,
           };
         }),
         fallback:
           fb?.enabled
             ? {
-                flatRateKobo: Number(fb.flatRateKobo),
-                displayRate: formatMoney(Number(fb.flatRateKobo)),
+                rate: formatMoney(Number(fb.flatRateKobo)),
                 etaDays: fb.etaDays,
                 note: "Applied to any state not covered by a zone above.",
               }
             : null,
         message:
-          "These are the live delivery prices from admin. Amounts are in kobo; divide by 100 for naira. Match the customer's state to a zone; if none covers it, the fallback applies (or shipping is unavailable when there is no fallback).",
+          "These are the live delivery prices from admin, already in naira — show them exactly as given. Match the customer's state to a zone; if none covers it, the fallback applies (or shipping is unavailable when there is no fallback).",
       }),
     );
   } catch (err) {

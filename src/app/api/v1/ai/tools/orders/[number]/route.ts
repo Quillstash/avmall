@@ -12,6 +12,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, NotFoundError } from "@/lib/errors";
+import { formatMoney } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -73,25 +74,26 @@ export async function GET(
           state: order.shipState,
         },
         totals: {
-          subtotalKobo: Number(order.subtotalKobo),
-          shippingKobo: Number(order.shippingKobo),
-          discountKobo:
+          subtotal: formatMoney(Number(order.subtotalKobo)),
+          shipping: formatMoney(Number(order.shippingKobo)),
+          discount: formatMoney(
             Number(order.bulkDiscountKobo) +
-            Number(order.couponDiscountKobo) +
-            Number(order.manualDiscountKobo),
-          totalKobo,
-          paidKobo,
-          outstandingKobo: Math.max(0, totalKobo - paidKobo),
+              Number(order.couponDiscountKobo) +
+              Number(order.manualDiscountKobo),
+          ),
+          total: formatMoney(totalKobo),
+          paid: formatMoney(paidKobo),
+          outstanding: formatMoney(Math.max(0, totalKobo - paidKobo)),
         },
         items: order.lines.map((l) => ({
           name: l.nameSnapshot,
           variant: l.variantSnapshot,
           quantity: l.quantity,
-          unitKobo: Number(l.unitKobo),
+          unit: formatMoney(Number(l.unitKobo)),
         })),
         payments: order.payments.map((p) => ({
           method: p.method,
-          amountKobo: Number(p.amountKobo),
+          amount: formatMoney(Number(p.amountKobo)),
           status: p.status,
           at: p.createdAt.toISOString(),
         })),

@@ -12,7 +12,7 @@ responses here match the code exactly.
 
 | | |
 |---|---|
-| **Base URL** | `https://avmall-nine.vercel.app/api/v1/ai/tools` |
+| **Base URL** | `https://www.avmall.com.ng/api/v1/ai/tools` |
 | **Auth** | Read-only tools (catalogue, search, quote, shipping, negotiate) are **public**. Order/payment/`cart/prepare`/`orders/by-phone` tools **require** `Authorization: Bearer <AI_AGENT_TOKEN>`. Simplest: have DailZero send the token on **every** call — public tools ignore it. |
 | **Content-Type** | `application/json` for POSTs |
 | **Idempotency** | On `create_order`, send an `Idempotency-Key: <stable-uuid>` header so a retry never double-orders |
@@ -76,7 +76,7 @@ Every product from the search / recommend tools carries both a `name` and a
   the URL on the next:
   ```
   120W Shplus Charger Head — ₦2,900 (was ₦4,500), in stock
-  https://avmall-nine.vercel.app/product/120w-shplus-charger-head
+  https://www.avmall.com.ng/product/120w-shplus-charger-head
   ```
 
 One line per product plus its link. Never show the raw URL as the visible text
@@ -435,20 +435,20 @@ tools ignore it and the order/payment tools require it.
 
 | Tool | Method | Full URL |
 |---|---|---|
-| `list_categories` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/categories` |
-| `search_products` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/products/search?q={q}&category={category}&limit={limit}` |
-| `get_product` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/products/{slug}` |
-| `recommend_products` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/products/recommend?relatedTo={relatedTo}&category={category}&limit={limit}` |
-| `quote_shipping` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/shipping/quote?state={state}&subtotalKobo={subtotalKobo}` |
-| `list_shipping_zones` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/shipping/zones` |
-| `quote_cart` | POST | `https://avmall-nine.vercel.app/api/v1/ai/tools/cart/quote` |
-| `prepare_cart_link` | POST | `https://avmall-nine.vercel.app/api/v1/ai/tools/cart/prepare` |
-| `negotiate_price` | POST | `https://avmall-nine.vercel.app/api/v1/ai/tools/negotiate` |
-| `create_order` | POST | `https://avmall-nine.vercel.app/api/v1/ai/tools/orders`  · also send `Idempotency-Key` header |
-| `create_payment_link` | POST | `https://avmall-nine.vercel.app/api/v1/ai/tools/payments/link` |
-| `get_payment_status` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/payments/{reference}` |
-| `get_order` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/orders/{number}` |
-| `find_orders_by_phone` | GET | `https://avmall-nine.vercel.app/api/v1/ai/tools/orders/by-phone?phone={phone}&limit={limit}` |
+| `list_categories` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/categories` |
+| `search_products` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/products/search?q={q}&category={category}&limit={limit}` |
+| `get_product` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/products/{slug}` |
+| `recommend_products` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/products/recommend?relatedTo={relatedTo}&category={category}&limit={limit}` |
+| `quote_shipping` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/shipping/quote?state={state}&subtotalKobo={subtotalKobo}` |
+| `list_shipping_zones` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/shipping/zones` |
+| `quote_cart` | POST | `https://www.avmall.com.ng/api/v1/ai/tools/cart/quote` |
+| `prepare_cart_link` | POST | `https://www.avmall.com.ng/api/v1/ai/tools/cart/prepare` |
+| `negotiate_price` | POST | `https://www.avmall.com.ng/api/v1/ai/tools/negotiate` |
+| `create_order` | POST | `https://www.avmall.com.ng/api/v1/ai/tools/orders`  · also send `Idempotency-Key` header |
+| `create_payment_link` | POST | `https://www.avmall.com.ng/api/v1/ai/tools/payments/link` |
+| `get_payment_status` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/payments/{reference}` |
+| `get_order` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/orders/{number}` |
+| `find_orders_by_phone` | GET | `https://www.avmall.com.ng/api/v1/ai/tools/orders/by-phone?phone={phone}&limit={limit}` |
 
 > On GET URLs, only append the query params you actually have. e.g. a basic search
 > is just `.../products/search?q=power+bank`. Leave off `category`/`limit` if unused.
@@ -460,21 +460,21 @@ tools ignore it and the order/payment tools require it.
 **GET — search products** (headers + query only, no body):
 
 ```bash
-curl "https://avmall-nine.vercel.app/api/v1/ai/tools/products/search?q=power%20bank&limit=5" \
+curl "https://www.avmall.com.ng/api/v1/ai/tools/products/search?q=power%20bank&limit=5" \
   -H "Authorization: Bearer $AI_AGENT_TOKEN"
 ```
 
 **GET — product detail** (path param):
 
 ```bash
-curl "https://avmall-nine.vercel.app/api/v1/ai/tools/products/oraimo-20000mah-power-bank" \
+curl "https://www.avmall.com.ng/api/v1/ai/tools/products/oraimo-20000mah-power-bank" \
   -H "Authorization: Bearer $AI_AGENT_TOKEN"
 ```
 
 **POST — quote a cart** (JSON body):
 
 ```bash
-curl -X POST "https://avmall-nine.vercel.app/api/v1/ai/tools/cart/quote" \
+curl -X POST "https://www.avmall.com.ng/api/v1/ai/tools/cart/quote" \
   -H "Authorization: Bearer $AI_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -487,7 +487,7 @@ curl -X POST "https://avmall-nine.vercel.app/api/v1/ai/tools/cart/quote" \
 **POST — create order** (JSON body + idempotency header):
 
 ```bash
-curl -X POST "https://avmall-nine.vercel.app/api/v1/ai/tools/orders" \
+curl -X POST "https://www.avmall.com.ng/api/v1/ai/tools/orders" \
   -H "Authorization: Bearer $AI_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: 7b3f1c2a-9d84-4e11-8a6c-checkout-attempt-1" \
@@ -501,7 +501,7 @@ curl -X POST "https://avmall-nine.vercel.app/api/v1/ai/tools/orders" \
 **POST — create Nuqood payment** (returns a virtual bank account):
 
 ```bash
-curl -X POST "https://avmall-nine.vercel.app/api/v1/ai/tools/payments/link" \
+curl -X POST "https://www.avmall.com.ng/api/v1/ai/tools/payments/link" \
   -H "Authorization: Bearer $AI_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{ "orderNumber": "AVM-2026-00000123", "method": "nuqood" }'

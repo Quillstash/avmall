@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { formatMoney } from "@/lib/money";
 import {
   getProductBySlug,
   getRelatedProducts,
@@ -68,9 +69,11 @@ export async function GET(req: NextRequest) {
           name: p.name,
           brand: p.brand,
           category: p.category,
-          priceKobo: p.price,
-          saleKobo: p.saleActive && p.sale != null ? p.sale : null,
+          price: formatMoney(p.price),
+          ...(p.saleActive && p.sale != null && { salePrice: formatMoney(p.sale) }),
+          status: p.stock > 0 ? "In stock" : "Out of stock",
           inStock: p.stock > 0,
+          stock: p.stock,
           imageUrl: p.imageUrl,
         })),
       }),

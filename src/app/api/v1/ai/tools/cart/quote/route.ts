@@ -165,11 +165,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       apiSuccess({
         currency: "NGN",
-        subtotalKobo: quote.subtotalKobo,
-        bulkDiscountKobo: quote.bulkDiscountKobo,
-        couponDiscountKobo: quote.couponDiscountKobo,
-        shippingKobo: quote.shippingKobo,
-        totalKobo: quote.totalKobo,
+        subtotal: formatMoney(quote.subtotalKobo),
+        bulkDiscount: formatMoney(quote.bulkDiscountKobo),
+        couponDiscount: formatMoney(quote.couponDiscountKobo),
+        shipping: formatMoney(quote.shippingKobo),
         displayTotal: formatMoney(quote.totalKobo),
         freeShipping: freeShippingEligible,
         itemCount: quote.itemCount,
@@ -183,8 +182,8 @@ export async function POST(req: NextRequest) {
             productSlug: p.slug,
             name: p.name,
             quantity: l.quantity,
-            unitKobo: l.unitKobo,
-            lineTotalKobo: l.totalKobo,
+            unit: formatMoney(l.unitKobo),
+            lineTotal: formatMoney(l.totalKobo),
             ...(l.bulkTierLabel && { bulkTierLabel: l.bulkTierLabel }),
           };
         }),

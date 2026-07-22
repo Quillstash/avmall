@@ -29,6 +29,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { writeAudit } from "@/lib/audit";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
+import { formatMoney } from "@/lib/money";
 import { env } from "@/lib/env";
 import { SITE } from "@/lib/site";
 import { createDynamicAccount, nuqoodConfigured } from "@/lib/nuqood";
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
       apiSuccess({
         reference,
         paymentUrl,
-        amountKobo,
+        amount: formatMoney(Number(amountKobo)),
         method,
         expiresAt: expiresAt.toISOString(),
         nuqoodLive,

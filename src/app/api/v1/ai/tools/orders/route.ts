@@ -17,7 +17,7 @@
  *     /// AI may pass an Idempotency-Key header to dedupe retries.
  *   }
  *
- * Response (201): { order: { id, number, status, paymentStatus, totalKobo, paidKobo } }
+ * Response (201): { order: { id, number, status, paymentStatus, total, paid, outstanding } }
  *
  * Auth: Bearer AI_AGENT_TOKEN
  */
@@ -36,6 +36,7 @@ import { writeAudit } from "@/lib/audit";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { emailOnOrderCreated } from "@/lib/order-emails";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
+import { formatMoney } from "@/lib/money";
 import {
   AppError,
   BlacklistedError,
@@ -303,9 +304,9 @@ export async function POST(req: NextRequest) {
             number: order.number,
             status: order.status,
             paymentStatus: order.paymentStatus,
-            totalKobo: Number(order.totalKobo),
-            paidKobo: Number(order.paidKobo),
-            outstandingKobo: Number(order.totalKobo) - Number(order.paidKobo),
+            total: formatMoney(Number(order.totalKobo)),
+            paid: formatMoney(Number(order.paidKobo)),
+            outstanding: formatMoney(Number(order.totalKobo) - Number(order.paidKobo)),
           },
         },
         statusCode: 201,

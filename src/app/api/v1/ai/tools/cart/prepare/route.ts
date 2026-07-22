@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
       slug: string;
       name: string;
       quantity: number;
-      unitKobo: number;
+      unit: string;
     }> = [];
 
     for (const item of items) {
@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
         slug: product.slug,
         name: product.name,
         quantity: item.quantity,
-        unitKobo,
+        unit: formatMoney(unitKobo),
       });
     }
 
@@ -185,7 +185,6 @@ export async function POST(req: NextRequest) {
       apiSuccess({
         cartUrl,
         itemCount,
-        subtotalKobo,
         displayTotal: formatMoney(subtotalKobo),
         currency: "NGN",
         lines: summaryLines,
