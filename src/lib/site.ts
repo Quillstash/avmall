@@ -7,8 +7,8 @@ export const SITE = {
   name: "Avmall",
   legalName: "Almubaarak Variety Mall",
   shortName: "Avmall",
-  domain: "avmall-nine.vercel.app",
-  url: "https://avmall-nine.vercel.app",
+  domain: "www.avmall.com.ng",
+  url: "https://www.avmall.com.ng",
   // SEO-friendly title — aim for 50–60 chars so it doesn't get truncated in
   // search results or social cards. Used as the default <title> and as the
   // OG/Twitter title on the home + every page without its own title.
