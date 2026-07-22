@@ -95,6 +95,26 @@ function blank(v: string | undefined): string | undefined {
   return v && v.trim() !== "" ? v : undefined;
 }
 
+/**
+ * Sanitise a base-URL env var. Tolerates a mistakenly comma/space-separated
+ * value (a common misconfig — e.g. "https://a.com,https://b.com/") by taking
+ * the FIRST entry and stripping any trailing slash, and returns undefined when
+ * it isn't a valid URL. This stops a malformed value from producing broken
+ * links like "https://a.com,https://b.com//product/x" — it degrades to the
+ * SITE.url default instead.
+ */
+function cleanUrl(v: string | undefined): string | undefined {
+  if (!v) return undefined;
+  const first = v.split(/[,\s]+/)[0]?.trim().replace(/\/+$/, "");
+  if (!first) return undefined;
+  try {
+    new URL(first);
+    return first;
+  } catch {
+    return undefined;
+  }
+}
+
 export const env = envSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
   DATABASE_URL: blank(process.env.DATABASE_URL),
@@ -127,7 +147,7 @@ export const env = envSchema.parse({
   AFRICAS_TALKING_USERNAME: blank(process.env.AFRICAS_TALKING_USERNAME),
   UPSTASH_REDIS_REST_URL: blank(process.env.UPSTASH_REDIS_REST_URL),
   UPSTASH_REDIS_REST_TOKEN: blank(process.env.UPSTASH_REDIS_REST_TOKEN),
-  NEXT_PUBLIC_APP_URL: blank(process.env.NEXT_PUBLIC_APP_URL),
+  NEXT_PUBLIC_APP_URL: cleanUrl(process.env.NEXT_PUBLIC_APP_URL),
   SENTRY_DSN: blank(process.env.SENTRY_DSN),
   NEXT_PUBLIC_POSTHOG_KEY: blank(process.env.NEXT_PUBLIC_POSTHOG_KEY),
   AXIOM_TOKEN: blank(process.env.AXIOM_TOKEN),
