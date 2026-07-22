@@ -2,13 +2,14 @@ import { env } from "@/lib/env";
 import { SITE } from "@/lib/site";
 
 /**
- * Base URL the app is ACTUALLY served from — used for links inside emails and
- * webhook callbacks. Set `NEXT_PUBLIC_APP_URL` to the live deployment (e.g. the
- * Vercel URL) until the custom domain is live; falls back to `SITE.url` (the
- * canonical domain used for SEO/metadata, which we never repoint).
+ * Base URL the app is ACTUALLY served from — used for links inside emails,
+ * webhook callbacks, and the URLs the AI agent returns. Defaults to `SITE.url`
+ * (the live custom domain). Only set `NEXT_PUBLIC_APP_URL` to override it for a
+ * preview/staging deployment — leave it UNSET in production so links use the
+ * custom domain, not the *.vercel.app URL.
  *
- *   appUrl()                         -> "https://avmall-nine.vercel.app"
- *   appUrl("/accept-invite/abc")     -> "https://avmall-nine.vercel.app/accept-invite/abc"
+ *   appUrl()                         -> "https://www.avmall.com.ng"
+ *   appUrl("/accept-invite/abc")     -> "https://www.avmall.com.ng/accept-invite/abc"
  */
 export function appUrl(path = ""): string {
   const base = (env.NEXT_PUBLIC_APP_URL ?? SITE.url).replace(/\/+$/, "");
