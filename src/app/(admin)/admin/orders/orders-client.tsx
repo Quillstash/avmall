@@ -22,6 +22,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
 import { DateRangeFilter } from "@/components/admin/date-range-filter";
+import { PAGE_SIZES } from "@/lib/pagination";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
@@ -75,13 +76,6 @@ const BULK_STATUS_FLOW = [
   { value: "shipped", label: "Shipped", icon: Truck },
   { value: "delivered", label: "Delivered", icon: MapPin },
 ] as const;
-
-/**
- * Rows-per-page choices in the pager. The first is the default; the server
- * page validates `?size=` against this list. Kept here beside the selector
- * that renders it — the page imports it back for validation.
- */
-export const PAGE_SIZES = [25, 50, 100] as const;
 
 interface Props {
   orders: OrderListRow[];

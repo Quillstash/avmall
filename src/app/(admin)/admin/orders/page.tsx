@@ -1,26 +1,17 @@
 import { listAdminOrdersPage } from "@/lib/data/orders";
 import { getActiveAdminStoreId } from "@/lib/store";
 import { parseExportDateRange } from "@/lib/date-range";
-import { OrdersListClient, PAGE_SIZES } from "./orders-client";
+// `parsePageSize` must come from a plain module, never from the client
+// component — see the note in lib/pagination.ts.
+import { parsePageSize } from "@/lib/pagination";
+import { OrdersListClient } from "./orders-client";
 
 export const dynamic = "force-dynamic";
-
-const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];
 
 /** Split a comma-separated query param into a clean string array. */
 function parseList(v: string | undefined): string[] {
   if (!v) return [];
   return v.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
-/**
- * Rows per page from `?size=`, validated against the offered set so a
- * hand-edited URL can't ask for an unbounded page. (The data layer clamps at
- * 100 too, but rejecting here keeps the pager's arithmetic honest.)
- */
-function parsePageSize(v: string | undefined): number {
-  const n = Number(v);
-  return (PAGE_SIZES as readonly number[]).includes(n) ? n : DEFAULT_PAGE_SIZE;
 }
 
 export default async function AdminOrdersListPage({
