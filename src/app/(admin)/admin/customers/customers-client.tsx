@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Plus,
-  Download,
   MoreHorizontal,
   Mail,
   MessageCircle,
@@ -16,6 +15,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
+import { ExportCsvButton } from "@/components/admin/export-csv-button";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { Badge } from "@/components/ui/badge";
@@ -276,11 +276,10 @@ export function CustomersClient({ customers }: CustomersClientProps) {
             subtitle={`${customers.length} customer${customers.length === 1 ? "" : "s"} · ${blacklistedCount} blacklisted`}
             actions={
               <>
-                <a href="/api/v1/admin/customers/export" download>
-                  <Button variant="secondary" size="sm">
-                    <Download className="size-3.5" /> Export CSV
-                  </Button>
-                </a>
+                <ExportCsvButton
+                  endpoint="/api/v1/admin/customers/export"
+                  hint="Limit the file to customers who signed up in this window. Lifetime value and order counts stay lifetime totals."
+                />
                 <Button size="sm" onClick={() => setAddOpen(true)}>
                   <Plus className="size-3.5" /> Add customer
                 </Button>

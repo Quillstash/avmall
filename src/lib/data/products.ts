@@ -850,3 +850,78 @@ export async function listAllProductSlugs(): Promise<string[]> {
   );
   return rows.map((r) => r.slug);
 }
+
+/** Per-product sales totals over a date window. */
+export type ProductSales = {
+  unitsSold: number;
+  /** Net of per-line bulk-tier discounts. Order-level discounts are NOT
+   *  apportioned here — see `getProfitAnalysis` for the full P&L treatment. */
+  revenueKobo: number;
+  ordersCount: number;
+};
+
+/**
+ * Units and revenue per product for orders placed in a window, keyed by
+ * product id. Cancelled orders are excluded; refunded ones are not, since the
+ * sale did happen.
+ *
+ * Revenue is summed in JS rather than via `groupBy` because a line's value is
+ * `quantity * unitKobo - bulkDiscountKobo`, which Prisma cannot `_sum` — and
+ * the money columns are BigInt, so they need narrowing anyway. The window
+ * bounds the row count.
+ */
+export async function getProductSalesInRange(opts: {
+  from?: Date | null;
+  to?: Date | null;
+  storeId?: string | null;
+}): Promise<Map<string, ProductSales>> {
+  const sales = new Map<string, ProductSales>();
+  if (!hasDatabase) return sales;
+
+  const lines = await withRetry(() =>
+    db.orderLine.findMany({
+      where: {
+        order: {
+          ...(opts.storeId ? { storeId: opts.storeId } : {}),
+          status: { not: "cancelled" },
+          ...(opts.from || opts.to
+            ? {
+                createdAt: {
+                  ...(opts.from ? { gte: opts.from } : {}),
+                  ...(opts.to ? { lt: opts.to } : {}),
+                },
+              }
+            : {}),
+        },
+      },
+      select: {
+        productId: true,
+        orderId: true,
+        quantity: true,
+        unitKobo: true,
+        bulkDiscountKobo: true,
+      },
+    }),
+  );
+
+  // Distinct orders per product, so "Orders" counts orders and not lines.
+  const orderIds = new Map<string, Set<string>>();
+
+  for (const l of lines) {
+    const cur = sales.get(l.productId) ?? { unitsSold: 0, revenueKobo: 0, ordersCount: 0 };
+    cur.unitsSold += l.quantity;
+    cur.revenueKobo += Number(l.unitKobo) * l.quantity - Number(l.bulkDiscountKobo);
+    sales.set(l.productId, cur);
+
+    const seen = orderIds.get(l.productId) ?? new Set<string>();
+    seen.add(l.orderId);
+    orderIds.set(l.productId, seen);
+  }
+
+  for (const [productId, ids] of orderIds) {
+    const cur = sales.get(productId);
+    if (cur) cur.ordersCount = ids.size;
+  }
+
+  return sales;
+}

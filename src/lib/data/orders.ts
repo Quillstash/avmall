@@ -183,39 +183,48 @@ export interface AdminOrdersPage {
   allCount: number;
 }
 
-/**
- * Server-side paginated + filtered admin orders. One page of rows is fetched at
- * a time (never the whole table), so the list scales to any order volume and
- * can reach the very first order. Status-tab counts are computed across the
- * whole matching set (minus the status filter) so they stay meaningful while
- * paging.
- */
-export async function listAdminOrdersPage(opts: {
+/** The filters the admin orders list exposes. Shared by the list and the CSV export. */
+export type AdminOrderFilters = {
   storeId?: string | null;
-  page: number;
-  pageSize: number;
   status?: string | null;
   payment?: string[];
   source?: string[];
   search?: string | null;
-}): Promise<AdminOrdersPage> {
-  if (!hasDatabase) {
-    return { rows: [], total: 0, statusCounts: {}, allCount: 0 };
-  }
+  /** Window on `createdAt`: inclusive start, exclusive end. */
+  from?: Date | null;
+  to?: Date | null;
+};
 
-  const page = Math.max(1, opts.page || 1);
-  const pageSize = Math.min(Math.max(1, opts.pageSize || 25), 100);
-  const q = opts.search?.trim();
+/**
+ * Translate the list's filters into Prisma `where` clauses. `baseWhere` omits
+ * the status filter so each status tab can count its own total; `statusWhere`
+ * is the fully-filtered set.
+ *
+ * The export route calls this too — filter semantics (which fields the search
+ * box matches, how the date window is bounded) then can't drift between what
+ * staff see on screen and what lands in the CSV.
+ */
+export function buildAdminOrdersWhere(f: AdminOrderFilters): {
+  baseWhere: Prisma.OrderWhereInput;
+  statusWhere: Prisma.OrderWhereInput;
+} {
+  const q = f.search?.trim();
 
-  // Filters shared by the page query and the status-tab counts (everything
-  // EXCEPT the status filter, so each tab shows its own total).
   const baseWhere: Prisma.OrderWhereInput = {
-    ...(opts.storeId ? { storeId: opts.storeId } : {}),
-    ...(opts.payment && opts.payment.length > 0
-      ? { paymentStatus: { in: opts.payment as DbPaymentStatus[] } }
+    ...(f.storeId ? { storeId: f.storeId } : {}),
+    ...(f.from || f.to
+      ? {
+          createdAt: {
+            ...(f.from ? { gte: f.from } : {}),
+            ...(f.to ? { lt: f.to } : {}),
+          },
+        }
       : {}),
-    ...(opts.source && opts.source.length > 0
-      ? { source: { in: opts.source as DbOrderSource[] } }
+    ...(f.payment && f.payment.length > 0
+      ? { paymentStatus: { in: f.payment as DbPaymentStatus[] } }
+      : {}),
+    ...(f.source && f.source.length > 0
+      ? { source: { in: f.source as DbOrderSource[] } }
       : {}),
     ...(q && q.length >= 1
       ? {
@@ -236,10 +245,30 @@ export async function listAdminOrdersPage(opts: {
 
   const statusWhere: Prisma.OrderWhereInput = {
     ...baseWhere,
-    ...(opts.status && opts.status !== "all"
-      ? { status: opts.status as DbOrderStatus }
-      : {}),
+    ...(f.status && f.status !== "all" ? { status: f.status as DbOrderStatus } : {}),
   };
+
+  return { baseWhere, statusWhere };
+}
+
+/**
+ * Server-side paginated + filtered admin orders. One page of rows is fetched at
+ * a time (never the whole table), so the list scales to any order volume and
+ * can reach the very first order. Status-tab counts are computed across the
+ * whole matching set (minus the status filter) so they stay meaningful while
+ * paging.
+ */
+export async function listAdminOrdersPage(
+  opts: AdminOrderFilters & { page: number; pageSize: number },
+): Promise<AdminOrdersPage> {
+  if (!hasDatabase) {
+    return { rows: [], total: 0, statusCounts: {}, allCount: 0 };
+  }
+
+  const page = Math.max(1, opts.page || 1);
+  const pageSize = Math.min(Math.max(1, opts.pageSize || 25), 100);
+
+  const { baseWhere, statusWhere } = buildAdminOrdersWhere(opts);
 
   const [rows, total, grouped] = await Promise.all([
     db.order.findMany({

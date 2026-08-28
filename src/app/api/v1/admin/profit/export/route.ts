@@ -116,7 +116,12 @@ export async function GET(req: NextRequest) {
     );
 
     const body = sections.join("\r\n") + "\r\n";
-    return csvResponse(`profit-analysis_${a.from}_to_${a.to}.csv`, body);
+    // Date part only: `a.from`/`a.to` are full ISO strings, and csvResponse's
+    // sanitiser turns their colons into underscores (`2026-08-01T00_00_00...`).
+    return csvResponse(
+      `profit-analysis_${a.from.slice(0, 10)}_to_${a.to.slice(0, 10)}.csv`,
+      body,
+    );
   } catch (err) {
     return handleApiError(err);
   }

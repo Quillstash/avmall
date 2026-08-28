@@ -13,16 +13,38 @@ interface PaginationProps {
   onChange: (page: number) => void;
   /** Total surface to show (e.g. "Showing 1–10 of 284 orders"). */
   label?: string;
+  /**
+   * Rows-per-page choices. Pass together with `onPerPageChange` to show the
+   * selector — server-paginated lists own the value (usually via a URL param),
+   * so this component only reports the change.
+   */
+  perPageOptions?: number[];
+  onPerPageChange?: (perPage: number) => void;
   className?: string;
 }
 
-export function Pagination({ page, total, perPage, onChange, label, className }: PaginationProps) {
+export function Pagination({
+  page,
+  total,
+  perPage,
+  onChange,
+  label,
+  perPageOptions,
+  onPerPageChange,
+  className,
+}: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const start = (page - 1) * perPage + 1;
   const end = Math.min(page * perPage, total);
+  const showPerPage = !!perPageOptions?.length && !!onPerPageChange;
 
   return (
-    <div className={cn("flex items-center justify-between gap-3 text-xs text-fg-muted", className)}>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 flex-wrap text-xs text-fg-muted",
+        className,
+      )}
+    >
       <span>
         {label ?? (
           <>
@@ -32,6 +54,23 @@ export function Pagination({ page, total, perPage, onChange, label, className }:
         )}
       </span>
       <div className="flex items-center gap-1">
+        {showPerPage && (
+          <label className="flex items-center gap-1.5 mr-2">
+            <span className="hidden sm:inline">Rows per page</span>
+            <select
+              value={perPage}
+              onChange={(e) => onPerPageChange(Number(e.target.value))}
+              className="h-8 rounded-md border border-border-strong bg-surface px-2 text-xs font-semibold text-fg outline-none focus:ring-2 focus:ring-brand-primary/30"
+              aria-label="Rows per page"
+            >
+              {perPageOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <PageButton
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}

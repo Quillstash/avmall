@@ -21,6 +21,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
+import { DateRangeFilter } from "@/components/admin/date-range-filter";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { OrderStatusPill, PaymentStatusPill } from "@/components/ui/status-pill";
@@ -75,6 +76,13 @@ const BULK_STATUS_FLOW = [
   { value: "delivered", label: "Delivered", icon: MapPin },
 ] as const;
 
+/**
+ * Rows-per-page choices in the pager. The first is the default; the server
+ * page validates `?size=` against this list. Kept here beside the selector
+ * that renders it — the page imports it back for validation.
+ */
+export const PAGE_SIZES = [25, 50, 100] as const;
+
 interface Props {
   orders: OrderListRow[];
   /** Orders matching the active filters (drives the pager). */
@@ -83,7 +91,15 @@ interface Props {
   pageSize: number;
   statusCounts: Record<string, number>;
   allCount: number;
-  filters: { status: string; payment: string[]; source: string[]; search: string };
+  filters: {
+    status: string;
+    payment: string[];
+    source: string[];
+    search: string;
+    /** `YYYY-MM-DD`, or "" when unset. */
+    from: string;
+    to: string;
+  };
 }
 
 export function OrdersListClient({
@@ -146,6 +162,26 @@ export function OrdersListClient({
     const t = setTimeout(() => setParams({ q: search || null }), 350);
     return () => clearTimeout(t);
   }, [search, filters.search, setParams]);
+
+  // A bookmarked ?page=99, or a filter that shrank the result set, can strand
+  // the viewer past the last page — an empty table with no obvious way back.
+  // Walk them to the last real page instead.
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  React.useEffect(() => {
+    if (page > totalPages) setParams({ page: String(totalPages) }, false);
+  }, [page, totalPages, setParams]);
+
+  // The export mirrors the screen: same filters, same date window, same store.
+  // `page`/`size` are dropped — they page the view, they don't narrow the set.
+  const exportHref = React.useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("page");
+    params.delete("size");
+    const qs = params.toString();
+    return qs
+      ? `/api/v1/admin/orders/export?${qs}`
+      : "/api/v1/admin/orders/export";
+  }, [searchParams]);
 
   const filterConfigs: FilterConfig[] = [
     { id: "payment", label: "Payment", values: paymentValues, options: PAYMENT_OPTIONS, multi: true },
@@ -458,13 +494,18 @@ export function OrdersListClient({
           <PageHeader
             title="Orders"
             subtitle={`${total.toLocaleString()} order${total === 1 ? "" : "s"}${
-              view !== "all" || paymentValues.length || sourceValues.length || filters.search
+              view !== "all" ||
+              paymentValues.length ||
+              sourceValues.length ||
+              filters.search ||
+              filters.from ||
+              filters.to
                 ? " matching"
                 : ""
             }`}
             actions={
               <>
-                <a href="/api/v1/admin/orders/export" download>
+                <a href={exportHref} download>
                   <Button variant="secondary" size="sm">
                     <Download className="size-3.5" /> Export CSV
                   </Button>
@@ -494,7 +535,24 @@ export function OrdersListClient({
               if (id === "payment") setParams({ payment: values });
               if (id === "source") setParams({ source: values });
             }}
-            onClear={() => setParams({ payment: null, source: null, status: null, q: null })}
+            onClear={() =>
+              setParams({
+                payment: null,
+                source: null,
+                status: null,
+                q: null,
+                from: null,
+                to: null,
+              })
+            }
+            className="mb-3"
+          />
+
+          <DateRangeFilter
+            from={filters.from}
+            to={filters.to}
+            onApply={(from, to) => setParams({ from: from || null, to: to || null })}
+            onClear={() => setParams({ from: null, to: null })}
             className="mb-4"
           />
 
@@ -533,12 +591,16 @@ export function OrdersListClient({
             )}
           />
 
-          {total > pageSize && (
+          {total > 0 && (
             <Pagination
               page={page}
               total={total}
               perPage={pageSize}
               onChange={(p) => setParams({ page: String(p) }, false)}
+              perPageOptions={[...PAGE_SIZES]}
+              // A bigger page can strand the viewer past the last page, so a
+              // size change goes back to page 1.
+              onPerPageChange={(n) => setParams({ size: String(n) })}
               className="mt-4"
             />
           )}

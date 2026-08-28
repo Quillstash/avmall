@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
-  Download,
   MoreHorizontal,
   Trash2,
   Archive,
@@ -21,10 +20,12 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTopBar } from "@/components/admin/topbar";
 import { PageHeader } from "@/components/admin/page-header";
+import { ExportCsvButton } from "@/components/admin/export-csv-button";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/ui/money";
 import { formatMoney } from "@/lib/money";
 import { type StockStatus } from "@/components/ui/status-pill";
+import { stockStatusFor, LOW_STOCK_THRESHOLD } from "@/lib/product-status";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar, type FilterConfig } from "@/components/ui/filter-bar";
 import { BulkActionsBar } from "@/components/ui/bulk-actions-bar";
@@ -48,10 +49,7 @@ import { toast } from "@/components/ui/toaster";
 import { type Category, type Product } from "@/lib/mock-data";
 
 function statusFor(p: Product): StockStatus {
-  if (p.preorder) return "preorder";
-  if (p.stock === 0) return "out_of_stock";
-  if (p.stock < 20) return "low_stock";
-  return "in_stock";
+  return stockStatusFor(p);
 }
 
 /**
@@ -99,7 +97,9 @@ export function ProductsListClient({ products, categories }: Props) {
   const stockFileRef = React.useRef<HTMLInputElement>(null);
   const [importingStock, setImportingStock] = React.useState(false);
 
-  const lowStock = products.filter((p) => p.stock > 0 && p.stock < 20 && !p.preorder).length;
+  const lowStock = products.filter(
+    (p) => p.stock > 0 && p.stock < LOW_STOCK_THRESHOLD && !p.preorder,
+  ).length;
   const outOfStock = products.filter((p) => p.stock === 0 && !p.preorder).length;
   const preorders = products.filter((p) => p.preorder).length;
   const missingImages = products.filter((p) => !hasImage(p)).length;
@@ -169,6 +169,18 @@ export function ProductsListClient({ products, categories }: Props) {
       return true;
     });
   }, [search, categoryValues, statusValues, imageValues, products]);
+
+  // The list filters live in React state (the table is filtered in memory), so
+  // the export can't read them off the URL the way the orders list does — it
+  // reads them from here instead. The date range is added by the button.
+  const exportParams = React.useMemo(() => {
+    const p: Record<string, string> = {};
+    if (search.trim()) p.q = search.trim();
+    if (categoryValues.length > 0) p.category = categoryValues.join(",");
+    if (statusValues.length > 0) p.stock = statusValues.join(",");
+    if (imageValues[0]) p.image = imageValues[0];
+    return p;
+  }, [search, categoryValues, statusValues, imageValues]);
 
   const selectedCount = Object.values(rowSelection).filter(Boolean).length;
   const selectedSlugs = React.useMemo(
@@ -520,11 +532,11 @@ export function ProductsListClient({ products, categories }: Props) {
             subtitle={`${products.length} products · ${lowStock} low stock · ${outOfStock} out of stock · ${missingImages} missing image${missingImages === 1 ? "" : "s"}`}
             actions={
               <>
-                <a href="/api/v1/admin/products/export">
-                  <Button variant="secondary" size="sm">
-                    <Download className="size-3.5" /> Export CSV
-                  </Button>
-                </a>
+                <ExportCsvButton
+                  endpoint="/api/v1/admin/products/export"
+                  params={exportParams}
+                  hint="Leave blank for the full catalogue. With a date range you get only products that sold in the window, plus units and revenue — use the full export for Import stock."
+                />
                 <input
                   ref={stockFileRef}
                   type="file"

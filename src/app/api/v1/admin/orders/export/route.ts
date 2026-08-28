@@ -1,23 +1,38 @@
 /**
  * GET /api/v1/admin/orders/export
+ *   ?from=YYYY-MM-DD&to=YYYY-MM-DD   optional date window (Lagos days, inclusive)
+ *   &status=&payment=&source=&q=     the orders list's own filters
  *
- * CSV dump of recent orders. Permission-gated by `orders.view` and capped at
- * 5000 rows to protect Neon — Phase 6 will push the heavy export through a
- * BullMQ worker per CLAUDE.md.
+ * CSV of the orders the list is currently showing. The filters are parsed by
+ * the same `buildAdminOrdersWhere` the list page uses, so the CSV can never
+ * disagree with what's on screen, and the rows are scoped to the operator's
+ * active store like every other admin read.
+ *
+ * Capped at MAX_ROWS; when the cap bites, a final row says so rather than the
+ * file just stopping. Permission: `orders.view`.
  */
 
 import { NextRequest } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
 import { requireStaffSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { toCsv, csvResponse } from "@/lib/csv";
+import { buildAdminOrdersWhere } from "@/lib/data/orders";
+import { getActiveAdminStoreId } from "@/lib/store";
+import { parseExportDateRange } from "@/lib/date-range";
+import { toCsv, csvResponse, capRows, truncationRow, EXPORT_ROW_CAP } from "@/lib/csv";
 import { handleApiError } from "@/lib/api-response";
 import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function GET(_req: NextRequest) {
+/** Split a comma-separated query param into a clean string array. */
+function parseList(v: string | null): string[] {
+  if (!v) return [];
+  return v.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export async function GET(req: NextRequest) {
   try {
     const session = await requireStaffSession();
     requirePermission(session, "orders.view");
@@ -26,15 +41,32 @@ export async function GET(_req: NextRequest) {
       throw new AppError("DB_NOT_CONFIGURED", "Export requires DATABASE_URL.", 503);
     }
 
-    const orders = await db.order.findMany({
+    const sp = req.nextUrl.searchParams;
+    const range = parseExportDateRange(sp);
+    const storeId = await getActiveAdminStoreId();
+
+    const { statusWhere } = buildAdminOrdersWhere({
+      storeId,
+      status: sp.get("status"),
+      payment: parseList(sp.get("payment")),
+      source: parseList(sp.get("source")),
+      search: sp.get("q"),
+      from: range.from,
+      to: range.to,
+    });
+
+    const found = await db.order.findMany({
+      where: statusWhere,
       orderBy: { createdAt: "desc" },
-      take: 5000,
+      take: EXPORT_ROW_CAP + 1,
       include: {
         customer: { select: { name: true, phone: true, email: true } },
         createdBy: { select: { name: true } },
-        lines: { select: { id: true } },
+        // A COUNT beats pulling every line id back just to call `.length`.
+        _count: { select: { lines: true } },
       },
     });
+    const { rows: orders, truncated } = capRows(found, EXPORT_ROW_CAP);
 
     const headers = [
       "Order number",
@@ -57,7 +89,7 @@ export async function GET(_req: NextRequest) {
       "Coupon",
       "Created by",
     ];
-    const rows = orders.map((o) => [
+    const rows: (string | number)[][] = orders.map((o) => [
       o.number,
       o.createdAt.toISOString(),
       o.status,
@@ -68,7 +100,7 @@ export async function GET(_req: NextRequest) {
       o.customer?.email ?? "",
       o.shipName,
       `${o.shipLine1}${o.shipLine2 ? ", " + o.shipLine2 : ""}, ${o.shipCity}, ${o.shipState}`,
-      o.lines.length,
+      o._count.lines,
       Number(o.subtotalKobo),
       Number(o.bulkDiscountKobo) +
         Number(o.couponDiscountKobo) +
@@ -81,8 +113,11 @@ export async function GET(_req: NextRequest) {
       o.createdBy?.name ?? "",
     ]);
 
-    const stamp = new Date().toISOString().slice(0, 10);
-    return csvResponse(`avmall-orders-${stamp}.csv`, toCsv(headers, rows));
+    if (truncated) rows.push(truncationRow(EXPORT_ROW_CAP, headers.length));
+
+    // No preamble line: row 1 stays the header row so the file imports cleanly
+    // into a spreadsheet. The period lives in the filename instead.
+    return csvResponse(`avmall-orders_${range.slug}.csv`, toCsv(headers, rows));
   } catch (err) {
     return handleApiError(err);
   }
