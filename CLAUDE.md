@@ -807,6 +807,14 @@ The design system components MUST exist before building any screen. Build in thi
 9. `<EmptyState>`
 10. Navigation components (storefront nav, admin sidebar)
 
+### Server/Client Boundary
+
+A Server Component may import a **component** from a `"use client"` module — that is what the boundary is for. It must never import a plain **value** (a const array or object, a helper function) out of one: React hands the server a client-reference Proxy instead of the real value, and the first property access throws at request time (`Attempted to call includes() from the server`).
+
+Put shared constants in a plain module with no `"use client"` directive and import it from both sides — see `src/lib/pagination.ts`.
+
+Neither existing check catches this: the import is perfectly type-correct so `tsc --noEmit` passes, and admin pages are `force-dynamic` so `next build` never executes them. `pnpm check:boundaries` (`scripts/check-client-boundary.ts`) enforces it and runs as the first step of the Vercel build command.
+
 ### Component Conventions
 
 ```typescript

@@ -10,6 +10,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "check:boundaries": "tsx scripts/check-client-boundary.ts",
+    "verify": "pnpm run typecheck && pnpm run check:boundaries",
     "clean": "rm -rf .next .turbo",
     "db:generate": "prisma generate",
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",

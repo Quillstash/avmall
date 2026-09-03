@@ -32,6 +32,14 @@ function parseList(v: string | null): string[] {
   return v.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+/** Human labels for the payment methods a customer can pay with. */
+const METHOD_LABEL: Record<string, string> = {
+  cash: "Cash",
+  bank_transfer: "Bank transfer",
+  pos: "POS",
+  nuqood: "Nuqood",
+};
+
 export async function GET(req: NextRequest) {
   try {
     const session = await requireStaffSession();
@@ -62,6 +70,7 @@ export async function GET(req: NextRequest) {
       include: {
         customer: { select: { name: true, phone: true, email: true } },
         createdBy: { select: { name: true } },
+        payments: { select: { method: true, status: true } },
         // A COUNT beats pulling every line id back just to call `.length`.
         _count: { select: { lines: true } },
       },
@@ -73,6 +82,7 @@ export async function GET(req: NextRequest) {
       "Created at",
       "Status",
       "Payment status",
+      "Payment method",
       "Source",
       "Customer name",
       "Customer phone",
@@ -94,6 +104,9 @@ export async function GET(req: NextRequest) {
       o.createdAt.toISOString(),
       o.status,
       o.paymentStatus,
+      [...new Set(o.payments.filter((p) => p.status === "completed").map((p) => p.method))]
+        .map((m) => METHOD_LABEL[m] ?? m)
+        .join(" | "),
       o.source,
       o.customer?.name ?? "",
       o.customer?.phone ?? "",

@@ -99,5 +99,6 @@ rm -rf node_modules/server-only node_modules/client-only
 - **Never** reintroduce mock/DB-off fallbacks — app is real-DB-only (seed fixtures in `prisma/seed-data/`).
 - Migrations are hand-authored timestamped folders; they apply in CI via `vercel.json`'s `prisma migrate deploy`. Never `prisma db push` in prod.
 - Passing a **function** prop from a Server Component to a Client Component throws — pass pre-formatted strings/arrays instead (see `LineChart`'s `valueLabels`).
+- The mirror of that rule: a Server Component must **never import a plain value** (a const array/object, a helper) out of a `"use client"` module — it receives a client-reference Proxy and throws on first use (`Attempted to call includes() from the server`). Importing a *component* is fine. Put shared constants in a plain module both sides import — see `src/lib/pagination.ts`. `tsc` and `next build` both miss this (the import is type-correct, and `force-dynamic` pages are never prerendered), so `pnpm check:boundaries` enforces it and runs first in the Vercel build.
 - `exactOptionalPropertyTypes` is on — spread optional props conditionally (`{...(cond ? { x } : {})}`), don't pass `undefined`.
 - Local-only Bumpa scripts were historically excluded from commits; they're committed now specifically for the laptop move.
