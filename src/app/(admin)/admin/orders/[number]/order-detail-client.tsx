@@ -252,6 +252,11 @@ export function OrderDetailClient({ params, order }: PageProps) {
     shipState: order.shipping.state,
   });
 
+  // Edit delivery fee (kobo) — for orders placed with the fee "to be confirmed"
+  const [shipOpen, setShipOpen] = React.useState(false);
+  const [shipSaving, setShipSaving] = React.useState(false);
+  const [shipKobo, setShipKobo] = React.useState<number | null>(null);
+
   // Edit manual discount (kobo)
   const [discountOpen, setDiscountOpen] = React.useState(false);
   const [discountSaving, setDiscountSaving] = React.useState(false);
@@ -383,6 +388,28 @@ export function OrderDetailClient({ params, order }: PageProps) {
   function openDiscount() {
     setDiscountKobo(order.totals.manualDiscountKobo || null);
     setDiscountOpen(true);
+  }
+
+  function openShipping() {
+    setShipKobo(Number(order.totals.shippingKobo) || null);
+    setShipOpen(true);
+  }
+
+  async function submitShipping() {
+    setShipSaving(true);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.number}/shipping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingKobo: shipKobo ?? 0 }),
+      });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json?.error?.message ?? "Could not update the delivery fee"); return; }
+      toast.success("Delivery fee updated");
+      setShipOpen(false);
+      router.refresh();
+    } catch { toast.error("Network error"); }
+    finally { setShipSaving(false); }
   }
 
   async function submitDiscount() {
@@ -1011,12 +1038,20 @@ export function OrderDetailClient({ params, order }: PageProps) {
                     )}
                     <TotalRow
                       label={
-                        <span>
+                        <span className="inline-flex items-center gap-1.5">
                           Shipping{" "}
                           {shipping > 0 && (
                             <span className="text-[10px] text-fg-muted font-medium">
                               · {order.shipping.state} zone
                             </span>
+                          )}
+                          {canEditFields && (
+                            <button
+                              onClick={openShipping}
+                              className="text-[11px] font-semibold text-brand-primary hover:underline"
+                            >
+                              Edit
+                            </button>
                           )}
                         </span>
                       }
@@ -1633,6 +1668,37 @@ export function OrderDetailClient({ params, order }: PageProps) {
             <Button onClick={submitDetails} disabled={detailsSaving}>
               {detailsSaving && <Loader2 className="size-4 animate-spin" />}
               Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit delivery fee */}
+      <Dialog open={shipOpen} onOpenChange={(o) => !shipSaving && setShipOpen(o)}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Delivery fee</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-2">
+            <Field
+              id="ship-amount"
+              label="Delivery fee"
+              hint="The fee agreed with the customer. The order total updates to match."
+            >
+              <CurrencyInput
+                id="ship-amount"
+                {...(shipKobo != null ? { valueKobo: shipKobo } : {})}
+                onValueChange={setShipKobo}
+              />
+            </Field>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setShipOpen(false)} disabled={shipSaving}>
+              Cancel
+            </Button>
+            <Button onClick={submitShipping} disabled={shipSaving}>
+              {shipSaving && <Loader2 className="size-4 animate-spin" />}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

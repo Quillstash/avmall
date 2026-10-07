@@ -22,7 +22,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildAvmallTools, DAILZERO_MAX_TOOLS } from "@/lib/ai/dailzero-tools";
+import { buildAvmallTools, channelForAgent, DAILZERO_MAX_TOOLS } from "@/lib/ai/dailzero-tools";
 import { createDailzeroClient } from "@/lib/dailzero";
 import { currentToolToken, planAgentSync, pushAndVerify } from "@/lib/ai/sync-tools";
 import { SITE } from "@/lib/site";
@@ -119,7 +119,7 @@ async function main() {
       console.log(`   ⚠ ${msg}`);
     }
 
-    const desired = buildAvmallTools(baseUrl, token);
+    const desired = buildAvmallTools(baseUrl, token, channelForAgent(agent.businessName));
     if (desired.length > DAILZERO_MAX_TOOLS) fail(`${desired.length} tools; Dailzero allows ${DAILZERO_MAX_TOOLS}.`);
 
     const plan = planAgentSync(agent, current, desired);

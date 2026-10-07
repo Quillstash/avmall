@@ -20,6 +20,7 @@ import { canonicalStateName, resolveShipping } from "@/lib/shipping-zone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { formatMoney } from "@/lib/money";
 import { nairaParamToKobo } from "@/lib/ai/naira-input";
+import { DELIVERY_TBC, DELIVERY_TBC_MESSAGE, hasDeliveryPrice } from "@/lib/ai/delivery";
 import { AppError, ValidationError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -54,18 +55,17 @@ export async function GET(req: NextRequest) {
       netSubtotalKobo: subtotalKobo,
     });
 
-    if (r.source === "none") {
+    if (!hasDeliveryPrice(r)) {
+      // No price for this place (no zone, only the generic fallback, or a zone
+      // left at ₦0): staff confirm the fee rather than the agent guessing one.
       return NextResponse.json(
         apiSuccess({
           requestedState,
           matchedState,
-          zone: null,
-          etaDays: null,
-          shipping: null,
-          qualifiesForFreeShipping: false,
-          unavailable: true,
-          message:
-            "We don't have a delivery price for this location. Don't guess one: give the customer the WhatsApp link from get_store_info for a custom quote.",
+          ...(requestedLga && { requestedArea: requestedLga }),
+          shipping: DELIVERY_TBC,
+          deliveryFeeConfirmedByStaff: true,
+          message: DELIVERY_TBC_MESSAGE,
         }),
       );
     }
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       requestedLga && r.source !== "area"
         ? {
             areaMatched: false,
-            areaMessage: `We don't have a specific delivery price for "${requestedLga}", so this is the general ${r.source === "fallback" ? "standard" : matchedState} rate. Say so, and that the shop will confirm the exact fee for ${requestedLga} if it differs.`,
+            areaMessage: `We don't have a specific delivery price for "${requestedLga}", so this is the general ${matchedState} rate. Say so, and that a member of our team will confirm the exact fee for ${requestedLga} if it differs.`,
           }
         : requestedLga
           ? { areaMatched: true }
@@ -90,7 +90,6 @@ export async function GET(req: NextRequest) {
         etaDays: r.zone?.etaDays ?? null,
         shipping: r.freeShippingEligible ? "Free" : formatMoney(r.shippingKobo),
         qualifiesForFreeShipping: r.freeShippingEligible,
-        fallback: r.source === "fallback",
         ...areaNote,
       }),
     );

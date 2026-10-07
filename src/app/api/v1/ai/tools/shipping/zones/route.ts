@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import { DELIVERY_TBC, DELIVERY_TBC_MESSAGE } from "@/lib/ai/delivery";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError } from "@/lib/errors";
 
@@ -29,13 +30,10 @@ export async function GET() {
       throw new AppError("DB_NOT_CONFIGURED", "Shipping zones require DATABASE_URL.", 503);
     }
 
-    const [zones, fb] = await Promise.all([
-      db.shippingZone.findMany({
-        where: { active: true },
-        orderBy: { name: "asc" },
-      }),
-      db.fallbackShipping.findFirst(),
-    ]);
+    const zones = await db.shippingZone.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+    });
 
     return NextResponse.json(
       apiSuccess({
@@ -50,8 +48,8 @@ export async function GET() {
             return {
               name: z.name,
               states: z.states,
-              rate: null,
-              note: "No delivery price set for this zone; the standard (fallback) rate applies.",
+              rate: DELIVERY_TBC,
+              note: "No delivery price set for this zone: a member of our team confirms the fee with the customer.",
               etaDays: z.etaDays,
             };
           }
@@ -63,16 +61,11 @@ export async function GET() {
             etaDays: z.etaDays,
           };
         }),
-        fallback:
-          fb?.enabled
-            ? {
-                rate: formatMoney(Number(fb.flatRateKobo)),
-                etaDays: fb.etaDays,
-                note: "Applied to any state not covered by a zone above.",
-              }
-            : null,
+        // The flat fallback is a placeholder, not a price for anywhere in
+        // particular — so outside the zones above, staff confirm the fee.
+        otherLocations: DELIVERY_TBC_MESSAGE,
         message:
-          "These are the live delivery prices from admin, already in naira — show them exactly as given. Match the customer's state to a zone; if none covers it, the fallback applies (or shipping is unavailable when there is no fallback).",
+          "These are the live delivery prices from admin, already in naira — show them exactly as given. Match the customer's state to a zone; for anywhere no zone covers, a member of our team confirms the delivery fee.",
       }),
     );
   } catch (err) {

@@ -11,7 +11,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
-import { AppError, NotFoundError } from "@/lib/errors";
+import { AppError } from "@/lib/errors";
+import { supportContact, SUPPORT_HINT } from "@/lib/ai/support-contact";
 import { formatMoney } from "@/lib/money";
 
 export const runtime = "nodejs";
@@ -50,7 +51,18 @@ export async function GET(
         },
       },
     });
-    if (!order) throw new NotFoundError("Order");
+    if (!order) {
+      // A 200 with found:false rather than a bare 404, so the agent gets the
+      // real support contact instead of inventing one.
+      return NextResponse.json(
+        apiSuccess({
+          found: false,
+          number: params.number,
+          message: `No order ${params.number}. Check the number with the customer (format AVM-2026-00000123). ${SUPPORT_HINT}`,
+          support: await supportContact(),
+        }),
+      );
+    }
 
     const totalKobo = Number(order.totalKobo);
     const paidKobo = Number(order.paidKobo);

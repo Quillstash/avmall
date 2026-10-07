@@ -29,6 +29,7 @@ import { db, hasDatabase } from "@/lib/db";
 import { requireAiAgent } from "@/lib/ai-auth";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
 import { resolveShipping } from "@/lib/shipping-zone";
+import { DELIVERY_TBC, hasDeliveryPrice } from "@/lib/ai/delivery";
 import { reserveStock } from "@/lib/stock";
 import { getMainStoreId } from "@/lib/store";
 import { withIdempotency } from "@/lib/idempotency";
@@ -186,9 +187,13 @@ export async function POST(req: NextRequest) {
         lga: body.shipping.city,
         netSubtotalKobo: dryShip.subtotalKobo - dryShip.bulkDiscountKobo,
       });
-      const shippingKobo = resolvedShipping.shippingKobo;
-      const shippingZoneId = resolvedShipping.zoneId;
-      const freeShippingEligible = resolvedShipping.freeShippingEligible;
+      // No delivery price for this address: don't charge a guess (the generic
+      // fallback). Order at ₦0 delivery with a note; staff agree the fee with
+      // the customer and set it from the order page (Shipping → Edit).
+      const deliveryTbc = !hasDeliveryPrice(resolvedShipping);
+      const shippingKobo = deliveryTbc ? 0 : resolvedShipping.shippingKobo;
+      const shippingZoneId = deliveryTbc ? null : resolvedShipping.zoneId;
+      const freeShippingEligible = deliveryTbc ? false : resolvedShipping.freeShippingEligible;
 
       const quote = computeQuote({
         lines: inputLines,
@@ -258,6 +263,15 @@ export async function POST(req: NextRequest) {
             include: { lines: true },
           });
 
+          if (deliveryTbc) {
+            await tx.orderNote.create({
+              data: {
+                orderId: created.id,
+                text: `Delivery fee to be confirmed: there's no delivery price for ${body.shipping.city}, ${body.shipping.state}, so the AI placed this order without one. Agree the fee with the customer, then set it under Shipping → Edit.`,
+              },
+            });
+          }
+
           await tx.stockReservation.updateMany({
             where: { orderId: null, status: "active" },
             data: { orderId: created.id },
@@ -303,7 +317,12 @@ export async function POST(req: NextRequest) {
             total: formatMoney(Number(order.totalKobo)),
             paid: formatMoney(Number(order.paidKobo)),
             outstanding: formatMoney(Number(order.totalKobo) - Number(order.paidKobo)),
+            ...(deliveryTbc && { delivery: DELIVERY_TBC }),
           },
+          ...(deliveryTbc && {
+            message:
+              "This total is for the items only. Tell the customer a member of our team will confirm the delivery fee with them and add it to the order; don't quote one.",
+          }),
         },
         statusCode: 201,
       };

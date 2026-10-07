@@ -30,6 +30,7 @@ import { z } from "zod";
 import { lineItemsInput } from "@/lib/ai/tool-input";
 import { db, hasDatabase } from "@/lib/db";
 import { computeQuote, type QuoteInputLine } from "@/lib/cart-quote";
+import { DELIVERY_TBC, DELIVERY_TBC_MESSAGE, hasDeliveryPrice } from "@/lib/ai/delivery";
 import { resolveShipping } from "@/lib/shipping-zone";
 import { getMainStoreId } from "@/lib/store";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
     let shippingKobo = 0;
     let shippingZoneInfo: { name: string; etaDays: string } | null = null;
     let freeShippingEligible = false;
+    let deliveryTbc = false;
     if (body.state) {
       const dry = computeQuote({ lines: inputLines });
       const resolved = await resolveShipping({
@@ -124,9 +126,14 @@ export async function POST(req: NextRequest) {
         lga: body.lga,
         netSubtotalKobo: dry.subtotalKobo - dry.bulkDiscountKobo,
       });
-      shippingKobo = resolved.shippingKobo;
-      freeShippingEligible = resolved.freeShippingEligible;
-      if (resolved.zone) shippingZoneInfo = resolved.zone;
+      if (hasDeliveryPrice(resolved)) {
+        shippingKobo = resolved.shippingKobo;
+        freeShippingEligible = resolved.freeShippingEligible;
+        if (resolved.zone) shippingZoneInfo = resolved.zone;
+      } else {
+        // No price for this address: total the items only; staff confirm delivery.
+        deliveryTbc = true;
+      }
     }
 
     // Coupon
@@ -162,8 +169,11 @@ export async function POST(req: NextRequest) {
         subtotal: formatMoney(quote.subtotalKobo),
         bulkDiscount: formatMoney(quote.bulkDiscountKobo),
         couponDiscount: formatMoney(quote.couponDiscountKobo),
-        shipping: formatMoney(quote.shippingKobo),
-        displayTotal: formatMoney(quote.totalKobo),
+        shipping: deliveryTbc ? DELIVERY_TBC : formatMoney(quote.shippingKobo),
+        displayTotal: deliveryTbc
+          ? `${formatMoney(quote.totalKobo)} + delivery (to be confirmed)`
+          : formatMoney(quote.totalKobo),
+        ...(deliveryTbc && { deliveryFeeConfirmedByStaff: true, message: DELIVERY_TBC_MESSAGE }),
         freeShipping: freeShippingEligible,
         itemCount: quote.itemCount,
         ...(coupon && {

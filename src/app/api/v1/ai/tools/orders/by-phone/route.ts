@@ -14,6 +14,7 @@ import { requireAiAgent } from "@/lib/ai-auth";
 import { getMainStoreId } from "@/lib/store";
 import { normaliseNigerianPhone } from "@/lib/phone";
 import { apiSuccess, handleApiError } from "@/lib/api-response";
+import { supportContact, SUPPORT_HINT } from "@/lib/ai/support-contact";
 import { AppError, ValidationError } from "@/lib/errors";
 import { formatMoney } from "@/lib/money";
 
@@ -47,7 +48,13 @@ export async function GET(req: NextRequest) {
       : null;
     if (!customer) {
       return NextResponse.json(
-        apiSuccess({ phone, customerFound: false, orders: [] }),
+        apiSuccess({
+          phone,
+          customerFound: false,
+          orders: [],
+          message: `No orders under ${phone}. Ask if they used another number, or for the order number. ${SUPPORT_HINT}`,
+          support: await supportContact(),
+        }),
       );
     }
 
@@ -70,6 +77,10 @@ export async function GET(req: NextRequest) {
         phone,
         customerFound: true,
         customer: { name: customer.name, blacklisted: customer.blacklisted },
+        ...(orders.length === 0 && {
+          message: `No orders under ${phone}. ${SUPPORT_HINT}`,
+          support: await supportContact(),
+        }),
         orders: orders.map((o) => ({
           number: o.number,
           status: o.status,

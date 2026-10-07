@@ -20,7 +20,7 @@ import { apiSuccess, handleApiError } from "@/lib/api-response";
 import { AppError, ValidationError } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { SITE } from "@/lib/site";
-import { buildAvmallTools } from "@/lib/ai/dailzero-tools";
+import { buildAvmallTools, channelForAgent } from "@/lib/ai/dailzero-tools";
 import { createDailzeroClient } from "@/lib/dailzero";
 import { planAgentSync, pushAndVerify } from "@/lib/ai/sync-tools";
 
@@ -63,12 +63,12 @@ export async function POST(req: NextRequest) {
     }
 
     const dz = createDailzeroClient(env.DAILZERO_API_KEY);
-    const desired = buildAvmallTools(baseUrl, env.AI_AGENT_TOKEN);
     const agents = await dz.listAgents();
 
     const results = [];
     for (const agent of agents) {
       const current = await dz.getTools(agent.id);
+      const desired = buildAvmallTools(baseUrl, env.AI_AGENT_TOKEN, channelForAgent(agent.businessName));
       const plan = planAgentSync(agent, current, desired);
       let status: "up_to_date" | "pending" | "pushed" | "blocked" | "drift" = plan.changes.length
         ? "pending"
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json(apiSuccess({ applied: apply, toolCount: desired.length, agents: results }));
+    return NextResponse.json(apiSuccess({ applied: apply, toolCount: buildAvmallTools(baseUrl, "", "web").length, agents: results }));
   } catch (err) {
     return handleApiError(err);
   }
